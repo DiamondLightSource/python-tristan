@@ -14,7 +14,7 @@ class CopyNexusStructure(object):
     def __init__(self, h5_out, h5_in):
         self._fin = h5py.File(h5_in, "r")
         self._nxs = h5py.File(h5_out.split(".")[0] + ".nxs", "x")
-        self._fout.File(h5_out, "r")
+        self._fout = h5py.File(h5_out, "r")
         
     def _get_attributes(self, obj, names, values):
         for n, v in zip(names, values):
