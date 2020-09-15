@@ -206,15 +206,7 @@ class Timepix2MImageConverter(object):
         # else:
             #here it gets more tricky
             #check actual time difference between pulses
-            # continue
-
-         
-        #xyt_cache = np.empty([3, 0])
-        #for j in range(count):
-        #    _pos = pos_dset[j*step:(j+1)*step]
-        #    _time = time_dset[j*step:(j+1)*step]
-        #    xyt = self.get_data(_pos, _time)
-        #    xyt = np.concatenate([xyt_cache, xyt], axis=-1)
+            # continu
         
     def run(self):
         self.create_images()
