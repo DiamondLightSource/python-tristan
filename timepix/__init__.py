@@ -97,4 +97,5 @@ def coordinates(event_location: Union[int, np.ndarray]) -> _coordinate_type:
     Returns:
         A tuple (x, y) of decoded coordinates.
     """
-    return event_location & 0x1FFF, event_location >> 13 & 0x1FFF
+    y, x = divmod(event_location, 0x2000)
+    return x, y
