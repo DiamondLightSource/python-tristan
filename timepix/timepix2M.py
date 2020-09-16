@@ -224,7 +224,7 @@ class Timepix2MImageConverter(object):
             xyt = xyt[:, (xyt[2] > t_i) & (xyt[2] < t_f)]
             img = self.make_histogram(xyt)
             self.write_to_file(dset, img)
-        elif len(ttl_up == 0):
+        elif len(ttl_up) == 0:
             print("WARNING: No laser pulse")
             # Create dataset in output file
             dset = self._fout.create_dataset(
