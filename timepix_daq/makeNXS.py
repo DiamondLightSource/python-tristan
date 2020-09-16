@@ -452,7 +452,8 @@ class NexusWriter(object):
         nxtr["kappa"] = self._nxs["/entry/sample/sample_kappa/kappa"]
         nxtr["omega"] = self._nxs["/entry/sample/sample_omega/omega"]
         nxtr["phi"] = self._nxs["/entry/sample/sample_phi/phi"]
-        # nxtr["phi"] = nxs["/entry/data/phi"]
+        nxtr["two_theta"] = self._nxs["entry/instrument/transformations/two_theta"]
+        nxtr["det_z"] = self._nxs["entry/instrument/transformations/det_z"]
 
     def write_NXnote(self, nxentry):
         nxnote = nxentry.create_group("Comments")
