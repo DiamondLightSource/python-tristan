@@ -204,6 +204,7 @@ class Timepix2MImageConverter(object):
         #     count = (self._num_events // step) + 1
 
         # There should only be one laser pulse in this one experiment
+
         if len(ttl_up) == 1:
             # Create dataset in output file
             dset = self._fout.create_dataset(
@@ -223,17 +224,33 @@ class Timepix2MImageConverter(object):
             xyt = xyt[:, (xyt[2] > t_i) & (xyt[2] < t_f)]
             img = self.make_histogram(xyt)
             self.write_to_file(dset, img)
-            # Bin images
-            # xyt_cache = np.empty([3, 0])
-            # for j in range(count):
-            #    _pos = pos_dset[j*step:(j+1)*step]
-            #    _time = time_dset[j*step:(j+1)*step]
-            #    xyt = self.get_data(_pos, _time)
-            #    xyt = np.concatenate([xyt_cache, xyt], axis=-1)
-            #    xyt = xyt[:, (_time > t_i)&(_time < t_f)]
-            #    img = self.make_histogram(xyt)
-            # Write images to file
-            #    self.write_to_file(dset, img)
+        elif len(ttl_up == 0):
+            print("WARNING: No laser pulse")
+            # Create dataset in output file
+            dset = self._fout.create_dataset(
+                "laserpulse_0",
+                shape=(0, self._shape[0], self._shape[1]),
+                maxshape=(None, self._shape[0], self._shape[1]),
+                dtype="i4",
+                chunks=(1, self._shape[0], self._shape[1]),
+                compression="lzf",
+            )
+            _pos = pos_dset[()]
+            _time = time_dset[()]
+            xyt = self.get_data(_pos, _time)
+            img = self.make_histogram(xyt)
+            self.write_to_file(dset, img)
+        # Bin images
+        # xyt_cache = np.empty([3, 0])
+        # for j in range(count):
+        #    _pos = pos_dset[j*step:(j+1)*step]
+        #    _time = time_dset[j*step:(j+1)*step]
+        #    xyt = self.get_data(_pos, _time)
+        #    xyt = np.concatenate([xyt_cache, xyt], axis=-1)
+        #    xyt = xyt[:, (_time > t_i)&(_time < t_f)]
+        #    img = self.make_histogram(xyt)
+        # Write images to file
+        #    self.write_to_file(dset, img)
         # else:
         # here it gets more tricky
         # check actual time difference between pulses
