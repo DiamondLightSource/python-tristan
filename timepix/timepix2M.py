@@ -95,7 +95,7 @@ class Timepix2MImageConverter(object):
         self._step = step
 
         # Open output file
-        self._fout = h5py.File(image_file[0], "x")
+        self._fout = h5py.File(image_file[0].split(".")[0] + ".h5", "x")
 
         # Discover shutter times
         self._open, self._close = self._discover_shutter_times()
