@@ -372,7 +372,7 @@ class NexusWriter(object):
             data=detector_params["beam"]["incident_wavelength"][0],
         )
         _get_attributes(
-            wl, ("units",), (detector_params["beam"]["incident_wavelength"][0],)
+            wl, ("units",), (detector_params["beam"]["incident_wavelength"][1],)
         )
         flux = nxbeam.create_dataset("total_flux", data=0.0)
         _get_attributes(flux, ("units",), ("Hz",))
