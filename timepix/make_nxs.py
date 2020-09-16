@@ -51,7 +51,10 @@ class CopyNexusStructure(object):
         _get_attributes(nxdata, ("NX_class", "axes", "signal"), ("NXdata", _ax, "data"))
 
         # Add link to data
-        nxdata["data"] = h5py.ExternalLink(self._fout.filename, "/")
+        data = nxdata.create_group("data")
+        for k in self._fout.keys():
+            data[k] = h5py.ExternaleLink(self._fout.filename, k)
+        # nxdata["data"] = h5py.ExternalLink(self._fout.filename, "/")
 
         # Close everything
         self._fin.close()
