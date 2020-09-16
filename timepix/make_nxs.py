@@ -53,7 +53,7 @@ class CopyNexusStructure(object):
         # Add link to data
         data = nxdata.create_group("data")
         for k in self._fout.keys():
-            data[k] = h5py.ExternaleLink(self._fout.filename, k)
+            data[k] = h5py.ExternalLink(self._fout.filename, k)
         # nxdata["data"] = h5py.ExternalLink(self._fout.filename, "/")
 
         # Close everything

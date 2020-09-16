@@ -252,9 +252,8 @@ class Timepix2MImageConverter(object):
         # Write images to file
         #    self.write_to_file(dset, img)
         # else:
-        # here it gets more tricky
+        # there is more than one pulse
         # check actual time difference between pulses
-        # continu
 
     def run(self):
         self.create_images()
