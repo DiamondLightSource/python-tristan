@@ -8,34 +8,52 @@ experimental Timepix-based event-mode detector, codenamed Tristan, at Diamond Li
 Source.
 """
 
-from typing import Tuple, Union
+from typing import Iterable, Tuple
 
 import h5py
 import numpy as np
 
-_coordinate_type = Union[Tuple[int, int], Tuple[np.ndarray, np.ndarray]]
+clock_frequency = 6.4e8
 
 # Translations of the cue_id messages.
+padding = 0
+sync = 0x800
+sync_module_1 = 0x801
+sync_module_2 = 0x802
+shutter_open = 0x840
+shutter_open_module_1 = 0x841
+shutter_open_module_2 = 0x842
+shutter_close = 0x880
+shutter_close_module_1 = 0x881
+shutter_close_module_2 = 0x882
+fem_falling = 0x8C1
+fem_rising = 0x8E1
+ttl_falling = 0x8C9
+ttl_rising = 0x8E9
+lvds_falling = 0x8CA
+lvds_rising = 0x8EA
+reserved = 0xF00
+
 cues = {
-    0x000: "Padding",
-    0x800: "Extended time stamp, global synchronisation signal",
-    0x801: "Extended time stamp, sensor module 1",
-    0x802: "Extended time stamp, sensor module 2",
-    0x840: "Shutter open time stamp, global",
-    0x841: "Shutter open time stamp, sensor module 1",
-    0x842: "Shutter open time stamp, sensor module 2",
-    0x880: "Shutter close time stamp, global",
-    0x881: "Shutter close time stamp, sensor module 1",
-    0x882: "Shutter close time stamp, sensor module 2",
-    0x8C1: "FEM trigger input, falling edge",
-    0x8E1: "FEM trigger input, rising edge",
-    0x8C9: "Clock trigger TTL input, falling edge",
-    0x8E9: "Clock trigger TTL input, rising edge",
-    0x8CA: "Clock trigger LVDS input, falling edge",
-    0x8EA: "Clock trigger LVDS input, rising edge",
+    padding: "Padding",
+    sync: "Extended time stamp, global synchronisation signal",
+    sync_module_1: "Extended time stamp, sensor module 1",
+    sync_module_2: "Extended time stamp, sensor module 2",
+    shutter_open: "Shutter open time stamp, global",
+    shutter_open_module_1: "Shutter open time stamp, sensor module 1",
+    shutter_open_module_2: "Shutter open time stamp, sensor module 2",
+    shutter_close: "Shutter close time stamp, global",
+    shutter_close_module_1: "Shutter close time stamp, sensor module 1",
+    shutter_close_module_2: "Shutter close time stamp, sensor module 2",
+    fem_falling: "FEM trigger input, falling edge",
+    fem_rising: "FEM trigger input, rising edge",
+    ttl_falling: "Clock trigger TTL input, falling edge",
+    ttl_rising: "Clock trigger TTL input, rising edge",
+    lvds_falling: "Clock trigger LVDS input, falling edge",
+    lvds_rising: "Clock trigger LVDS input, rising edge",
     0xBC6: "Error: messages out of sync",
     0xBCA: "Error: messages out of sync",
-    0xF00: "Reserved",
+    reserved: "Reserved",
 }
 
 # Keys of event data in the HDF5 file structure.
@@ -61,6 +79,21 @@ def first_cue_time(data: h5py.File, message: int) -> int:
     return data[cue_time_key][index].astype(int)
 
 
+def cue_times(data: h5py.File, message: int) -> Iterable[int]:
+    """
+    Find the timestamps of all instances of a cue message in a data file.
+
+    Args:
+        data:  A NeXus-like LATRD data file.
+        message:  The message code, as defined in the Tristan standard.
+
+    Returns:
+        The timestamps, measured in clock cycles from the global synchronisation signal.
+    """
+    index = np.nonzero(data[cue_id_key][...] == message)
+    return data[cue_time_key][index].astype(int)
+
+
 def seconds(timestamp: int, reference: int = 0) -> float:
     """
     Convert a Tristan timestamp to seconds, measured from a given time.
@@ -80,7 +113,7 @@ def seconds(timestamp: int, reference: int = 0) -> float:
     return (timestamp - reference) / 6.4e8
 
 
-def coordinates(event_location: Union[int, np.ndarray]) -> _coordinate_type:
+def coordinates(event_location: int) -> Tuple[int, int]:
     """
     Extract pixel coordinate information from an event location message.
 
