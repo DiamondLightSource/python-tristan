@@ -102,9 +102,9 @@ class Timepix2MImageConverter(object):
 
         # Discover ttl_rising trigger times
         self._ttl = self._discover_trigger_times()
-        assert (
-            len(self._ttl) > 0
-        ), "No ttl_rising trigger messages found in either module."
+        # assert (
+        #     len(self._ttl) > 0
+        # ), "No ttl_rising trigger messages found in either module."
 
     def _discover_shutter_times(self):
         """Finds out the timestamps of the shutter open and close signals."""
