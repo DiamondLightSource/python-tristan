@@ -9,8 +9,7 @@ import argparse
 
 import h5py
 import numpy as np
-
-from .make_nxs import CopyNexusStructure
+from make_nxs import CopyNexusStructure
 
 # Trigger messages
 shutter_open = 0x840
@@ -221,7 +220,7 @@ class Timepix2MImageConverter(object):
             _pos = pos_dset[()]
             _time = time_dset[()]
             xyt = self.get_data(_pos, _time)
-            xyt = xyt[:, (_time > t_i) & (_time < t_f)]
+            xyt = xyt[:, (xyt[2] > t_i) & (xyt[2] < t_f)]
             img = self.make_histogram(xyt)
             self.write_to_file(dset, img)
             # Bin images
