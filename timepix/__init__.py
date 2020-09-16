@@ -67,8 +67,8 @@ def seconds(timestamp: int, reference: int = 0) -> float:
 
     The time between the provided timestamp and a reference timestamp, both provided
     as a number of cock cycles from the same time origin, is converted to units of
-    seconds.  By default, the reference timestamp is the beginning of the detector
-    epoch (the global synchronisation signal).
+    seconds.  By default, the reference timestamp is zero clock cycles, the beginning
+    of the detector epoch.
 
     Args:
         timestamp:  A timestamp in number of clock cycles, to be converted to seconds.
