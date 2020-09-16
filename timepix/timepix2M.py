@@ -175,6 +175,7 @@ class Timepix2MImageConverter(object):
         else:
             count = (self._num_events // step) + 1
 
+        # There should only be one laser pulse in this one experiment
         if len(ttl_up) == 1:
             # Create dataset in output file
             dset = self._fout.create_dataset(
@@ -187,6 +188,7 @@ class Timepix2MImageConverter(object):
             )
             # Get interval of interest around pulse
             t_i, t_f = self.get_time_interval(ttl_up[0])
+            # Bin images
             _pos = pos_dset[()]
             _time = time_dset[()]
             xyt = self.get_data(_pos, _time)
