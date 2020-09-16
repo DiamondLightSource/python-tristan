@@ -155,11 +155,6 @@ class Timepix2MImageConverter(object):
         images = np.moveaxis(images, 2, 0)
         images = images.astype(np.uint32, copy=False)
         
-        # Insert the three-pixel panel spacing as zeros.  The panels are 256—256 pixels.
-        # DO NOT NEED HERE
-        #images = np.insert(images, 256, 0, axis=1)
-        #images = np.insert(images, 256, 0, axis=2)
-
         return images
 
     def create_images(self):
@@ -192,17 +187,23 @@ class Timepix2MImageConverter(object):
             )
             # Get interval of interest around pulse
             t_i, t_f = self.get_time_interval(ttl_up[0])
+            _pos = pos_dset[()]
+            _time = time_dset[()]
+            xyt = self.get_data(_pos, _time)
+            xyt = xyt[:, (_time > t_i)&(_time < t_f)]
+            img = self.make_histogram(xyt)
+            self.write_to_file(dset, img)
             # Bin images
-            xyt_cache = np.empty([3, 0])
-            for j in range(count):
-                _pos = pos_dset[j*step:(j+1)*step]
-                _time = time_dset[j*step:(j+1)*step]
-                xyt = self.get_data(_pos, _time)
-                xyt = np.concatenate([xyt_cache, xyt], axis=-1)
-                xyt = xyt[:, (_time > t_i)&(_time < t_f)]
-                img = self.make_histogram(xyt)
+            #xyt_cache = np.empty([3, 0])
+            #for j in range(count):
+            #    _pos = pos_dset[j*step:(j+1)*step]
+            #    _time = time_dset[j*step:(j+1)*step]
+            #    xyt = self.get_data(_pos, _time)
+            #    xyt = np.concatenate([xyt_cache, xyt], axis=-1)
+            #    xyt = xyt[:, (_time > t_i)&(_time < t_f)]
+            #    img = self.make_histogram(xyt)
                 # Write images to file
-                self.write_to_file(dset, img)
+            #    self.write_to_file(dset, img)
         # else:
             #here it gets more tricky
             #check actual time difference between pulses
