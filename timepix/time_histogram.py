@@ -6,7 +6,7 @@
 import argparse
 import os
 import sys
-from typing import Optional, Sequence
+from typing import List, Optional, Sequence
 
 import h5py
 import numpy as np
@@ -34,7 +34,7 @@ ureg = pint.UnitRegistry()
 Q_ = ureg.Quantity
 
 
-def select_roi(data_file, events_group, selection, labels) -> np.ndarray:
+def select_roi(data_file, events_group, selection, labels) -> (np.ndarray, List[int]):
     size = data_file.get(size_key)
     x1, x2 = sorted(selection[:2])
     y1, y2 = sorted(selection[2:])
@@ -59,13 +59,13 @@ def select_roi(data_file, events_group, selection, labels) -> np.ndarray:
             "cannot be checked for consistency."
         )
 
-    x, y = coordinates(data_file[events_group + event_location_key])
-    index = np.argnonzero(x1 <= x & x <= x2 & y1 <= y & y <= y2)
+    x, y = coordinates(data_file[events_group + event_location_key][...])
+    index = np.flatnonzero((x1 <= x) & (x <= x2) & (y1 <= y) & (y <= y2))
 
     if not index.size:
         sys.exit("The region of interest contains no events.")
 
-    return index
+    return index, roi
 
 
 def make_figure(
@@ -83,7 +83,7 @@ def make_figure(
         (start_time <= laser_pulse_times) & (laser_pulse_times <= end_time)
     ]
 
-    figure, _ = plot_histogram(
+    figure, axes = plot_histogram(
         data_file[events_group + event_time_key],
         start_time,
         end_time,
@@ -92,7 +92,7 @@ def make_figure(
         selection,
     )
 
-    return figure
+    return figure, axes
 
 
 def plot_histogram(
@@ -255,11 +255,21 @@ if __name__ == "__main__":
                 )
 
             if args.selection:
-                index = select_roi(data, group, args.selection, select.metavar)
+                index, roi = select_roi(data, group, args.selection, select.metavar)
             else:
                 index = Ellipsis
+                roi = None
 
-            fig = make_figure(data, group, args.exposure_time, index)
+            fig, ax = make_figure(data, group, args.exposure_time, index)
+            if roi:
+                title = ", ".join(
+                    [
+                        ax.title.get_text(),
+                        " ≤ x ≤ ".join(roi[:2]),
+                        " ≤ y ≤ ".join(roi[2:]),
+                    ]
+                )
+                ax.set_title(title)
             fig.savefig(output_file)
             print(f"Histogram plot saved to\n\t{output_file}.svg")
 
