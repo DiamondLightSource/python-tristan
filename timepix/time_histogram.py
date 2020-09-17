@@ -85,7 +85,8 @@ def plot_histogram(
     # Plot the histogram.
     ax.hist(seconds(events[...].astype(int), start), bins)
 
-    ax.set_title(rf"Exposure time: {seconds(exposure_time)}$\,$s")
+    ax.set_title(f"Exposure time: {Q_(seconds(exposure_time), 's').to_compact():~.0f}")
+    ax.ticklabel_format(axis="y", style="scientific", scilimits=(0, 3))
     ax.set_ylabel("Number of events")
     if pulses:
         ax.set_xlabel("Time from first laser pulse (seconds)")
@@ -160,7 +161,6 @@ def _parse_args(arguments: List[str] = None) -> argparse.Namespace:
         # nargs="+",
         # default=[int(default_exposure * clock_frequency)],
         default=int(default_exposure * clock_frequency),
-        type=float,
         help=f"The size of each time bin in seconds.  "
         f"Defaults to {Q_(default_exposure, 's').to_compact():~.0f}.",
         action=_ClockCyclesAction,
@@ -169,7 +169,6 @@ def _parse_args(arguments: List[str] = None) -> argparse.Namespace:
         "-o",
         "--output-file",
         metavar="filename",
-        type=str,
         help="Output file name for the plotted histogram.",
     )
 
