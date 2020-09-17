@@ -83,7 +83,7 @@ def plot_histogram(
         ax.axvline(pulse, color="r")
 
     # Plot the histogram.
-    ax.hist(seconds(events, start), bins)
+    ax.hist(seconds(events[...].astype(int), start), bins)
 
     ax.set_title(rf"Exposure time: {seconds(exposure_time)}$\,$s")
     ax.set_ylabel("Number of events")
