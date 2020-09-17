@@ -27,7 +27,7 @@ from timepix import (
     ttl_rising,
 )
 
-ureg = pint.UnitRegistry(fmt_locale="en_GB")
+ureg = pint.UnitRegistry()
 Q_ = ureg.Quantity
 
 
@@ -120,7 +120,8 @@ def determine_output_file(infile: str, outfile: Optional[str] = None) -> str:
                 "This will be replaced with '.svg'."
             )
     else:
-        visit_dir = os.path.abspath(os.getenv("VISITDIR"))
+        visit_dir = os.getenv("VISITDIR")
+        visit_dir = os.path.abspath(visit_dir) if visit_dir else visit_dir
         if not visit_dir:
             sys.exit(
                 "The output file path could not be determined automatically "
@@ -149,8 +150,9 @@ def _parse_args(arguments: List[str] = None) -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "input-file",
+        "input_file",
         help="NeXus-like data file containing Tristan-standard event data.",
+        metavar="input-file",
     )
     parser.add_argument(
         "-e",
