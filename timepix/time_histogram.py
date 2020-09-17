@@ -117,7 +117,7 @@ def determine_output_file(infile: str, outfile: Optional[str] = None) -> str:
         if ext not in [".svg", ""]:
             print(
                 f"You have specified the invalid output file extension '{ext}'.\n"
-                "This will be replaced with '.svg'."
+                "\tThis will be replaced with '.svg'."
             )
     else:
         visit_dir = os.getenv("VISITDIR")
@@ -126,13 +126,13 @@ def determine_output_file(infile: str, outfile: Optional[str] = None) -> str:
             sys.exit(
                 "The output file path could not be determined automatically "
                 "from the visit directory.\n"
-                "Please specify an output file path with the '-o' option."
+                "\tPlease specify an output file path with the '-o' option."
             )
         elif visit_dir not in infile:
             sys.exit(
                 "The input file you have specified does not belong to the current "
                 "visit on beamline I19.\n"
-                "Please specify an output file path with the '-o' option."
+                "\tPlease specify an output file path with the '-o' option."
             )
         else:
             outfile = os.path.join(
@@ -193,7 +193,7 @@ if __name__ == "__main__":
                 except KeyError:
                     sys.exit(
                         "The input data appear to be invalid.\n"
-                        "Tristan-standard event data cannot be found."
+                        "\tTristan-standard event data cannot be found."
                     )
             else:
                 group = None
@@ -201,5 +201,5 @@ if __name__ == "__main__":
             fig = make_figure(data, group, args.exposure_time)
             fig.savefig(output_file, transparent=True)
 
-    except OSError as e:
-        sys.exit(" ".join(e.strerror, e.filename))
+    except OSError:
+        sys.exit(f"Error, input file does not exist: {args.input_file}")
