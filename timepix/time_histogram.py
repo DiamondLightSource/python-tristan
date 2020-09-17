@@ -6,7 +6,7 @@
 import argparse
 import os
 import sys
-from typing import List, Optional, Sequence
+from typing import Optional, Sequence
 
 import h5py
 import numpy as np
@@ -96,18 +96,6 @@ def plot_histogram(
     return fig, ax
 
 
-class _ClockCyclesAction(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string=None):
-        # values = [int(value * clock_frequency) for value in values]
-        # Parse human-readable input.
-        values = Q_(values)
-        if values.u == ureg.Unit(""):
-            values *= ureg.Unit("s")
-        values *= clock_frequency * ureg.Unit("Hz")
-        values = int(values.to_base_units().m)
-        setattr(namespace, self.dest, values)
-
-
 def determine_output_file(infile: str, outfile: Optional[str] = None) -> str:
     infile = fullpath(infile)
 
@@ -145,41 +133,54 @@ def determine_output_file(infile: str, outfile: Optional[str] = None) -> str:
     return outfile
 
 
-def _parse_args(arguments: List[str] = None) -> argparse.Namespace:
-    default_exposure = 0.1  # s
+class _ClockCyclesAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        # values = [int(value * clock_frequency) for value in values]
+        # Parse human-readable input.
+        values = Q_(values)
+        if values.u == ureg.Unit(""):
+            values *= ureg.Unit("s")
+        values *= clock_frequency * ureg.Unit("Hz")
+        values = int(values.to_base_units().m)
+        setattr(namespace, self.dest, values)
 
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "input_file",
-        help="HDF5 data file containing Tristan-standard event data.\n"
-        "Typically this is either the virtual data set (VDS) '.h5' file written "
-        "by the detector or the NeXus-like '.nxs' file written by the data "
-        "acquisition system.",
-        metavar="input-file",
-    )
-    parser.add_argument(
-        "-e",
-        "--exposure-time",
-        metavar="time",
-        # nargs="+",
-        # default=[int(default_exposure * clock_frequency)],
-        default=int(default_exposure * clock_frequency),
-        help="The size of each time bin in seconds.\n"
-        f"Defaults to {Q_(default_exposure, 's').to_compact():~.0f}.",
-        action=_ClockCyclesAction,
-    )
-    parser.add_argument(
-        "-o",
-        "--output-file",
-        metavar="filename",
-        help="Output file name for the plotted histogram.",
-    )
 
-    return parser.parse_args(arguments)
+class _Formatter(argparse.RawTextHelpFormatter):
+    pass
+
+
+default_exposure = 0.1  # s
+
+_parser = argparse.ArgumentParser(description=__doc__, formatter_class=_Formatter)
+_parser.add_argument(
+    "input_file",
+    help="HDF5 data file containing Tristan-standard event data.\n"
+    "Typically this is either the virtual data set (VDS) '.h5' file written "
+    "by the detector or the NeXus-like '.nxs' file written by the data "
+    "acquisition system.",
+    metavar="input-file",
+)
+_parser.add_argument(
+    "-e",
+    "--exposure-time",
+    metavar="time",
+    # nargs="+",
+    # default=[int(default_exposure * clock_frequency)],
+    default=int(default_exposure * clock_frequency),
+    help="The size of each time bin in seconds.\n"
+    f"Defaults to {Q_(default_exposure, 's').to_compact():~.0f}.",
+    action=_ClockCyclesAction,
+)
+_parser.add_argument(
+    "-o",
+    "--output-file",
+    metavar="filename",
+    help="Output file name for the plotted histogram.",
+)
 
 
 if __name__ == "__main__":
-    args = _parse_args()
+    args = _parser.parse_args()
 
     output_file = determine_output_file(args.input_file, args.output_file)
 
