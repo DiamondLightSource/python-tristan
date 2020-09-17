@@ -63,6 +63,7 @@ cue_time_key = "cue_timestamp_zero"
 event_location_key = "event_id"
 event_time_key = "event_time_offset"
 event_energy_key = "event_energy"
+size_key = "entry/instrument/detector/module/data_size"
 
 
 def fullpath(path: str) -> str:
@@ -153,4 +154,7 @@ def coordinates(event_location: int) -> Tuple[int, int]:
         A tuple (x, y) of decoded coordinates.
     """
     y, x = divmod(event_location, 0x2000)
-    return x, y
+    if isinstance(event_location, np.ndarray):
+        return x.astype(np.int16), y.astype(np.int16)
+    else:
+        return x, y

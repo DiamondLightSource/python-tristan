@@ -16,14 +16,17 @@ from matplotlib.figure import Figure
 
 from timepix import (
     clock_frequency,
+    coordinates,
     cue_id_key,
     cue_times,
+    event_location_key,
     event_time_key,
     first_cue_time,
     fullpath,
     seconds,
     shutter_close,
     shutter_open,
+    size_key,
     ttl_rising,
 )
 
@@ -31,7 +34,46 @@ ureg = pint.UnitRegistry()
 Q_ = ureg.Quantity
 
 
-def make_figure(data_file: h5py.File, events_group: str, exposure_time: int) -> Figure:
+def select_roi(data_file, events_group, selection, labels) -> np.ndarray:
+    size = data_file.get(size_key)
+    x1, x2 = selection[:2].sort()
+    y1, y2 = selection[2:].sort()
+    roi = [x1, x2, y1, y2]
+    if size:
+        tests = np.repeat([range(0, size[0]), range(0, size[1])], 2)
+        if not all(value in bounds for value, bounds in zip(roi, tests)):
+            one_by_one = zip(roi, [np.repeat(size, 2)], labels)
+            for item, top, label in one_by_one:
+                if item < 0:
+                    print(f"{label} is too small, it falls outside the image.")
+                    size = False
+                if item >= top:
+                    print(f"{label} is too large, it falls outside the image.")
+                    size = False
+            sys.exit("The image size is " + " × ".join(size))
+
+    else:
+        print(
+            "Warning:  The input data file does not contain information "
+            "about the detector size.  Your region of interest bounds "
+            "cannot be checked for consistency."
+        )
+
+    x, y = coordinates(data_file[events_group + event_location_key])
+    index = np.argnonzero(x1 <= x & x <= x2 & y1 <= y & y <= y2)
+
+    if not index.size:
+        sys.exit("The region of interest contains no events.")
+
+    return index
+
+
+def make_figure(
+    data_file: h5py.File,
+    events_group: str,
+    exposure_time: int,
+    selection: np.ndarray = Ellipsis,
+) -> Figure:
     start_time = first_cue_time(data_file, shutter_open, events_group=events_group)
     end_time = first_cue_time(data_file, shutter_close, events_group=events_group)
 
@@ -47,6 +89,7 @@ def make_figure(data_file: h5py.File, events_group: str, exposure_time: int) -> 
         end_time,
         exposure_time,
         laser_pulse_times,
+        selection,
     )
 
     return figure
@@ -58,6 +101,7 @@ def plot_histogram(
     end: int,
     exposure_time: int,
     pulses: Sequence[int] = None,
+    selection: np.ndarray = Ellipsis,
 ) -> (Figure, Axes):
     import matplotlib
 
@@ -86,7 +130,7 @@ def plot_histogram(
         ax.axvline(pulse, color="r")
 
     # Plot the histogram.
-    ax.hist(seconds(events[...].astype(int), start), bins)
+    ax.hist(seconds(events[selection].astype(int), start), bins)
 
     ax.set_title(f"Exposure time: {Q_(seconds(exposure_time), 's').to_compact():~.0f}")
     ax.ticklabel_format(axis="y", style="scientific", scilimits=(0, 3))
@@ -176,6 +220,20 @@ _parser.add_argument(
     metavar="filename",
     help="Output file name for the plotted histogram.",
 )
+select = _parser.add_argument(
+    "-s",
+    "--selection",
+    "--roi",
+    metavar=("x₁", "x₂", "y₁", "y₂"),
+    type=int,
+    nargs=4,
+    help="Bounds of a region of interest.\n"
+    "Perform the histogram only on data falling on pixels with\n"
+    "\tx-position: x₁,₂ ≤ x ≤ x₂,₁;\n"
+    "\ty-position: y₁,₂ ≤ y ≤ y₂,₁.\n"
+    "Values will automatically be rearranged in size order so you need only make "
+    "sure to pass the x-coordinates before the y-coordinates.",
+)
 
 
 if __name__ == "__main__":
@@ -185,21 +243,23 @@ if __name__ == "__main__":
 
     try:
         with h5py.File(args.input_file, "r") as data:
-            try:
-                data[cue_id_key]
-            except KeyError:
-                try:
-                    group = "/entry/data/data/"
-                    _ = data[group + cue_id_key]
-                except KeyError:
-                    sys.exit(
-                        "The input data appear to be invalid.\n"
-                        "\tTristan-standard event data cannot be found."
-                    )
+            if data.get(cue_id_key):
+                group = ""
+            elif data.get("/entry/data/data/" + cue_id_key):
+                group = "/entry/data/data/"
             else:
-                group = None
+                sys.exit(
+                    "The input data appear to be invalid.\n"
+                    "Tristan-standard event data cannot be found in the "
+                    "expected locations."
+                )
 
-            fig = make_figure(data, group, args.exposure_time)
+            if args.selection:
+                index = select_roi(data, group, args.selection, select.metavar)
+            else:
+                index = Ellipsis
+
+            fig = make_figure(data, group, args.exposure_time, index)
             fig.savefig(output_file)
             print(f"Histogram plot saved to\n\t{output_file}.svg")
 
