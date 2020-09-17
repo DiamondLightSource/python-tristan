@@ -8,7 +8,8 @@ experimental Timepix-based event-mode detector, codenamed Tristan, at Diamond Li
 Source.
 """
 
-from typing import Iterable, Tuple
+import os
+from typing import MutableSequence, Optional, Tuple
 
 import h5py
 import numpy as np
@@ -57,41 +58,62 @@ cues = {
 }
 
 # Keys of event data in the HDF5 file structure.
-cue_id_key = "entry/data/data/cue_id"
-cue_time_key = "entry/data/data/cue_timestamp_zero"
-event_location_key = "entry/data/data/event_id"
-event_time_key = "entry/data/data/event_time_offset"
-event_energy_key = "entry/data/data/event_energy"
+cue_id_key = "cue_id"
+cue_time_key = "cue_timestamp_zero"
+event_location_key = "event_id"
+event_time_key = "event_time_offset"
+event_energy_key = "event_energy"
 
 
-def first_cue_time(data: h5py.File, message: int) -> int:
+def fullpath(path: str) -> str:
+    """Get an absolute path with tilde home directory shorthand expanded."""
+    return os.path.abspath(os.path.expanduser(path))
+
+
+def first_cue_time(
+    data: h5py.File, message: int, events_group: Optional[str] = "/"
+) -> Optional[int]:
     """
     Find the timestamp of the first instance of a cue message in a data file.
 
     Args:
         data:  A NeXus-like LATRD data file.
         message:  The message code, as defined in the Tristan standard.
+        events_group:  HDF5 group containing the events data.
 
     Returns:
         The timestamp, measured in clock cycles from the global synchronisation signal.
+        If the message doesn't exist in the data set, this returns None.
     """
-    index = np.argmax(data[cue_id_key][...] == message)
-    return data[cue_time_key][index].astype(int)
+    events_group = events_group or "/"
+
+    index = np.argmax(data[events_group + cue_id_key][...] == message)
+
+    # Catch the case in which the message is not present in the data set.
+    if index == 0 and data[events_group + cue_id_key][0] != message:
+        return None
+
+    return data[events_group + cue_time_key][index].astype(int)
 
 
-def cue_times(data: h5py.File, message: int) -> Iterable[int]:
+def cue_times(
+    data: h5py.File, message: int, events_group: Optional[str] = "/"
+) -> MutableSequence[int]:
     """
     Find the timestamps of all instances of a cue message in a data file.
 
     Args:
         data:  A NeXus-like LATRD data file.
         message:  The message code, as defined in the Tristan standard.
+        events_group:  HDF5 group containing the events data.
 
     Returns:
         The timestamps, measured in clock cycles from the global synchronisation signal.
     """
-    index = np.nonzero(data[cue_id_key][...] == message)
-    return data[cue_time_key][index].astype(int)
+    events_group = events_group or "/"
+
+    index = np.nonzero(data[events_group + cue_id_key][...] == message)
+    return np.unique(data[events_group + cue_time_key][index].astype(int))
 
 
 def seconds(timestamp: int, reference: int = 0) -> float:
@@ -110,7 +132,7 @@ def seconds(timestamp: int, reference: int = 0) -> float:
     Returns:
         The difference between the two timestamps in seconds.
     """
-    return (timestamp - reference) / 6.4e8
+    return (timestamp - reference) / clock_frequency
 
 
 def coordinates(event_location: int) -> Tuple[int, int]:
