@@ -99,7 +99,7 @@ def plot_histogram(
 class _ClockCyclesAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         # values = [int(value * clock_frequency) for value in values]
-        # Parse human-readable infile.
+        # Parse human-readable input.
         values = Q_(values)
         if values.u == ureg.Unit(""):
             values *= ureg.Unit("s")
@@ -116,22 +116,22 @@ def determine_output_file(infile: str, outfile: Optional[str] = None) -> str:
         outfile, ext = os.path.splitext(outfile)
         if ext not in [".svg", ""]:
             print(
-                f"You have specified the invalid outfile file extension '{ext}'.\n"
+                f"You have specified the invalid output file extension '{ext}'.\n"
                 "This will be replaced with '.svg'."
             )
     else:
         visit_dir = os.path.abspath(os.getenv("VISITDIR"))
         if not visit_dir:
             sys.exit(
-                "The outfile file path could not be determined automatically "
+                "The output file path could not be determined automatically "
                 "from the visit directory.\n"
-                "Please specify an outfile file path with the '-o' option."
+                "Please specify an output file path with the '-o' option."
             )
         elif visit_dir not in infile:
             sys.exit(
-                "The infile file you have specified does not belong to the current "
+                "The input file you have specified does not belong to the current "
                 "visit on beamline I19.\n"
-                "Please specify an outfile file path with the '-o' option."
+                "Please specify an output file path with the '-o' option."
             )
         else:
             outfile = os.path.join(
@@ -149,7 +149,7 @@ def _parse_args(arguments: List[str] = None) -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "infile-file",
+        "input-file",
         help="NeXus-like data file containing Tristan-standard event data.",
     )
     parser.add_argument(
@@ -166,7 +166,7 @@ def _parse_args(arguments: List[str] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "-o",
-        "--outfile-file",
+        "--output-file",
         metavar="filename",
         type=str,
         help="Output file name for the plotted histogram.",
@@ -189,7 +189,7 @@ if __name__ == "__main__":
                 _ = data[group + cue_id_key]
             except KeyError:
                 sys.exit(
-                    "The infile data appear to be invalid.\n"
+                    "The input data appear to be invalid.\n"
                     "Tristan-standard event data cannot be found."
                 )
         else:
