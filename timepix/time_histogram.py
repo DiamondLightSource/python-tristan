@@ -182,21 +182,24 @@ if __name__ == "__main__":
 
     output_file = determine_output_file(args.input_file, args.output_file)
 
-    with h5py.File(args.input_file, "r") as data:
-        try:
-            data[cue_id_key]
-        except KeyError:
+    try:
+        with h5py.File(args.input_file, "r") as data:
             try:
-                group = "/entry/data/data/"
-                _ = data[group + cue_id_key]
+                data[cue_id_key]
             except KeyError:
-                sys.exit(
-                    "The input data appear to be invalid.\n"
-                    "Tristan-standard event data cannot be found."
-                )
-        else:
-            group = None
+                try:
+                    group = "/entry/data/data/"
+                    _ = data[group + cue_id_key]
+                except KeyError:
+                    sys.exit(
+                        "The input data appear to be invalid.\n"
+                        "Tristan-standard event data cannot be found."
+                    )
+            else:
+                group = None
 
-        fig = make_figure(data, group, args.exposure_time)
+            fig = make_figure(data, group, args.exposure_time)
+            fig.savefig(output_file, transparent=True)
 
-        fig.savefig(output_file, transparent=True)
+    except OSError as e:
+        sys.exit(e)
