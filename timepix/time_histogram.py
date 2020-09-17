@@ -202,4 +202,4 @@ if __name__ == "__main__":
             fig.savefig(output_file, transparent=True)
 
     except OSError as e:
-        sys.exit(e)
+        sys.exit(" ".join(e.strerror, e.filename))
