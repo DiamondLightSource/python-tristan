@@ -262,6 +262,7 @@ if __name__ == "__main__":
 
             fig, ax = make_figure(data, group, args.exposure_time, index)
             if roi:
+                roi = [str(bound) for bound in roi]
                 title = ", ".join(
                     [
                         ax.title.get_text(),
