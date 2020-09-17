@@ -200,6 +200,7 @@ if __name__ == "__main__":
 
             fig = make_figure(data, group, args.exposure_time)
             fig.savefig(output_file, transparent=True)
+            print(f"Histogram plot saved to\n\t{output_file}")
 
     except OSError:
         sys.exit(f"Error, input file does not exist: {args.input_file}")
