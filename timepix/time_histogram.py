@@ -151,7 +151,10 @@ def _parse_args(arguments: List[str] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "input_file",
-        help="NeXus-like data file containing Tristan-standard event data.",
+        help="HDF5 data file containing Tristan-standard event data.\n"
+        "Typically this is either the virtual data set (VDS) '.h5' file written "
+        "by the detector or the NeXus-like '.nxs' file written by the data "
+        "acquisition system.",
         metavar="input-file",
     )
     parser.add_argument(
@@ -161,7 +164,7 @@ def _parse_args(arguments: List[str] = None) -> argparse.Namespace:
         # nargs="+",
         # default=[int(default_exposure * clock_frequency)],
         default=int(default_exposure * clock_frequency),
-        help=f"The size of each time bin in seconds.  "
+        help="The size of each time bin in seconds.\n"
         f"Defaults to {Q_(default_exposure, 's').to_compact():~.0f}.",
         action=_ClockCyclesAction,
     )
