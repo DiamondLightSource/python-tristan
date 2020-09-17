@@ -50,7 +50,7 @@ def select_roi(data_file, events_group, selection, labels) -> (np.ndarray, List[
                 if item >= top:
                     print(f"{label} is too large, it falls outside the image.")
                     size = False
-            sys.exit("The image size is " + " × ".join(size))
+            sys.exit("The image size is " + " × ".join([str(span) for span in size]))
 
     else:
         print(
