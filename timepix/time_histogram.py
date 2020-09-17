@@ -73,7 +73,7 @@ def plot_histogram(
         start = pulses[0]
         bins = seconds(bins, start)
     else:
-        bins = np.arange(0, end - start + exposure_time, exposure_time)
+        bins = np.arange(0, end - start, exposure_time)
         bins = seconds(bins)
         pulses = np.array([])
 
