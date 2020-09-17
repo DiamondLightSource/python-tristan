@@ -65,19 +65,21 @@ def plot_histogram(
 
     from matplotlib import pyplot as plt
 
+    fig, ax = plt.subplots()
+
     # If there are any laser pulses, align a bin edge with the first one.
-    if pulses:
+    if np.array(pulses).size:
         pre_trigger_bins = np.arange(pulses[0] - exposure_time, start, -exposure_time)
         post_trigger_bins = np.arange(pulses[0], end, exposure_time)
         bins = np.concatenate([pre_trigger_bins[::-1], post_trigger_bins])
         start = pulses[0]
         bins = seconds(bins, start)
+        ax.set_xlabel("Time from first laser pulse (seconds)")
     else:
         bins = np.arange(0, end - start, exposure_time)
         bins = seconds(bins)
         pulses = np.array([])
-
-    fig, ax = plt.subplots()
+        ax.set_xlabel("Time from detector shutter open (seconds)")
 
     # Plot the laser pulses as vertical red lines.
     for pulse in seconds(pulses, start):
@@ -89,10 +91,6 @@ def plot_histogram(
     ax.set_title(f"Exposure time: {Q_(seconds(exposure_time), 's').to_compact():~.0f}")
     ax.ticklabel_format(axis="y", style="scientific", scilimits=(0, 3))
     ax.set_ylabel("Number of events")
-    if pulses:
-        ax.set_xlabel("Time from first laser pulse (seconds)")
-    else:
-        ax.set_xlabel("Time from detector shutter open (seconds)")
 
     return fig, ax
 
