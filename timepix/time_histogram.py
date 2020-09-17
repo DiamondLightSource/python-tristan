@@ -42,7 +42,7 @@ def make_figure(data_file: h5py.File, events_group: str, exposure_time: int) -> 
     ]
 
     figure, _ = plot_histogram(
-        data_file[event_time_key],
+        data_file[events_group + event_time_key],
         start_time,
         end_time,
         exposure_time,
