@@ -42,7 +42,7 @@ def select_roi(data_file, events_group, selection, labels) -> (np.ndarray, List[
     if size:
         tests = np.repeat([range(0, size[0]), range(0, size[1])], 2)
         if not all(value in bounds for value, bounds in zip(roi, tests)):
-            one_by_one = zip(roi, [np.repeat(size, 2)], labels)
+            one_by_one = zip(roi, np.repeat(size, 2), labels)
             for item, top, label in one_by_one:
                 if item < 0:
                     print(f"{label} is too small, it falls outside the image.")
