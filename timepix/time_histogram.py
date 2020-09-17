@@ -67,10 +67,9 @@ def plot_histogram(
 
     # If there are any laser pulses, align a bin edge with the first one.
     if pulses:
-        pre_trigger_bins = np.arange(pulses[0], start, -exposure_time)[::-1]
-        pre_trigger_bins -= exposure_time
-        post_trigger_bins = np.arange(pulses[0], end + exposure_time, exposure_time)
-        bins = np.concatenate([pre_trigger_bins, post_trigger_bins])
+        pre_trigger_bins = np.arange(pulses[0] - exposure_time, start, -exposure_time)
+        post_trigger_bins = np.arange(pulses[0], end, exposure_time)
+        bins = np.concatenate([pre_trigger_bins[::-1], post_trigger_bins])
         start = pulses[0]
         bins = seconds(bins, start)
     else:
@@ -86,7 +85,7 @@ def plot_histogram(
     # Plot the histogram.
     ax.hist(seconds(events, start), bins)
 
-    ax.set_title(rf"Exposure time: {exposure_time}$\,$s")
+    ax.set_title(rf"Exposure time: {seconds(exposure_time)}$\,$s")
     ax.set_ylabel("Number of events")
     if pulses:
         ax.set_xlabel("Time from first laser pulse (seconds)")
@@ -199,8 +198,8 @@ if __name__ == "__main__":
                 group = None
 
             fig = make_figure(data, group, args.exposure_time)
-            fig.savefig(output_file, transparent=True)
-            print(f"Histogram plot saved to\n\t{output_file}")
+            fig.savefig(output_file)
+            print(f"Histogram plot saved to\n\t{output_file}.svg")
 
     except OSError:
         sys.exit(f"Error, input file does not exist: {args.input_file}")
