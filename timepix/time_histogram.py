@@ -36,8 +36,8 @@ Q_ = ureg.Quantity
 
 def select_roi(data_file, events_group, selection, labels) -> np.ndarray:
     size = data_file.get(size_key)
-    x1, x2 = selection[:2].sort()
-    y1, y2 = selection[2:].sort()
+    x1, x2 = sorted(selection[:2])
+    y1, y2 = sorted(selection[2:])
     roi = [x1, x2, y1, y2]
     if size:
         tests = np.repeat([range(0, size[0]), range(0, size[1])], 2)
