@@ -79,7 +79,10 @@ def timepix_parser():
 
     with h5py.File(args.event_data, "r") as f, h5py.File(args.image_file, "x") as g:
         Timepix2MImageConverter(f, args.exposure_time, args.step, g).run()
-    print("The output NeXus file containing images and metadata has been saved to ...")
+    print(
+        f"The output NeXus file containing images and metadata has been saved to "
+        f"{os.path.splitext(args.image_file)[0]}.nxs"
+    )
 
 
 class Timepix2MImageConverter(object):
