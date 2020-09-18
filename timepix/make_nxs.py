@@ -20,9 +20,11 @@ class CopyNexusStructure(object):
     """
 
     def __init__(self, h5_out, h5_in):
+        # def __init__(self, h5_out, h5_in, bins):
         self._fin = h5py.File(h5_in, "r")
         self._nxs = h5py.File(h5_out.split(".")[0] + ".nxs", "x")
         self._fout = h5py.File(h5_out, "r")
+        # self._bins = bins
 
     def write(self):
         # Create first level with attributes
@@ -56,6 +58,9 @@ class CopyNexusStructure(object):
             data[k] = h5py.ExternalLink(self._fout.filename, k)
         # nxdata["data"] = h5py.ExternalLink(self._fout.filename, "/")
 
+        # Add image reference to nxdata
+        # nxentry.create_dataset("Comments/image_reference", data= self._bins)
+
         # Close everything
         self._fin.close()
         self._fout.close()
@@ -64,3 +69,4 @@ class CopyNexusStructure(object):
 
 if __name__ == "__main__":
     CopyNexusStructure(sys.argv[1], sys.argv[2]).write()
+    # CopyNexusStructure(sys.argv[1], sys.argv[2], sys.arv[3]).write()

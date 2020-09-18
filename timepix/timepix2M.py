@@ -165,7 +165,7 @@ class Timepix2MImageConverter(object):
             inizio = self._open
         if self._close < fine:
             fine = self._close
-        return inizio, fine
+        return inizio[0].astype(int), fine[0].astype(int)
 
     def make_histogram(self, xyt):
         expT = self._expT
@@ -184,7 +184,7 @@ class Timepix2MImageConverter(object):
         images = np.moveaxis(images, 2, 0)
         images = images.astype(np.uint32, copy=False)
 
-        return images
+        return images, edges
 
     def create_images(self):
         """ Generate images from events """
@@ -223,6 +223,7 @@ class Timepix2MImageConverter(object):
             xyt = self.get_data(_pos, _time)
             xyt = xyt[:, (xyt[2] > t_i) & (xyt[2] < t_f)]
             img = self.make_histogram(xyt)
+            img, bins = self.make_histogram(xyt)
             self.write_to_file(dset, img)
         elif len(ttl_up) == 0:
             print("WARNING: No laser pulse")
@@ -240,25 +241,18 @@ class Timepix2MImageConverter(object):
             xyt = self.get_data(_pos, _time)
             img = self.make_histogram(xyt)
             self.write_to_file(dset, img)
-        # Bin images
-        # xyt_cache = np.empty([3, 0])
-        # for j in range(count):
-        #    _pos = pos_dset[j*step:(j+1)*step]
-        #    _time = time_dset[j*step:(j+1)*step]
-        #    xyt = self.get_data(_pos, _time)
-        #    xyt = np.concatenate([xyt_cache, xyt], axis=-1)
-        #    xyt = xyt[:, (_time > t_i)&(_time < t_f)]
-        #    img = self.make_histogram(xyt)
-        # Write images to file
-        #    self.write_to_file(dset, img)
+        # return bins
+
         # else:
         # there is more than one pulse
         # check actual time difference between pulses
 
     def run(self):
         self.create_images()
+        # bins = self.create_images()
         # Copy metadata
         CopyNexusStructure(self._fout.filename, self._nxs).write()
+        # CopyNexusStructure(self._fout.filename, self._nxs, bins).write()
         # Close everything
         self._fout.close()
         self._fin.close()
