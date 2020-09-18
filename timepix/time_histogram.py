@@ -244,7 +244,6 @@ select = _parser.add_argument(
 _parser.add_argument(
     "-f",
     "--full-scale",
-    type=bool,
     action="store_true",
     help="Show the full histogram.\n"
     "By default, the histogram is plotted with a false origin, focussing only on the "
