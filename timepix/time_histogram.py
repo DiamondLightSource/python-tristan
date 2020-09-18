@@ -71,6 +71,7 @@ def make_figure(
     events_group: str,
     exposure_time: int,
     selection: np.ndarray = Ellipsis,
+    use_true_origin: bool = False,
 ) -> Figure:
     start_time = first_cue_time(data_file, shutter_open, events_group=events_group)
     end_time = first_cue_time(data_file, shutter_close, events_group=events_group)
@@ -88,6 +89,7 @@ def make_figure(
         exposure_time,
         laser_pulse_times,
         selection,
+        use_true_origin,
     )
 
     return figure, axes
@@ -100,6 +102,7 @@ def plot_histogram(
     exposure_time: int,
     pulses: Sequence[int] = None,
     selection: np.ndarray = Ellipsis,
+    use_true_origin: bool = False,
 ) -> (Figure, Axes):
     import matplotlib
 
@@ -128,7 +131,13 @@ def plot_histogram(
         ax.axvline(pulse, color="r")
 
     # Plot the histogram.
-    ax.hist(seconds(events[selection].astype(int), start), bins)
+    counts, bin_edges, _ = ax.hist(seconds(events[selection].astype(int), start), bins)
+
+    # Focus on the differences between bin heights.
+    if not use_true_origin:
+        xy = np.vstack([bin_edges, np.hstack([counts, counts[-1]])])
+        ax.dataLim.update_from_data_xy(xy.T, ignore=True)
+        ax.autoscale_view()
 
     ax.set_title(f"Exposure time: {Q_(seconds(exposure_time), 's').to_compact():~.0f}")
     ax.ticklabel_format(axis="y", style="scientific", scilimits=(0, 3))
@@ -232,8 +241,16 @@ select = _parser.add_argument(
     "Values will automatically be rearranged in size order so you need only make "
     "sure to pass the x-coordinates before the y-coordinates.",
 )
-
-
+_parser.add_argument(
+    "-f",
+    "--full-scale",
+    type=bool,
+    action="store_true",
+    help="Show the full histogram.\n"
+    "By default, the histogram is plotted with a false origin, focussing only on the "
+    "differences between bin heights.  Use this option to show the whole plot with a "
+    "true origin.",
+)
 if __name__ == "__main__":
     args = _parser.parse_args()
 
@@ -258,7 +275,9 @@ if __name__ == "__main__":
                 index = Ellipsis
                 roi = None
 
-            fig, ax = make_figure(data, group, args.exposure_time, index)
+            fig, ax = make_figure(
+                data, group, args.exposure_time, index, args.full_scale
+            )
             if roi:
                 roi = [str(bound) for bound in roi]
                 title = ", ".join(
