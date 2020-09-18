@@ -6,10 +6,11 @@
 """
 
 import argparse
+import os
 
 import h5py
 import numpy as np
-from make_nxs import CopyNexusStructure
+from make_nxs import copy_nexus_structure
 
 # Trigger messages
 shutter_open = 0x840
@@ -20,6 +21,27 @@ ttl_rising = 0x8E9
 clock_freq = int(6.4e8)
 
 
+class CheckInputFile(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if not values.endswith(".nxs"):
+            parser.error("Please pass the NeXus-like .nxs file containing events data.")
+
+        setattr(namespace, self.dest, values)
+
+
+class CheckOutputFile(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        values, ext = os.path.splitext(values)
+        if ext != ".h5":
+            print(
+                f"You specified an invalid file extension {ext} for the output "
+                "image file.\n"
+                f"The output images will be saved to {values}.h5 instead."
+            )
+
+        setattr(namespace, self.dest, f"{values}.h5")
+
+
 # Parse command line arguments
 def timepix_parser():
     parser = argparse.ArgumentParser(
@@ -28,6 +50,7 @@ def timepix_parser():
     parser.add_argument(
         "event_data",
         help="Input event mode data from timepix detector, Nexus file",
+        action=CheckInputFile,
     )
     parser.add_argument(
         "exposure_time",
@@ -46,6 +69,7 @@ def timepix_parser():
     )
     parser.add_argument(
         "image_file",
+        action=CheckOutputFile,
         help="Output file to save reconstructed images, HDF5 file",
     )
 
@@ -55,6 +79,7 @@ def timepix_parser():
 
     with h5py.File(args.event_data, "r") as f, h5py.File(args.image_file, "x") as g:
         Timepix2MImageConverter(f, args.exposure_time, args.step, g).run()
+    print("The output NeXus file containing images and metadata has been saved to ...")
 
 
 class Timepix2MImageConverter(object):
@@ -65,12 +90,8 @@ class Timepix2MImageConverter(object):
     def __init__(
         self, event_data: h5py.File, exposure_time, step, image_file: h5py.File
     ):
-        self._nxs = event_data
-        # Check that the NeXus file has been passed
-        assert self._nxs.endswith(".nxs"), "Please pass the NeXus file"
-
         # Open input file
-        self._fin = h5py.File(self._nxs, "r")
+        self._fin = event_data
         self._data = self._fin["entry/data/data"]
 
         # Get cue messages information
@@ -94,7 +115,7 @@ class Timepix2MImageConverter(object):
         self._step = step
 
         # Open output file
-        self._fout = h5py.File(image_file.split(".") + ".h5", "x")
+        self._fout = image_file
 
         # Discover shutter times
         self._open, self._close = self._discover_shutter_times()
@@ -257,10 +278,9 @@ class Timepix2MImageConverter(object):
     def run(self):
         self.create_images()
         # Copy metadata
-        CopyNexusStructure(self._fout.filename, self._nxs).write()
+        with h5py.File(os.path.splitext(self._fout.filename)[0] + ".nxs", "x") as f:
+            copy_nexus_structure(self._fout, self._fin, f)
         # Close everything
-        self._fout.close()
-        self._fin.close()
 
 
 if __name__ == "__main__":

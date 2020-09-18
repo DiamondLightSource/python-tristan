@@ -19,48 +19,41 @@ class CopyNexusStructure(object):
     Class to copy nexus tree from one file to another
     """
 
-    def __init__(self, h5_out, h5_in):
-        self._fin = h5py.File(h5_in, "r")
-        self._nxs = h5py.File(h5_out.split(".")[0] + ".nxs", "x")
-        self._fout = h5py.File(h5_out, "r")
 
-    def write(self):
-        # Create first level with attributes
-        nxentry = self._nxs.create_group("entry")
-        _get_attributes(nxentry, ("NX_class",), ("NXentry",))
+def copy_nexus_structure(h5_out: h5py.File, h5_in: h5py.File, nxs: h5py.File):
+    # Create first level with attributes
+    nxentry = nxs.create_group("entry")
+    _get_attributes(nxentry, ("NX_class",), ("NXentry",))
 
-        # Copy all of the nexus tree as it is except for /entry/data
-        for k in self._fin["entry"].keys():
-            if k == "data":
-                continue
-            self._fin["entry"].copy(k, nxentry)
+    # Copy all of the nexus tree as it is except for /entry/data
+    for k in h5_in["entry"].keys():
+        if k == "data":
+            continue
+        h5_in["entry"].copy(k, nxentry)
 
-        # Write NXdata group
-        nxdata = nxentry.create_group("data")
-        # Axes
-        _ax = None
-        for k in self._fin["entry/data"].keys():
-            if "data" in k:
-                continue
-            if "event" in k:
-                continue
-            if "cue" in k:
-                continue
-            self._fin["entry/data"].copy(k, nxdata)
-            _ax = k
-        _get_attributes(nxdata, ("NX_class", "axes", "signal"), ("NXdata", _ax, "data"))
+    # Write NXdata group
+    nxdata = nxentry.create_group("data")
+    # Axes
+    _ax = None
+    for k in h5_in["entry/data"].keys():
+        if "data" in k:
+            continue
+        if "event" in k:
+            continue
+        if "cue" in k:
+            continue
+        h5_in["entry/data"].copy(k, nxdata)
+        _ax = k
+    _get_attributes(nxdata, ("NX_class", "axes", "signal"), ("NXdata", _ax, "data"))
 
-        # Add link to data
-        data = nxdata.create_group("data")
-        for k in self._fout.keys():
-            data[k] = h5py.ExternalLink(self._fout.filename, k)
-        # nxdata["data"] = h5py.ExternalLink(self._fout.filename, "/")
+    # Add link to data
+    data = nxdata.create_group("data")
+    for k in h5_out.keys():
+        data[k] = h5py.ExternalLink(h5_out.filename, k)
+    # nxdata["data"] = h5py.ExternalLink(h5_out.filename, "/")
 
-        # Close everything
-        self._fin.close()
-        self._fout.close()
-        self._nxs.close()
+    # Close everything
 
 
 if __name__ == "__main__":
-    CopyNexusStructure(sys.argv[1], sys.argv[2]).write()
+    copy_nexus_structure(*sys.argv[1:])
