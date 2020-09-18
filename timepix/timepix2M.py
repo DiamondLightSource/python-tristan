@@ -12,6 +12,8 @@ import h5py
 import numpy as np
 from make_nxs import copy_nexus_structure
 
+# from timepix import seconds
+
 # Trigger messages
 shutter_open = 0x840
 shutter_close = 0x880
@@ -207,7 +209,7 @@ class Timepix2MImageConverter(object):
         images = np.moveaxis(images, 2, 0)
         images = images.astype(np.uint32, copy=False)
 
-        return images
+        return images, edges
 
     def create_images(self):
         """ Generate images from events """
@@ -245,8 +247,11 @@ class Timepix2MImageConverter(object):
             _time = time_dset[()]
             xyt = self.get_data(_pos, _time)
             xyt = xyt[:, (xyt[2] > t_i) & (xyt[2] < t_f)]
-            img = self.make_histogram(xyt)
+            img, edges = self.make_histogram(xyt)
             self.write_to_file(dset, img)
+            img_ref = (edges[2] - ttl_up[0]) / clock_freq
+            # img_ref = seconds(edges[2], ttl_up[0])
+            # print(np.round(img_ref,3))
         elif len(ttl_up) == 0:
             print("WARNING: No laser pulse")
             # Create dataset in output file
@@ -261,28 +266,21 @@ class Timepix2MImageConverter(object):
             _pos = pos_dset[()]
             _time = time_dset[()]
             xyt = self.get_data(_pos, _time)
-            img = self.make_histogram(xyt)
+            img, edges = self.make_histogram(xyt)
             self.write_to_file(dset, img)
-        # Bin images
-        # xyt_cache = np.empty([3, 0])
-        # for j in range(count):
-        #    _pos = pos_dset[j*step:(j+1)*step]
-        #    _time = time_dset[j*step:(j+1)*step]
-        #    xyt = self.get_data(_pos, _time)
-        #    xyt = np.concatenate([xyt_cache, xyt], axis=-1)
-        #    xyt = xyt[:, (_time > t_i)&(_time < t_f)]
-        #    img = self.make_histogram(xyt)
-        # Write images to file
-        #    self.write_to_file(dset, img)
+            img_ref = (edges[2] - ttl_up[0]) / clock_freq
+            # img_ref = seconds(edges[2], ttl_up[0])
         # else:
         # there is more than one pulse
         # check actual time difference between pulses
+        return img_ref
 
     def run(self):
-        self.create_images()
+        # self.create_images()
+        img_ref = self.create_images()
         # Copy metadata
         with h5py.File(os.path.splitext(self._fout.filename)[0] + ".nxs", "x") as f:
-            copy_nexus_structure(self._fout, self._fin, f)
+            copy_nexus_structure(self._fout, self._fin, f, img_ref)
         # Close everything
 
 

@@ -20,7 +20,7 @@ class CopyNexusStructure(object):
     """
 
 
-def copy_nexus_structure(h5_out: h5py.File, h5_in: h5py.File, nxs: h5py.File):
+def copy_nexus_structure(h5_out: h5py.File, h5_in: h5py.File, nxs: h5py.File, img_ref):
     # Create first level with attributes
     nxentry = nxs.create_group("entry")
     _get_attributes(nxentry, ("NX_class",), ("NXentry",))
@@ -52,7 +52,8 @@ def copy_nexus_structure(h5_out: h5py.File, h5_in: h5py.File, nxs: h5py.File):
         data[k] = h5py.ExternalLink(h5_out.filename, k)
     # nxdata["data"] = h5py.ExternalLink(h5_out.filename, "/")
 
-    # Close everything
+    # Add image reference to NXnote
+    nxentry.create_dataset("Comments/image_reference", data=img_ref)
 
 
 if __name__ == "__main__":
