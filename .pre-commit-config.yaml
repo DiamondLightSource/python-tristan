@@ -3,7 +3,7 @@ repos:
 
 # Automatically sort imports with isort
 - repo: https://github.com/timothycrosley/isort.git
-  rev: 5.5.1
+  rev: 5.5.3
   hooks:
   - id: isort
     additional_dependencies: [toml]
