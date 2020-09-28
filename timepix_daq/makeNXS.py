@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
+from __future__ import division, print_function
 
 import sys
 import xml.etree.ElementTree as ET
@@ -31,13 +32,13 @@ def xml_reader(xml_file):
 
     # Determine whether it's an omega or a phi scan and the can range
     if main.find("axisChoice").text == "Phi":
-        scan_axis = "Omega"
-        phi = float(main.findall("otherAxis")[0].text)
-        omega = scan_range
-    else:
         scan_axis = "Phi"
         omega = float(main.findall("otherAxis")[0].text)
         phi = scan_range
+    else:
+        scan_axis = "Omega"
+        phi = float(main.findall("otherAxis")[0].text)
+        omega = scan_range
 
     # Save all relevant information in a dictionary to fill nexus file
     experiment_info = {
@@ -67,13 +68,13 @@ def get_detector_params():
     }
     module = {
         # offset, transformation, units, vector
-        "fast_pixel_direction": [[0, 0, 0], "translation", "m", [0, 1, 0]],
-        "slow_pixel_direction": [[0, 0, 0], "translation", "m", [1, 0, 0]],
+        "fast_pixel_direction": [[0, 0, 0], "translation", "m", [1, 0, 0]],  # [0,1,0]
+        "slow_pixel_direction": [[0, 0, 0], "translation", "m", [0, -1, 0]],  # [1,0,0]
     }
     detector_params = {
         "beam": beam,
         "source": source,
-        "beam_center_xy": [250.0, 1200.0],
+        "beam_center_xy": [1890.389, 275.653],
         "xy_pixel_size": [5.5e-05, 5.5e-05],
         "saturation_value": 65535,
         "sensor_material": "Si",
@@ -110,7 +111,7 @@ def get_axes_geometry():
         "name": "phi",
         "depends_on": "kappa",
         "type": "rotation",
-        "untis": "deg",
+        "units": "deg",
         "vector": [1, 0, 0],
     }
     twotheta = {
@@ -133,22 +134,6 @@ def get_axes_geometry():
     return axes_geometry
 
 
-def _get_attributes(obj, names, values):
-    for n, v in zip(names, values):
-        if type(v) is str:
-            v = numpy.string_(v)
-        AttributeManager.create(obj, name=n, data=v)
-
-
-def find_depends_on(d_info, path=None):
-    _d = d_info
-    if _d == ".":
-        return numpy.string_(_d)
-    else:
-        _s = path + _d
-        return numpy.string_(_s)
-
-
 class NexusWriter(object):
     """
     Class to write NeXus file with experiment metadata
@@ -161,20 +146,34 @@ class NexusWriter(object):
         self._time = exposure_time
         self._msg = msg
 
+    def _get_attributes(self, obj, names, values):
+        for n, v in zip(names, values):
+            if type(v) is str:
+                v = numpy.string_(v)
+            AttributeManager.create(obj, name=n, data=v)
+
+    def find_depends_on(self, d_info, path=None):
+        _d = d_info
+        if _d == ".":
+            return numpy.string_(_d)
+        else:
+            _s = path + _d
+            return numpy.string_(_s)
+
     def write_NXdata(self, nxentry, experiment_info, axes_geometry):
         # Get scan axis
         _scan = experiment_info["scan_axis"].lower()
         nxdata = nxentry.create_group("data")
-        _get_attributes(
+        self._get_attributes(
             nxdata, ("NX_class", "axes", "signal"), ("NXdata", _scan, "data")
         )
         nxdata["data"] = h5py.ExternalLink(self._vds.filename, "/")
         ax = nxdata.create_dataset(_scan, data=experiment_info[_scan])
-        _get_attributes(
+        self._get_attributes(
             ax,
             ("depends_on", "transformation_type", "units", "vector"),
             (
-                find_depends_on(
+                self.find_depends_on(
                     axes_geometry[_scan]["depends_on"],
                     path="/entry/sample/transformations/",
                 ),
@@ -186,7 +185,7 @@ class NexusWriter(object):
 
     def write_NXdetector(self, nxinstr, experiment_info, detector_params):
         nxdet = nxinstr.create_group("detector")
-        _get_attributes(nxdet, ("NX_class",), ("NXdetector",))
+        self._get_attributes(nxdet, ("NX_class",), ("NXdetector",))
         nxdet.create_dataset(
             "depends_on", data="/entry/instrument/transformations/det_z"
         )
@@ -196,11 +195,11 @@ class NexusWriter(object):
         beam_center_x = nxdet.create_dataset(
             "beam_center_x", data=detector_params["beam_center_xy"][0]
         )
-        _get_attributes(beam_center_x, ("units",), ("pixels",))
+        self._get_attributes(beam_center_x, ("units",), ("pixels",))
         beam_center_y = nxdet.create_dataset(
             "beam_center_y", data=detector_params["beam_center_xy"][1]
         )
-        _get_attributes(beam_center_y, ("units",), ("pixels",))
+        self._get_attributes(beam_center_y, ("units",), ("pixels",))
 
         nxdet.create_dataset("count_time", data=self._time)
         nxdet.create_dataset("description", data=numpy.string_("Timepix"))
@@ -208,7 +207,7 @@ class NexusWriter(object):
         dist = nxdet.create_dataset(
             "detector_distance", data=experiment_info["detector_distance"][0] / 1000
         )
-        _get_attributes(dist, ("units",), ("m",))
+        self._get_attributes(dist, ("units",), ("m",))
 
         nxdet.create_dataset(
             "saturation_value", data=detector_params["saturation_value"]
@@ -219,23 +218,24 @@ class NexusWriter(object):
         thick = nxdet.create_dataset(
             "sensor_thickness", data=detector_params["sensor_thickness"][0]
         )
-        _get_attributes(thick, ("units",), (detector_params["sensor_thickness"][1],))
+        self._get_attributes(
+            thick, ("units",), (detector_params["sensor_thickness"][1],)
+        )
 
         nxdet.create_dataset("type", data=numpy.string_("Pixel"))
 
         x_pix_size = nxdet.create_dataset(
             "x_pixel_size", data=detector_params["xy_pixel_size"][0]
         )
-        _get_attributes(x_pix_size, ("units",), ("m",))
+        self._get_attributes(x_pix_size, ("units",), ("m",))
         y_pix_size = nxdet.create_dataset(
             "y_pixel_size", data=detector_params["xy_pixel_size"][1]
         )
-        _get_attributes(y_pix_size, ("units",), ("m",))
+        self._get_attributes(y_pix_size, ("units",), ("m",))
 
-    @staticmethod
-    def write_NXdetector_module(nxdet, detector_params):
+    def write_NXdetector_module(self, nxdet, detector_params):
         nxmod = nxdet.create_group("module")
-        _get_attributes(nxmod, ("NX_class",), ("NXdetector_module",))
+        self._get_attributes(nxmod, ("NX_class",), ("NXdetector_module",))
         nxmod.create_dataset("data_origin", data=numpy.array([0, 0]))
         nxmod.create_dataset("data_size", data=detector_params["data_size"])
         nxmod.create_dataset("data_stride", data=numpy.array([1, 1]))
@@ -244,7 +244,7 @@ class NexusWriter(object):
             "fast_pixel_direction", data=detector_params["xy_pixel_size"][0]
         )
         # offset, transformation, units, vector
-        _get_attributes(
+        self._get_attributes(
             fast_pixel,
             ("depends_on", "offset", "transformation_type", "units", "vector"),
             (
@@ -259,7 +259,7 @@ class NexusWriter(object):
         slow_pixel = nxmod.create_dataset(
             "slow_pixel_direction", data=detector_params["xy_pixel_size"][0]
         )
-        _get_attributes(
+        self._get_attributes(
             slow_pixel,
             ("depends_on", "offset", "transformation_type", "units", "vector"),
             (
@@ -285,7 +285,7 @@ class NexusWriter(object):
         det_origin = -det_origin
 
         module_offset = nxmod.create_dataset("module_offset", data=([0.0]))
-        _get_attributes(
+        self._get_attributes(
             module_offset,
             ("depends_on", "offset", "transformation_type", "units", "vector"),
             (
@@ -299,15 +299,15 @@ class NexusWriter(object):
 
     def write_detZ(self, nxinstr, nxtransf, experiment_info, axes_geometry):
         nxdet_z = nxinstr.create_group("detector_z")
-        _get_attributes(nxdet_z, ("NX_class",), ("NXpositioner",))
+        self._get_attributes(nxdet_z, ("NX_class",), ("NXpositioner",))
         det_z = nxdet_z.create_dataset(
             "det_z", data=experiment_info["detector_distance"][0]
         )
-        _get_attributes(
+        self._get_attributes(
             det_z,
             ("depends_on", "transformation_type", "units", "vector"),
             (
-                find_depends_on(
+                self.find_depends_on(
                     axes_geometry["detector_z"]["depends_on"],
                     path="/entry/sample/transformations/",
                 ),
@@ -321,9 +321,11 @@ class NexusWriter(object):
         _link = "/entry/instrument/detector_z/det_z"
         nxtransf["det_z"] = self._nxs[_link]
 
-    def write_NXpositioner(self, nxinstr, experiment_info, axes_geometry):
+    def write_NXpositioner(
+        self, nxinstr, experiment_info, axes_geometry, detector_params
+    ):
         nxtransf = nxinstr.create_group("transformations")
-        _get_attributes(nxtransf, ("NX_class",), ("NXtransformations",))
+        self._get_attributes(nxtransf, ("NX_class",), ("NXtransformations",))
 
         # Detector_z
         self.write_detZ(nxinstr, nxtransf, experiment_info, axes_geometry)
@@ -332,11 +334,11 @@ class NexusWriter(object):
         twotheta = nxtransf.create_dataset(
             "two_theta", data=experiment_info["two_theta"]
         )
-        _get_attributes(
+        self._get_attributes(
             twotheta,
             ("depends_on", "transformation_type", "units", "vector"),
             (
-                find_depends_on(
+                self.find_depends_on(
                     axes_geometry["two_theta"]["depends_on"],
                     path="/entry/sample/transformations/",
                 ),
@@ -348,54 +350,58 @@ class NexusWriter(object):
 
         # Hardlink
         nx2theta = nxinstr.create_group("twotheta")
-        _get_attributes(nx2theta, ("NX_class",), ("NXpositioner",))
+        self._get_attributes(nx2theta, ("NX_class",), ("NXpositioner",))
         nx2theta["twotheta"] = self._nxs["/entry/instrument/transformations/two_theta"]
 
     def write_NXinstrument(
         self, nxentry, experiment_info, axes_geometry, detector_params
     ):
         nxinstr = nxentry.create_group("instrument")
-        _get_attributes(nxinstr, ("NX_class", "short_name"), ("NXinstrument", "I19-2"))
+        self._get_attributes(
+            nxinstr, ("NX_class", "short_name"), ("NXinstrument", "I19-2")
+        )
 
         # NXattenuator
         nxatt = nxinstr.create_group("attenuator")
-        _get_attributes(nxatt, ("NX_class",), ("NXattenuator",))
+        self._get_attributes(nxatt, ("NX_class",), ("NXattenuator",))
         nxatt.create_dataset(
             "attenuator_transmission", data=experiment_info["transmission"]
         )
 
         # NXbeam
         nxbeam = nxinstr.create_group("beam")
-        _get_attributes(nxbeam, ("NX_class",), ("NXbeam",))
+        self._get_attributes(nxbeam, ("NX_class",), ("NXbeam",))
         wl = nxbeam.create_dataset(
             "incident_wavelength",
             data=detector_params["beam"]["incident_wavelength"][0],
         )
-        _get_attributes(
+        self._get_attributes(
             wl, ("units",), (detector_params["beam"]["incident_wavelength"][1],)
         )
         flux = nxbeam.create_dataset("total_flux", data=0.0)
-        _get_attributes(flux, ("units",), ("Hz",))
+        self._get_attributes(flux, ("units",), ("Hz",))
 
         # NXdetector
         self.write_NXdetector(nxinstr, experiment_info, detector_params)
 
         # NXsource
         nxsource = nxinstr.create_group("source")
-        _get_attributes(nxsource, ("NX_class",), ("NXsource",))
+        self._get_attributes(nxsource, ("NX_class",), ("NXsource",))
         nxsource.create_dataset("name", data="Diamond Light Source")
-        _get_attributes(nxsource["name"], ("short_name",), ("DLS",))
+        self._get_attributes(nxsource["name"], ("short_name",), ("DLS",))
         nxsource.create_dataset("type", data="Synchrotron X-ray Source")
 
         # NXpositioner
-        self.write_NXpositioner(nxinstr, experiment_info, axes_geometry)
+        self.write_NXpositioner(
+            nxinstr, experiment_info, axes_geometry, detector_params
+        )
 
     def write_NXsample(self, nxentry, experiment_info, axes_geometry):
         nxsample = nxentry.create_group("sample")
-        _get_attributes(nxsample, ("NX_class",), ("NXsample",))
+        self._get_attributes(nxsample, ("NX_class",), ("NXsample",))
         nxsample.create_dataset(
             "depends_on",
-            data=find_depends_on(
+            data=self.find_depends_on(
                 axes_geometry["sample_depends_on"],
                 path="/entry/sample/transformations/",
             ),
@@ -403,13 +409,13 @@ class NexusWriter(object):
         nxsample["beam"] = self._nxs["/entry/instrument/beam"]
 
         nxkappa = nxsample.create_group("sample_kappa")
-        _get_attributes(nxkappa, ("NX_class",), ("NXpositioner",))
+        self._get_attributes(nxkappa, ("NX_class",), ("NXpositioner",))
         kappa = nxkappa.create_dataset("kappa", data=experiment_info["kappa"])
-        _get_attributes(
+        self._get_attributes(
             kappa,
             ("depends_on", "transformation_type", "units", "vector"),
             (
-                find_depends_on(
+                self.find_depends_on(
                     axes_geometry["kappa"]["depends_on"],
                     path="/entry/sample/transformations/",
                 ),
@@ -427,17 +433,17 @@ class NexusWriter(object):
             _other = "omega"
 
         nxscan = nxsample.create_group("sample_" + _scan)
-        _get_attributes(nxscan, ("NX_class",), ("NXpositioner",))
+        self._get_attributes(nxscan, ("NX_class",), ("NXpositioner",))
         nxscan[_scan] = self._nxs["/entry/data/" + _scan]
 
         nxother = nxsample.create_group("sample_" + _other)
-        _get_attributes(nxother, ("NX_class",), ("NXpositioner",))
+        self._get_attributes(nxother, ("NX_class",), ("NXpositioner",))
         other_ax = nxother.create_dataset(_other, data=experiment_info[_other])
-        _get_attributes(
+        self._get_attributes(
             other_ax,
             ("depends_on", "transformation_type", "units", "vector"),
             (
-                find_depends_on(
+                self.find_depends_on(
                     axes_geometry[_other]["depends_on"],
                     path="/entry/sample/transformations/",
                 ),
@@ -448,7 +454,7 @@ class NexusWriter(object):
         )
 
         nxtr = nxsample.create_group("transformations")
-        _get_attributes(nxtr, ("NX_class",), ("NXtransformations",))
+        self._get_attributes(nxtr, ("NX_class",), ("NXtransformations",))
         nxtr["kappa"] = self._nxs["/entry/sample/sample_kappa/kappa"]
         nxtr["omega"] = self._nxs["/entry/sample/sample_omega/omega"]
         nxtr["phi"] = self._nxs["/entry/sample/sample_phi/phi"]
@@ -457,7 +463,7 @@ class NexusWriter(object):
 
     def write_NXnote(self, nxentry):
         nxnote = nxentry.create_group("Comments")
-        _get_attributes(nxnote, ("NX_class",), ("NXnote",))
+        self._get_attributes(nxnote, ("NX_class",), ("NXnote",))
         nxnote.create_dataset("Note", data=numpy.string_(self._msg))
 
     def write(self):
@@ -468,7 +474,7 @@ class NexusWriter(object):
 
         # Start writing the NeXus tree
         nxentry = self._nxs.create_group("entry")
-        _get_attributes(nxentry, ("NX_class",), ("NXentry",))
+        self._get_attributes(nxentry, ("NX_class",), ("NXentry",))
 
         # Definition: /entry/definition
         nxentry.create_dataset("definition", data=numpy.string_("NXmx"))
