@@ -195,13 +195,13 @@ class Timepix2MImageConverter(object):
         pos_dset = self._d_pos
         time_dset = self._d_time
 
-        # if self._num_events < step:
+        #if self._num_events < step:
         # TBD: later add calc to go through all data at the same time
         #    break
-        # if self._num_events % step == 0:
-        #     count = self._num_events // step
-        # else:
-        #     count = (self._num_events // step) + 1
+        if self._num_events % step == 0:
+            count = self._num_events // step
+        else:
+            count = (self._num_events // step) + 1
 
         # There should only be one laser pulse in this one experiment
 
