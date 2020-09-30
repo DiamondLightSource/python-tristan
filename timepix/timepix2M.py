@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-.
+Generates images from timepix 2M event data.
 """
 
 import argparse
@@ -46,9 +46,7 @@ class CheckOutputFile(argparse.Action):
 
 # Parse command line arguments
 def timepix_parser():
-    parser = argparse.ArgumentParser(
-        description="Generates images from event-mode data."
-    )
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "event_data",
         help="Input event mode data from timepix detector, Nexus file",
