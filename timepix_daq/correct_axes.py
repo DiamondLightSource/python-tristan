@@ -37,7 +37,7 @@ def run(filename):
             f["entry"].copy(k, nxentry)
 
         # Deal with "entry/data"
-        nxdata = g.create_group("data")
+        nxdata = nxentry.create_group("data")
         # External link
         try:
             with h5py.File(vds_file, "r") as vds:
