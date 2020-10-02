@@ -51,9 +51,16 @@ def run(filename):
             if k == "omega":
                 ax = "phi"
                 f["entry/data"].copy(k, nxdata, name="phi")
+                get_attributes(
+                    nxdata["phi"],
+                    ("depends_on",),
+                    ("/entry/sample/transformations/kappa",),
+                )
             elif k == "phi":
                 ax = "omega"
                 f["entry/data"].copy(k, nxdata, name="omega")
+                get_attributes(nxdata["omega"], ("depends_on",), (".",))
+
         get_attributes(nxdata, ("NX_class", "axes", "signal"), ("NXdata", ax, "data"))
 
         # Deal with "entry/sample"
@@ -67,17 +74,25 @@ def run(filename):
             # Also the dependencies need to be switched!
             for k1 in f[s].keys():
                 if "omega" in k:
-                    f[s].copy(k1, nxentry["sample/sample_phi"], name="phi")
-                    get_attributes(
-                        nxentry["sample/sample_phi/phi"],
-                        ("depends_on",),
-                        ("/entry/sample/transformations/kappa",),
-                    )
+                    if ax == "phi":
+                        nxentry["sample/sample_phi/phi"] = nxdata["phi"]
+                    else:
+                        f[s].copy(k1, nxentry["sample/sample_phi"], name="phi")
+                        get_attributes(
+                            nxentry["sample/sample_phi/phi"],
+                            ("depends_on",),
+                            ("/entry/sample/transformations/kappa",),
+                        )
                 elif "phi" in k:
-                    f[s].copy(k1, nxentry["sample/sample_omega"], name="omega")
-                    get_attributes(
-                        nxentry["sample/sample_omega/omega"], ("depends_on",), (".",)
-                    )
+                    if ax == "omega":
+                        nxentry["sample/sample_omega/omega"] = nxdata["omega"]
+                    else:
+                        f[s].copy(k1, nxentry["sample/sample_omega"], name="omega")
+                        get_attributes(
+                            nxentry["sample/sample_omega/omega"],
+                            ("depends_on",),
+                            (".",),
+                        )
                 else:
                     f[s].copy(k1, nxentry["sample/" + k])
 
