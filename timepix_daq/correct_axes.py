@@ -19,11 +19,13 @@ def get_attributes(obj, names, values):
         AttributeManager.create(obj, name=n, data=v)
 
 
-def run(filename, vds_file):
+def run(filename):
     # Start by renaming the old file and use the filename for the new one
     name, ext = os.path.splitext(filename)
     old_file = name + "_old" + ext
     os.rename(filename, old_file)
+    # Get name of vds file
+    vds_file = name + "_vds.h5"
     with h5py.File(old_file, "r") as f, h5py.File(filename, "x") as g:
         nxentry = g.create_group("entry")
         get_attributes(nxentry, ("NX_class",), ("NXentry",))
@@ -37,8 +39,13 @@ def run(filename, vds_file):
         # Deal with "entry/data"
         nxdata = g.create_group("data")
         # External link
-        with h5py.File(vds_file, "r") as vds:
-            nxdata["data"] = h5py.ExternalLink(vds.filename, "/")
+        try:
+            with h5py.File(vds_file, "r") as vds:
+                nxdata["data"] = h5py.ExternalLink(vds.filename, "/")
+        except OSError:
+            print(
+                f"No {vds_file} file was found in directory. External link to data will not be written."
+            )
         # Axes correction
         for k in f["entry/data"].keys():
             if k == "omega":
@@ -76,4 +83,4 @@ def run(filename, vds_file):
 
 
 if __name__ == "__main__":
-    run(sys.argv[1], sys.argv[2])
+    run(sys.argv[1])
