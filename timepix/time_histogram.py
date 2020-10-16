@@ -6,10 +6,11 @@
 import argparse
 import os
 import sys
-from typing import List, Optional, Sequence
+from typing import Iterable, List, Optional, Sequence
 
 import h5py
 import numpy as np
+import pandas
 import pint
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -66,13 +67,20 @@ def select_roi(data_file, events_group, selection, labels) -> (np.ndarray, List[
     return index, roi
 
 
+def save_histogram_data(counts: Iterable, bin_edges: Iterable, output: str) -> None:
+    data = pandas.DataFrame(
+        {"Bin start": bin_edges[:-1], "Bin end": bin_edges[1:], "Event count": counts}
+    )
+    data.to_csv(f"{output}.csv", index=False)
+
+
 def make_figure(
     data_file: h5py.File,
     events_group: str,
     exposure_time: int,
     selection: np.ndarray = Ellipsis,
     use_true_origin: bool = False,
-) -> Figure:
+) -> (Figure, Axes, np.ndarray, np.ndarray):
     start_time = first_cue_time(data_file, shutter_open, events_group=events_group)
     end_time = first_cue_time(data_file, shutter_close, events_group=events_group)
 
@@ -82,7 +90,7 @@ def make_figure(
         (start_time <= laser_pulse_times) & (laser_pulse_times <= end_time)
     ]
 
-    figure, axes = plot_histogram(
+    figure, axes, counts, bins = plot_histogram(
         data_file[events_group + event_time_key],
         start_time,
         end_time,
@@ -92,7 +100,7 @@ def make_figure(
         use_true_origin,
     )
 
-    return figure, axes
+    return figure, axes, counts, bins
 
 
 def plot_histogram(
@@ -103,7 +111,7 @@ def plot_histogram(
     pulses: Sequence[int] = None,
     selection: np.ndarray = Ellipsis,
     use_true_origin: bool = False,
-) -> (Figure, Axes):
+) -> (Figure, Axes, np.ndarray, np.ndarray):
     import matplotlib
 
     matplotlib.use("svg")
@@ -143,7 +151,7 @@ def plot_histogram(
     ax.ticklabel_format(axis="y", style="scientific", scilimits=(0, 3))
     ax.set_ylabel("Number of events")
 
-    return fig, ax
+    return fig, ax, counts, bin_edges
 
 
 def determine_output_file(infile: str, outfile: Optional[str] = None) -> str:
@@ -152,10 +160,10 @@ def determine_output_file(infile: str, outfile: Optional[str] = None) -> str:
     if outfile:
         outfile = fullpath(outfile)
         outfile, ext = os.path.splitext(outfile)
-        if ext not in [".svg", ""]:
+        if ext not in [".svg", ".png", ".csv", ""]:
             print(
-                f"You have specified the invalid output file extension '{ext}'.\n"
-                "\tThis will be replaced with '.svg'."
+                f"You have specified an output file with an extension '{ext}'.\n"
+                "\tThis extension will be ignored."
             )
     else:
         visit_dir = os.getenv("VISITDIR")
@@ -179,6 +187,12 @@ def determine_output_file(infile: str, outfile: Optional[str] = None) -> str:
             outfile, ext = os.path.splitext(outfile)
             exposure_annotation = args.exposure_time / clock_frequency * ureg.Unit("s")
             outfile += f"_{exposure_annotation.to_compact():~.0f}".replace(" ", "")
+
+    # Make output directory
+    output_directory = os.path.dirname(outfile)
+    if not os.path.exists(output_directory):
+        print(f"Creating directory '{output_directory}'.")
+        os.makedirs(output_directory, exist_ok=True)
 
     return outfile
 
@@ -274,7 +288,7 @@ if __name__ == "__main__":
                 index = Ellipsis
                 roi = None
 
-            fig, ax = make_figure(
+            fig, ax, counts, bins = make_figure(
                 data, group, args.exposure_time, index, args.full_scale
             )
             if roi:
@@ -287,8 +301,13 @@ if __name__ == "__main__":
                     ]
                 )
                 ax.set_title(title)
-            fig.savefig(output_file)
+
+            save_histogram_data(counts, bins, output_file)
+            print(f"Histogram data saved to\n\t{output_file}.csv")
+            fig.savefig(f"{output_file}.svg")
             print(f"Histogram plot saved to\n\t{output_file}.svg")
+            fig.savefig(f"{output_file}.png")
+            print(f"Histogram plot saved to\n\t{output_file}.png")
 
     except OSError:
         sys.exit(f"Error, input file does not exist: {args.input_file}")
