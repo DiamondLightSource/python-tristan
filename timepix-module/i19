@@ -1,0 +1,9 @@
+#%Module1.0
+
+proc ModulesHelp { } {
+  puts stderr "Loads tools for event-mode data collection on I19"
+}
+module-whatis "Loads tools for event-mode data collection on I19"
+
+puts stdout ". /dls_sw/apps/Modules/modulefiles/timepix/timepix.sh;"
+
