@@ -118,6 +118,7 @@ def plot_histogram(
 ) -> (Figure, Axes, np.ndarray, np.ndarray):
     import matplotlib
 
+    # Use a non-interactive Matplotlib backend.  The SVG backend allows saving as PNG.
     matplotlib.use("svg")
 
     from matplotlib import pyplot as plt
