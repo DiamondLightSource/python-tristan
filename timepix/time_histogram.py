@@ -69,7 +69,11 @@ def select_roi(data_file, events_group, selection, labels) -> (np.ndarray, List[
 
 def save_histogram_data(counts: Iterable, bin_edges: Iterable, output: str) -> None:
     data = pandas.DataFrame(
-        {"Bin start": bin_edges[:-1], "Bin end": bin_edges[1:], "Event count": counts}
+        {
+            "Bin start (s)": bin_edges[:-1],
+            "Bin end (s)": bin_edges[1:],
+            "Event count": counts,
+        }
     )
     data.to_csv(f"{output}.csv", index=False)
 
