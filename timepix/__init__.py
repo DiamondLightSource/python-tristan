@@ -153,7 +153,7 @@ def coordinates(event_location: int) -> Tuple[int, int]:
     Returns:
         A tuple (x, y) of decoded coordinates.
     """
-    y, x = divmod(event_location, 0x2000)
+    x, y = divmod(event_location, 0x2000)
     if isinstance(event_location, np.ndarray):
         return x.astype(np.int16), y.astype(np.int16)
     else:
