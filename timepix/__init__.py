@@ -141,8 +141,8 @@ def coordinates(event_location: int) -> Tuple[int, int]:
     Extract pixel coordinate information from an event location message.
 
     The pixel coordinates of an event on a Tristan detector are encoded in an
-    integer location message with 26 bits of useful information.  Extract the x
-    coordinate (the 13 least significant bits) and the y coordinate (the 13 next
+    integer location message with 26 bits of useful information.  Extract the y
+    coordinate (the 13 least significant bits) and the x coordinate (the 13 next
     least significant bits).
 
     Args:
