@@ -16,6 +16,6 @@ if { [ is-loaded hdf5 ] } {
 setenv TIMEPIX_I19 /dls_sw/i19/scripts/BeamlineScripts/timepix-i19
 prepend-path PYTHONPATH $env(TIMEPIX_I19)
 
-set-alias time_histogram {python3 ${TIMEPIX_I19}/timepix/time_histogram.py}
-set-alias make_images {python3 ${TIMEPIX_I19}/timepix/timepix2M.py}
+set-alias time_histogram { python3 \$TIMEPIX_I19/timepix/time_histogram.py }
+set-alias make_images { python3 \$TIMEPIX_I19/timepix/timepix2M.py }
 set-alias histogram time_histogram
