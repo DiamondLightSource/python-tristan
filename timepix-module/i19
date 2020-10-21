@@ -5,15 +5,29 @@ proc ModulesHelp { } {
 }
 module-whatis "Loads tools for event-mode data collection on I19"
 
+module load hdf5
+module load i19
 module load python/3
-if {[is-loaded python/3]} {
-    module load hdf5
+
+# Catch unidentified problem in the python/3 module that means conda doesn't get activated
+# (probably a race condition in setting the PATH).
+set CONDA_BIN $env(PYTHON_BASE_HOME)/condabin
+if {![string match *$CONDA_BIN* $env(PATH)]} {
+    setenv PATH $CONDA_BIN:$env(PATH)
 }
-if {[is-loaded hdf5]} {
-    module load i19
+if { [module-info mode load] || [module-info mode switch2] } {
+    # instructions based on https://github.com/conda/conda/blob/master/CHANGELOG.md#440-2017-12-20
+    puts stdout "source $env(PYTHON_BASE_HOME)/etc/profile.d/conda.sh;"
+    puts stdout "conda activate python$env(pythonmajorversion);"
+} elseif { [module-info mode remove] && ![module-info mode switch3] } {
+    puts stdout "conda deactivate;"
+}
+set PYTHON_BIN $env(PYTHON_BASE_HOME)/envs/python$env(pythonmajorversion)/bin
+if {![string match *$PYTHON_BIN* $env(PATH)]} {
+    setenv PATH $PYTHON_BIN:$env(PATH)
 }
 
-puts stdout "echo Loading data processing tools for Tristan-type events data.;"
+puts stderr "Loading data processing tools for Tristan-type events data."
 
 setenv TIMEPIX_I19 /dls_sw/i19/scripts/BeamlineScripts/timepix-i19
 prepend-path PYTHONPATH $env(TIMEPIX_I19)
