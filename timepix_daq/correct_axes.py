@@ -19,6 +19,7 @@ def get_attributes(obj, names, values):
         AttributeManager.create(obj, name=n, data=v)
 
 
+# TODO find a way to run this thing iteratively
 def run(filename):
     # Start by renaming the old file and use the filename for the new one
     name, ext = os.path.splitext(filename)
