@@ -447,9 +447,9 @@ class NexusWriter(object):
                     axes_geometry[_other]["depends_on"],
                     path="/entry/sample/transformations/",
                 ),
-                axes_geometry["kappa"]["type"],
-                axes_geometry["kappa"]["units"],
-                axes_geometry["kappa"]["vector"],
+                axes_geometry[_other]["type"],
+                axes_geometry[_other]["units"],
+                axes_geometry[_other]["vector"],
             ),
         )
 
