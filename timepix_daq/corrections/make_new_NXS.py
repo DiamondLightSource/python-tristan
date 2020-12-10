@@ -10,11 +10,12 @@ import os
 # import sys
 import xml.etree.ElementTree as ET
 
+import get_info
 import h5py
 import numpy
 from h5py import AttributeManager
 
-import timepix_daq.corrections.get_info as get_info
+# import timepix_daq.corrections.get_info as get_info
 
 # Define argument parser
 parser = argparse.ArgumentParser(description=__doc__)
@@ -554,7 +555,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     # Get count_time and comments
     wd = os.path.dirname(args.vds_file)
-    exposure_time, msg = get_info(wd)
+    exposure_time, msg = get_info.run(wd)
     with h5py.File(args.nxs_file, "x") as nxs, h5py.File(args.vds_file, "r") as vds:
         # NexusWriter(nxs, vds, args.xml_file, args.exposure_time, args.msg)
         NexusWriter(nxs, vds, args.xml_file, exposure_time, msg)

@@ -11,20 +11,19 @@ parser.add_argument(
 )
 
 
-def run(filename):
-    with h5py.File(filename, "r") as fh:
-        count_time = fh["entry/instrument/detector/count_time"][()]
-        try:
-            comment = fh["entry/Comments/Note"][()]
-        except KeyError:
-            comment = None
-
+def run(work_dir):
+    for filename in os.listdir(work_dir):
+        ext = os.path.splitext(filename)[1]
+        if ext == ".nxs":
+            with h5py.File(filename, "r") as fh:
+                count_time = fh["entry/instrument/detector/count_time"][()]
+                try:
+                    comment = fh["entry/Comments/Note"][()]
+                except KeyError:
+                    comment = None
     return count_time, comment
 
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    for filename in os.listdir(args.working_directory):
-        ext = os.path.splitext(filename)[1]
-        if ext == ".nxs":
-            count_time, comment = run(os.path.join(args.working_directory, filename))
+    count_time, comment = run(args.working_directory)

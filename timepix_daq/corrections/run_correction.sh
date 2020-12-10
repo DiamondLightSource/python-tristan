@@ -3,6 +3,8 @@
 wd=$1
 echo "Experiment directory: $wd"
 
+timepix=$PWD
+
 # # Create directory in processing/correct_nexus
 # dir=$(dirname $edir)/processing/correct_nexus/$(basename $edir)
 # if ! [ -d $dir ]; then
@@ -13,9 +15,12 @@ echo "Experiment directory: $wd"
 
 # Find location of xml file for this experiment from .log file
 for file in $(find $wd -name "*.log"); do 
-    xml=$(grep 'xml file: ' $file | awk '{print $NF}')
-    echo $xml 
+    echo "Log file found: $file"
+    xml=$(grep 'xml file:' $file | awk '{print $NF}')
+    #echo $xml 
 done
+# XML file location
+echo "xml file location: $xml"
 
 # Execute python script
 module load python/3
@@ -40,12 +45,8 @@ for file in $(find $wd -name "*_vds.h5"); do
     # Output file name
     outfile=$(echo $(basename $file) | awk -F "_vds" '{printf $1}')
     nxs="${name}.nxs"
-    # Call python script that opens nexus file and gets count_time and comment
     # Run make_new_nxs.py
-    # python make_new_nexus.py $dir/$nxs $file $xml
+    python $timepix/make_new_NXS.py $dir/$nxs $file $xml
 done
 
 
-# Call python script that opens nexus file and gets count_time and comment
-# Get location of vds.h5 and meta.h5 files
-# Run make_new_nxs.py
