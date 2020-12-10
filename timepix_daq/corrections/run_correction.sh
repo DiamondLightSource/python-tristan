@@ -24,15 +24,15 @@ module load hdf5
 # Go through the subdirectories one by one
 for file in $(find $wd -name "*_vds.h5"); do
     echo $file
-    filedir=$(dirname $file)
-    #dir=$(dirname $edir)/processing/correct_nexus/$(basename $wd)/$(basename $filedir)
+    filedir=$($dirname $file)
+    #dir=$(dirname $wd)/processing/correct_nexus/$(basename $wd)/$(basename $filedir)
     # FIXME use this only to test that it does its job. Correct one is commented out above
-    dir=$(dirname $edir)/processing/nf/correct_nexus/$(basename $wd)/$(basename $filedir)
+    dir=$($dirname $wd)/processing/nf/correct_nexus/$($basename $wd)/$($basename $filedir)
     # Create directory if it doesn't exist
-    if ! [ -d $enddir ]; then
+    if ! [ -d $dir ]; then
         echo "Directory does not exist"
         echo "Creating directory now"
-        mkdir -p $enddir
+        mkdir -p $dir
     else
         echo "Directory alrady exists"
         echo "Writing to directory $enddir"
