@@ -213,7 +213,7 @@ class NexusWriter(object):
             nxdata, ("NX_class", "axes", "signal"), ("NXdata", _scan, "data")
         )
         nxdata["data"] = h5py.ExternalLink(self._vds.filename, "/")
-        # self.copy_data(nxdata)
+        self.copy_data(nxdata)
         ax = nxdata.create_dataset(_scan, data=experiment_info[_scan])
         self._get_attributes(
             ax,
