@@ -5,14 +5,6 @@ echo "Experiment directory: $wd"
 
 timepix=$PWD
 
-# # Create directory in processing/correct_nexus
-# dir=$(dirname $edir)/processing/correct_nexus/$(basename $edir)
-# if ! [ -d $dir ]; then
-#     echo "Directory does not exist."
-#     echo "Creating $dir now."
-#     mkdir -p dir    #Not sure this is right
-# fi
-
 # Find location of xml file for this experiment from .log file
 for file in $(find $wd -name "*.log"); do 
     echo "Log file found: $file"

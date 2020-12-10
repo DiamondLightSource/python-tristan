@@ -546,9 +546,6 @@ class NexusWriter(object):
         # nxentry.create_dataset("start_time", data=start)
         # nxentry.create_dataset("end_time", data=end)
 
-        self._vds.close()
-        self._nxs.close()
-
 
 if __name__ == "__main__":
     # Input arguments : nxsfile, vdsfile, xmlfile, exposure_time, comments
@@ -558,9 +555,4 @@ if __name__ == "__main__":
     exposure_time, msg = get_info.run(wd)
     with h5py.File(args.nxs_file, "x") as nxs, h5py.File(args.vds_file, "r") as vds:
         # NexusWriter(nxs, vds, args.xml_file, args.exposure_time, args.msg)
-        NexusWriter(nxs, vds, args.xml_file, exposure_time, msg)
-    # Last option is comments
-    # if len(sys.argv) > 4:
-    #    NexusWriter(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]).write()
-    # else:
-    #    NexusWriter(sys.argv[1], sys.argv[2], sys.argv[3], None).write()
+        NexusWriter(nxs, vds, args.xml_file, exposure_time, msg).write()
