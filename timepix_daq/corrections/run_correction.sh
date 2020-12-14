@@ -22,9 +22,9 @@ module load hdf5
 for file in $(find $wd -name "*_vds.h5"); do
     echo $file
     filedir=$(dirname $file)
-    #dir=$(dirname $wd)/processing/correct_nexus/$(basename $wd)/$(basename $filedir)
-    # FIXME use this only to test that it does its job. Correct one is commented out above
-    dir=$(dirname $wd)/processing/nf/correct_nexus/$(basename $wd)/$(basename $filedir)
+    dir=$(dirname $wd)/processing/correct_nexus/$(basename $wd)/$(basename $filedir)
+    # Use this only to test that it does its job. Correct one is commented out above
+    #dir=$(dirname $wd)/processing/nf/correct_nexus/$(basename $wd)/$(basename $filedir)
     # Create directory if it doesn't exist
     if ! [ -d $dir ]; then
         echo "Directory does not exist"
@@ -35,7 +35,7 @@ for file in $(find $wd -name "*_vds.h5"); do
         echo "Writing to directory $dir"
     fi
     # Output file name
-    outfile=$(echo $(basename $file) | awk -F "_vds" '{printf $1}')
+    name=$(echo $(basename $file) | awk -F "_vds" '{printf $1}')
     nxs="${name}.nxs"
     # Run make_new_nxs.py
     python $timepix/make_new_NXS.py $dir/$nxs $file $xml
