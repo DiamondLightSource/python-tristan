@@ -47,7 +47,8 @@ def xml_reader(xml_file):
     # Find scan range
     osc_range = float(osc.findall("range")[0].text)
     if osc_range == 0.0:
-        scan_range = float(osc.findall("start")[0].text)
+        value = float(osc.findall("start")[0].text)
+        scan_range = (value, value)
     else:
         start = float(osc.findall("start")[0].text)
         num = float(osc.findall("number_of_images")[0].text)
