@@ -15,7 +15,7 @@ def run(work_dir):
     for filename in os.listdir(work_dir):
         ext = os.path.splitext(filename)[1]
         if ext == ".nxs":
-            with h5py.File(filename, "r") as fh:
+            with h5py.File(os.path.join(work_dir, filename), "r") as fh:
                 count_time = fh["entry/instrument/detector/count_time"][()]
                 try:
                     comment = fh["entry/Comments/Note"][()]
