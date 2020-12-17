@@ -12,7 +12,7 @@ if [ -z "$(ls -A $wd)" ]; then
 fi
 
 # Find location of xml file for this experiment from .log file
-if [ -f $wd/*.log]; then
+if [ -f $wd/*.log ]; then
     echo "Log file is in directory."
     for file in $(find $wd -name "*.log"); do 
         echo "Log file found: $file"
