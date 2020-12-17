@@ -5,12 +5,29 @@ echo "Experiment directory: $wd"
 
 timepix=$PWD
 
+# Check that directory isn't empty, if it is exit
+if [ -z "$(ls -A $wd)" ]; then
+    echo "Direcotry is empty. Exit."
+    exit
+fi
+
 # Find location of xml file for this experiment from .log file
-for file in $(find $wd -name "*.log"); do 
-    echo "Log file found: $file"
-    xml=$(grep 'xml file:' $file | awk '{print $NF}')
-    #echo $xml 
-done
+if [ -f $wd/*.log]; then
+    echo "Log file is in directory."
+    for file in $(find $wd -name "*.log"); do 
+        echo "Log file found: $file"
+        xml=$(grep 'xml file:' $file | awk '{print $NF}')
+    done
+else
+    echo "No log file in directory. Looking for it in main experiment directory."
+    parent=$(dirname $wd)
+     day=$(echo $(basename $wd) | awk -F "_" '{printf $1}')
+    hour=$(echo $(basename $wd) | awk -F "_" '{printf $2}')
+    for file in $(find $parent -type -f -name "*day*" -a -name "*hour*"); do
+        echo "Log file found: $file"
+        xml=$(grep 'xml file:' $file | awk '{print $NF}')
+    done
+fi
 # XML file location
 echo "xml file location: $xml"
 
