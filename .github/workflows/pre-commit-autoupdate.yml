@@ -43,10 +43,12 @@ jobs:
         id: pr
         # Don't use release tags for actions, except from the 'actions' organisation:
         # https://julienrenaux.fr/2019/12/20/github-actions-security-risk/
-        # Commit is equivalent to release tag v3.2.0.
-        uses: peter-evans/create-pull-request@9bf4b302a561e1fe9120f6dc81cc39daed984a99
+        # Commit is equivalent to release tag v3.6.0.
+        uses: peter-evans/create-pull-request@45c510e1f68ba052e3cd911f661a799cfb9ba3a3
         with:
           branch: ${{ steps.branch.outputs.branchname }}
           commit-message: ${{ github.workflow }}
           title: ${{ github.workflow }}
           body: Update pre-commit hooks and run them on the entire code base.
+          committer: Diamond Light Source build server <diamondlightsource-build-server@users.noreply.github.com>
+          author: Diamond Light Source build server <diamondlightsource-build-server@users.noreply.github.com>
