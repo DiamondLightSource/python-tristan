@@ -50,5 +50,5 @@ jobs:
           commit-message: ${{ github.workflow }}
           title: ${{ github.workflow }}
           body: Update pre-commit hooks and run them on the entire code base.
-          committer: Diamond Light Source build server <diamondlightsource-build-server@users.noreply.github.com>
-          author: Diamond Light Source build server <diamondlightsource-build-server@users.noreply.github.com>
+          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
