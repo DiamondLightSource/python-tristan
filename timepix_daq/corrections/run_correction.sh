@@ -2,7 +2,8 @@
 # Pass main experiment directory as command line argument
 wd=$1
 echo "Experiment directory: $wd"
-
+outdir=$2
+echo "Output directory: $outdir"
 timepix=$PWD
 
 # Check that directory isn't empty, if it is exit
@@ -39,7 +40,8 @@ module load hdf5
 for file in $(find $wd -name "*_vds.h5"); do
     echo $file
     filedir=$(dirname $file)
-    dir=$(dirname $wd)/processing/correct_nexus/$(basename $wd)/$(basename $filedir)
+    dir=$outdir/$(basename $filedir)
+    #dir=$(dirname $wd)/processing/correct_nexus/$(basename $wd)/$(basename $filedir)
     # Use this only to test that it does its job. Correct one is commented out above
     #dir=$(dirname $wd)/processing/nf/correct_nexus/$(basename $wd)/$(basename $filedir)
     # Create directory if it doesn't exist
