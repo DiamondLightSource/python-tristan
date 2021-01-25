@@ -1,5 +1,7 @@
 #!/bin/bash
 # Pass main experiment directory as command line argument
+# Small modification made to correct rotation data:
+# Pass main output directory for new nexus file (the ones specified in the for loop are specific to September 2020 beamtime)
 wd=$1
 echo "Experiment directory: $wd"
 outdir=$2
