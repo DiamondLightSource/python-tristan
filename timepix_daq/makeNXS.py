@@ -28,7 +28,8 @@ def xml_reader(xml_file):
         start = float(osc.findall("start")[0].text)
         num = float(osc.findall("number_of_images")[0].text)
         stop = start + (osc_range * num)
-        scan_range = numpy.arange(start, stop, osc_range)
+        scan_range = (start, stop)
+        # scan_range = numpy.arange(start, stop, osc_range)
 
     # Determine whether it's an omega or a phi scan and the can range
     if main.find("axisChoice").text == "Phi":
@@ -76,7 +77,6 @@ def get_detector_params():
         "source": source,
         "beam_center_xy": [1890.389, 275.653],
         "xy_pixel_size": [5.5e-05, 5.5e-05],
-        "saturation_value": 65535,
         "sensor_material": "Si",
         "sensor_thickness": [0.00045, "m"],
         "data_size": [1147, 2069],
@@ -204,14 +204,14 @@ class NexusWriter(object):
         nxdet.create_dataset("count_time", data=self._time)
         nxdet.create_dataset("description", data=numpy.string_("Timepix"))
 
-        dist = nxdet.create_dataset(
-            "detector_distance", data=experiment_info["detector_distance"][0] / 1000
-        )
-        self._get_attributes(dist, ("units",), ("m",))
+        # dist = nxdet.create_dataset(
+        #    "detector_distance", data=experiment_info["detector_distance"][0] / 1000
+        # )
+        # self._get_attributes(dist, ("units",), ("m",))
 
-        nxdet.create_dataset(
-            "saturation_value", data=detector_params["saturation_value"]
-        )
+        # nxdet.create_dataset(
+        #    "saturation_value", data=detector_params["saturation_value"]
+        # )
         nxdet.create_dataset(
             "sensor_material", data=numpy.string_(detector_params["sensor_material"])
         )
