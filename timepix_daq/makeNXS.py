@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import division, print_function
 
+import os
 import sys
 import xml.etree.ElementTree as ET
 
@@ -168,6 +169,18 @@ class NexusWriter(object):
             nxdata, ("NX_class", "axes", "signal"), ("NXdata", _scan, "data")
         )
         nxdata["data"] = h5py.ExternalLink(self._vds.filename, "/")
+        # Add links to all raw data files in directory
+        wdir = os.path.dirname(self._vds.filename)
+        for filename in os.listdir(wdir):
+            name, ext = os.path.splitext(filename)
+            if ext == ".h5":
+                if "vds" in filename or "meta" in filename:
+                    continue
+                try:
+                    _link = os.path.join(wdir, filename)
+                    nxdata[name] = h5py.ExternalLink(_link, "/")
+                except OSError:
+                    continue
         ax = nxdata.create_dataset(_scan, data=experiment_info[_scan])
         self._get_attributes(
             ax,
