@@ -70,8 +70,8 @@ def get_detector_params():
     }
     module = {
         # offset, transformation, units, vector
-        "fast_pixel_direction": [[0, 0, 0], "translation", "m", [1, 0, 0]],  # [0,1,0]
-        "slow_pixel_direction": [[0, 0, 0], "translation", "m", [0, -1, 0]],  # [1,0,0]
+        "fast_pixel_direction": [[0, 0, 0], "translation", "m", [0, -1, 0]],  # [0,1,0]
+        "slow_pixel_direction": [[0, 0, 0], "translation", "m", [-1, 0, 0]],  # [1,0,0]
     }
     detector_params = {
         "beam": beam,
@@ -99,28 +99,28 @@ def get_axes_geometry():
         "depends_on": "omega",
         "type": "rotation",
         "units": "deg",
-        "vector": [0.76641398, 0.64234696, 0],
+        "vector": [-0.76641398, -0.64234696, 0],
     }
     omega = {
         "name": "omega",
         "depends_on": ".",
         "type": "rotation",
         "units": "deg",
-        "vector": [1, 0, 0],
+        "vector": [-1, 0, 0],
     }
     phi = {
         "name": "phi",
         "depends_on": "kappa",
         "type": "rotation",
         "units": "deg",
-        "vector": [1, 0, 0],
+        "vector": [-1, 0, 0],
     }
     twotheta = {
         "name": "two_theta",
         "depends_on": ".",
         "type": "rotation",
         "units": "deg",
-        "vector": [1, 0, 0],
+        "vector": [-1, 0, 0],
     }
 
     axes_geometry = {
