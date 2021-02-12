@@ -1,15 +1,38 @@
 #!/usr/bin/env python
+"""
+Create new nexus file with ocrrct metadata for September 2020 Timepix visit.
+"""
 from __future__ import division, print_function
 
+import argparse
 import os
-import sys
+
+# import sys
 import xml.etree.ElementTree as ET
 
+import get_info
 import h5py
-
-# import time
 import numpy
 from h5py import AttributeManager
+
+# import timepix_daq.corrections.get_info as get_info
+
+# Define argument parser
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("nxs_file", help="Output NeXus file.")
+parser.add_argument(
+    "vds_file", help="Virtual dataset file _vds.h5 from experiment directory."
+)
+parser.add_argument("xml_file", help="xml file containing part of experiment metadata.")
+# parser.add_argument(
+#     "exposure_time",
+#     help="Total experiment exposure time."
+# )
+# parser.add_argument(
+#     "--msg",
+#     type=str,
+#     help="Optional comment message to add to NeXus as NXnote."
+# )
 
 
 def xml_reader(xml_file):
@@ -24,7 +47,8 @@ def xml_reader(xml_file):
     # Find scan range
     osc_range = float(osc.findall("range")[0].text)
     if osc_range == 0.0:
-        scan_range = float(osc.findall("start")[0].text)
+        value = float(osc.findall("start")[0].text)
+        scan_range = (value, value)
     else:
         start = float(osc.findall("start")[0].text)
         num = float(osc.findall("number_of_images")[0].text)
@@ -51,6 +75,7 @@ def xml_reader(xml_file):
         "transmission": float(main.findall("transmissionInPerCent")[0].text),
         "visitPath": main.findall("visitPath")[0].text,
         "scan_axis": scan_axis,
+        "scan_axis_increment": osc_range,
         "kappa": float(main.findall("kappa")[0].text),
         "omega": omega,
         "two_theta": float(main.findall("twoTheta")[0].text),
@@ -78,6 +103,7 @@ def get_detector_params():
         "source": source,
         "beam_center_xy": [1890.389, 275.653],
         "xy_pixel_size": [5.5e-05, 5.5e-05],
+        "saturation_value": 65535,
         "sensor_material": "Si",
         "sensor_thickness": [0.00045, "m"],
         "data_size": [1147, 2069],
@@ -99,7 +125,7 @@ def get_axes_geometry():
         "depends_on": "omega",
         "type": "rotation",
         "units": "deg",
-        "vector": [-0.76641398, -0.64234696, 0],
+        "vector": [-0.766414, -0.642347, 0.0],
     }
     omega = {
         "name": "omega",
@@ -140,9 +166,11 @@ class NexusWriter(object):
     Class to write NeXus file with experiment metadata
     """
 
-    def __init__(self, vds_file, xml_file, exposure_time, msg=None):
-        self._vds = h5py.File(vds_file, "r")
-        self._nxs = h5py.File(vds_file.split("_vds")[0] + ".nxs", "x")
+    def __init__(
+        self, nxs_file: h5py.File, vds_file: h5py.File, xml_file, exposure_time, msg
+    ):
+        self._nxs = nxs_file
+        self._vds = vds_file
         self._xml = xml_file
         self._time = exposure_time
         self._msg = msg
@@ -161,6 +189,23 @@ class NexusWriter(object):
             _s = path + _d
             return numpy.string_(_s)
 
+    def copy_data(self, nxdata):
+        # Copy data from the single .h5 files
+        event_dir = os.path.dirname(self._vds.filename)
+        for filename in os.listdir(event_dir):
+            name, ext = os.path.splitext(filename)
+            if ext == ".h5":
+                if "meta" in filename or "vds" in filename:
+                    continue
+                try:
+                    grp = nxdata.create_group(name)
+                    with h5py.File(os.path.join(event_dir, filename), "r") as fh:
+                        for k in fh.keys():
+                            if "cue" in k or "event" in k:
+                                fh.copy(k, grp)
+                except OSError:
+                    continue
+
     def write_NXdata(self, nxentry, experiment_info, axes_geometry):
         # Get scan axis
         _scan = experiment_info["scan_axis"].lower()
@@ -169,18 +214,7 @@ class NexusWriter(object):
             nxdata, ("NX_class", "axes", "signal"), ("NXdata", _scan, "data")
         )
         nxdata["data"] = h5py.ExternalLink(self._vds.filename, "/")
-        # Add links to all raw data files in directory
-        wdir = os.path.dirname(self._vds.filename)
-        for filename in os.listdir(wdir):
-            name, ext = os.path.splitext(filename)
-            if ext == ".h5":
-                if "vds" in filename or "meta" in filename:
-                    continue
-                try:
-                    _link = os.path.join(wdir, filename)
-                    nxdata[name] = h5py.ExternalLink(_link, "/")
-                except OSError:
-                    continue
+        self.copy_data(nxdata)
         ax = nxdata.create_dataset(_scan, data=experiment_info[_scan])
         self._get_attributes(
             ax,
@@ -214,17 +248,17 @@ class NexusWriter(object):
         )
         self._get_attributes(beam_center_y, ("units",), ("pixels",))
 
-        nxdet.create_dataset("count_time", data=self._time)
+        nxdet.create_dataset("count_time", data=float(self._time))
         nxdet.create_dataset("description", data=numpy.string_("Timepix"))
 
-        # dist = nxdet.create_dataset(
-        #    "detector_distance", data=experiment_info["detector_distance"][0] / 1000
-        # )
-        # self._get_attributes(dist, ("units",), ("m",))
+        dist = nxdet.create_dataset(
+            "detector_distance", data=experiment_info["detector_distance"][0] / 1000
+        )
+        self._get_attributes(dist, ("units",), ("m",))
 
-        # nxdet.create_dataset(
-        #    "saturation_value", data=detector_params["saturation_value"]
-        # )
+        nxdet.create_dataset(
+            "saturation_value", data=detector_params["saturation_value"]
+        )
         nxdet.create_dataset(
             "sensor_material", data=numpy.string_(detector_params["sensor_material"])
         )
@@ -468,6 +502,9 @@ class NexusWriter(object):
 
         nxtr = nxsample.create_group("transformations")
         self._get_attributes(nxtr, ("NX_class",), ("NXtransformations",))
+        nxtr.create_dataset(
+            _scan + "_increment", data=experiment_info["scan_axis_increment"]
+        )
         nxtr["kappa"] = self._nxs["/entry/sample/sample_kappa/kappa"]
         nxtr["omega"] = self._nxs["/entry/sample/sample_omega/omega"]
         nxtr["phi"] = self._nxs["/entry/sample/sample_phi/phi"]
@@ -510,14 +547,13 @@ class NexusWriter(object):
         # nxentry.create_dataset("start_time", data=start)
         # nxentry.create_dataset("end_time", data=end)
 
-        self._vds.close()
-        self._nxs.close()
-
 
 if __name__ == "__main__":
-    # Input arguments order: vdsfile, xmlfile, exposure_time, comments
-    # Last option is comments
-    if len(sys.argv) > 4:
-        NexusWriter(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]).write()
-    else:
-        NexusWriter(sys.argv[1], sys.argv[2], sys.argv[3], None).write()
+    # Input arguments : nxsfile, vdsfile, xmlfile, exposure_time, comments
+    args = parser.parse_args()
+    # Get count_time and comments
+    wd = os.path.dirname(args.vds_file)
+    exposure_time, msg = get_info.run(wd)
+    with h5py.File(args.nxs_file, "x") as nxs, h5py.File(args.vds_file, "r") as vds:
+        # NexusWriter(nxs, vds, args.xml_file, args.exposure_time, args.msg)
+        NexusWriter(nxs, vds, args.xml_file, exposure_time, msg).write()
