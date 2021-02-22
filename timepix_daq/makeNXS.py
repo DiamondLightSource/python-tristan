@@ -80,7 +80,7 @@ def get_detector_params():
         "xy_pixel_size": [5.5e-05, 5.5e-05],
         "sensor_material": "Si",
         "sensor_thickness": [0.00045, "m"],
-        "data_size": [1147, 2069],
+        "data_size": [2069, 1147],
         "module": module,
     }
     return detector_params
