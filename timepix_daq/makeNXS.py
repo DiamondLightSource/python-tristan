@@ -141,7 +141,7 @@ class NexusWriter(object):
     """
 
     def __init__(self, vds_file, xml_file, exposure_time, msg=None):
-        self._vds = h5py.File(vds_file, "r")
+        self._vds = vds_file
         self._nxs = h5py.File(vds_file.split("_vds")[0] + ".nxs", "x")
         self._xml = xml_file
         self._time = exposure_time
@@ -168,9 +168,9 @@ class NexusWriter(object):
         self._get_attributes(
             nxdata, ("NX_class", "axes", "signal"), ("NXdata", _scan, "data")
         )
-        nxdata["data"] = h5py.ExternalLink(self._vds.filename, "/")
+        nxdata["data"] = h5py.ExternalLink(self._vds, "/")
         # Add links to all raw data files in directory
-        wdir = os.path.dirname(self._vds.filename)
+        wdir = os.path.dirname(self._vds)
         for filename in os.listdir(wdir):
             name, ext = os.path.splitext(filename)
             if ext == ".h5":
@@ -510,7 +510,6 @@ class NexusWriter(object):
         # nxentry.create_dataset("start_time", data=start)
         # nxentry.create_dataset("end_time", data=end)
 
-        self._vds.close()
         self._nxs.close()
 
 
