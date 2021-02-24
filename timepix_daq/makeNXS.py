@@ -70,8 +70,8 @@ def get_detector_params():
     }
     module = {
         # offset, transformation, units, vector
-        "fast_pixel_direction": [[0, 0, 0], "translation", "m", [0, -1, 0]],  # [0,1,0]
-        "slow_pixel_direction": [[0, 0, 0], "translation", "m", [-1, 0, 0]],  # [1,0,0]
+        "fast_pixel_direction": [[0, 0, 0], "translation", "m", [-1, 0, 0]],
+        "slow_pixel_direction": [[0, 0, 0], "translation", "m", [0, 1, 0]],
     }
     detector_params = {
         "beam": beam,
@@ -92,7 +92,7 @@ def get_axes_geometry():
         "depends_on": "two_theta",
         "type": "translation",
         "units": "mm",
-        "vector": [0, 0, 1],
+        "vector": [0, 0, -1],
     }
     kappa = {
         "name": "kappa",
