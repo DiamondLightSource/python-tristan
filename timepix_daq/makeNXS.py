@@ -70,8 +70,8 @@ def get_detector_params():
     }
     module = {
         # offset, transformation, units, vector
-        "fast_pixel_direction": [[0, 0, 0], "translation", "m", [0, -1, 0]],  # [0,1,0]
-        "slow_pixel_direction": [[0, 0, 0], "translation", "m", [-1, 0, 0]],  # [1,0,0]
+        "fast_pixel_direction": [[0, 0, 0], "translation", "m", [-1, 0, 0]],
+        "slow_pixel_direction": [[0, 0, 0], "translation", "m", [0, 1, 0]],
     }
     detector_params = {
         "beam": beam,
@@ -80,7 +80,7 @@ def get_detector_params():
         "xy_pixel_size": [5.5e-05, 5.5e-05],
         "sensor_material": "Si",
         "sensor_thickness": [0.00045, "m"],
-        "data_size": [1147, 2069],
+        "data_size": [2069, 1147],
         "module": module,
     }
     return detector_params
@@ -92,7 +92,7 @@ def get_axes_geometry():
         "depends_on": "two_theta",
         "type": "translation",
         "units": "mm",
-        "vector": [0, 0, 1],
+        "vector": [0, 0, -1],
     }
     kappa = {
         "name": "kappa",
@@ -141,7 +141,7 @@ class NexusWriter(object):
     """
 
     def __init__(self, vds_file, xml_file, exposure_time, msg=None):
-        self._vds = h5py.File(vds_file, "r")
+        self._vds = vds_file
         self._nxs = h5py.File(vds_file.split("_vds")[0] + ".nxs", "x")
         self._xml = xml_file
         self._time = exposure_time
@@ -168,9 +168,9 @@ class NexusWriter(object):
         self._get_attributes(
             nxdata, ("NX_class", "axes", "signal"), ("NXdata", _scan, "data")
         )
-        nxdata["data"] = h5py.ExternalLink(self._vds.filename, "/")
+        nxdata["data"] = h5py.ExternalLink(self._vds, "/")
         # Add links to all raw data files in directory
-        wdir = os.path.dirname(self._vds.filename)
+        wdir = os.path.dirname(self._vds)
         for filename in os.listdir(wdir):
             name, ext = os.path.splitext(filename)
             if ext == ".h5":
@@ -510,7 +510,6 @@ class NexusWriter(object):
         # nxentry.create_dataset("start_time", data=start)
         # nxentry.create_dataset("end_time", data=end)
 
-        self._vds.close()
         self._nxs.close()
 
 
