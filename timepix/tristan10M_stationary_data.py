@@ -17,7 +17,6 @@ from timepix import coordinates, shutter_close, shutter_open, ttl_rising
 
 # from nexgen.CopyNexusStructure import copy_nexus_from_timepix
 
-
 # Initialize a logger
 logger = logging.getLogger("Tristan10M_stat")
 
@@ -83,7 +82,7 @@ def discover_trigger_times(cues, cues_t, sh_open, sh_close):
 
 
 def calculate_time_per_frame(time_start, time_end, bins):
-    res = (time_end - time_start) / 20
+    res = (time_end - time_start) / bins
     return int(res)
 
 
@@ -91,6 +90,7 @@ def get_valid_data(pos, t, sh_open, sh_close):
     pos = coordinates(pos)
     xyt = np.array([pos[0], pos[1], t])
 
+    # Just a double check in case of out of order data (or last bins)
     xyt = xyt[:, (t > sh_open) & (t < sh_close)]
     return xyt
 
@@ -110,6 +110,11 @@ def make_histogram(xyt, img_shape, T):
     images = images.astype(np.uint32, copy=False)
 
     return images, edges
+
+
+def write_to_file(dset, images):
+    start_dset = dset[:, :, :]
+    dset[:, :, :] = start_dset + images
 
 
 # class Tristan2ImagesConverter:
@@ -136,17 +141,16 @@ def create_images(event_data: h5py.File, num_bins, image_file: h5py.File):
     _open, _close = discover_shutter_times(cues, cues_time)
     # Find triggers
     ttl_up = discover_trigger_times(cues, cues_time, _open, _close)
-    print(ttl_up)
     # num_triggers = ttl_up.size
 
     # Events datasets
-    # event_id = data["event_id"]
-    # event_time = data["event_time_offset"]
-    # num_events = event_time.len()
+    event_id = data["event_id"]
+    event_time = data["event_time_offset"]
+    num_events = event_time.len()
 
     # Create output image dataset
     block_size = 0
-    image_file.create_dataset(
+    dset = image_file.create_dataset(
         "data",
         shape=(num_bins, image_size[0], image_size[1]),
         dtype="i4",
@@ -156,12 +160,34 @@ def create_images(event_data: h5py.File, num_bins, image_file: h5py.File):
     )
 
     logger.info("Start binning")
+    step = 200000  # to be used as "chunking"
+    if num_events % step == 0:
+        count = num_events // step
+    else:
+        count = (num_events // step) + 1
+    for n in range(count):
+        pos = event_id[n * step : (n + 1) * step]
+        t = event_time[n * step : (n + 1) * step]
+        pos = coordinates(pos)
+        xyt = np.array([pos[0], pos[1], t])
+        xyt = xyt[:, (t > _open) & (t < _close)]
+        for j in range(ttl_up.size - 1):
+            t_i = ttl_up[j]
+            t_f = ttl_up[j + 1]
+            T = calculate_time_per_frame(t_i, t_f, num_bins)
+            xyt_tmp = xyt[:, (t > t_i) & (t < t_f)]
+            if xyt_tmp.size == 0:
+                continue
+            images = make_histogram(xyt_tmp, image_size, T)
+            write_to_file(dset, images)
+        # TODO need to handle ttl[-1] to shutter_close
+
     # for n in range(ttl_up.size - 1):
     #    t_i = ttl_up[n]
     #    t_f = ttl_up[n + 1]
-    # it should always be the same anyway
+    #    # it should always be the same anyway
     #    time_per_frame = calculate_time_per_frame(t_i, t_f, num_bins)
-    # call imager
+    # histogram between these timestamps
     # copy metadata
 
 
