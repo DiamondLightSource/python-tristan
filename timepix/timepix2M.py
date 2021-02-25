@@ -140,7 +140,7 @@ class Timepix2MImageConverter(object):
         _open = cues_t[np.flatnonzero(cues[()] == shutter_open)]
         _close = cues_t[np.flatnonzero(cues[()] == shutter_close)]
         assert len(_open) == len(_close)
-        assert len(_open) == 2, str(len(_open))
+        # assert len(_open) == 2, str(len(_open))
         assert np.all(_open) and np.all(_close), "Trigger signals do not match"
         return _open[0].astype(int), _close[0].astype(int)
 
