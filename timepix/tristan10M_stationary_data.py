@@ -84,7 +84,7 @@ def discover_trigger_times(cues, cues_t, sh_open, sh_close):
 def calculate_time_per_frame(trigger_array, bins):
     diff = np.array([])
     for i in range(1, trigger_array.size):
-        res = (trigger_array[i] - trigger_array[i - 1]) // 20
+        res = (trigger_array[i] - trigger_array[i - 1]) // bins
         diff = np.append(diff, res)
     assert np.all(diff), "Trigger timestamps are not evenly spaced"
     diff = np.unique(diff)
@@ -102,10 +102,11 @@ def get_valid_data(pos, t, sh_open, sh_close):
     return xyt
 
 
-def make_histogram(xyt, img_shape, T):
+def make_histogram(xyt, img_shape, T, nbins):
     img_start = int(xyt[2].min() // T)
-    img_end = -(-int(xyt[2].max()) // T)
-    img_count = img_end - img_start
+    # img_end = int(xyt[2].max() // T)
+    img_count = nbins
+    # img_count = img_end - img_start
 
     # Bin the events into images
     time_bounds = T * (img_start + np.array([0, img_count]))
@@ -187,7 +188,7 @@ def create_images(event_data: h5py.File, num_bins, image_file: h5py.File):
             xyt_tmp = xyt[:, (t > t_i) & (t < t_f)]
             if xyt_tmp.size == 0:
                 continue
-            images = make_histogram(xyt_tmp, image_size, T)
+            images = make_histogram(xyt_tmp, image_size, T, num_bins)
             write_to_file(dset, images)
         # TODO need to handle ttl[-1] to shutter_close
 
