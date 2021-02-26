@@ -104,9 +104,9 @@ def get_valid_data(pos, t, sh_open, sh_close):
 
 def make_histogram(xyt, img_shape, T, nbins):
     img_start = int(xyt[2].min() // T)
-    # img_end = int(xyt[2].max() // T)
-    img_count = nbins
-    # img_count = img_end - img_start
+    img_end = int(xyt[2].max() // T)
+    # img_count = nbins
+    img_count = img_end - img_start
 
     # Bin the events into images
     time_bounds = T * (img_start + np.array([0, img_count]))
