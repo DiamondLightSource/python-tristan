@@ -7,7 +7,7 @@ import argparse
 import logging
 import os
 
-import bitshuffle.h5
+# import bitshuffle.h5
 import h5py
 import numpy as np
 
@@ -149,14 +149,15 @@ def create_images(event_data: h5py.File, num_bins, image_file: h5py.File):
     num_events = event_time.len()
 
     # Create output image dataset
-    block_size = 0
+    # block_size = 0
     dset = image_file.create_dataset(
         "data",
         shape=(num_bins, image_size[0], image_size[1]),
         dtype="i4",
         chunks=(1, image_size[0], image_size[1]),
-        compression=bitshuffle.h5.H5FILTER,
-        compression_opts=(block_size, bitshuffle.h5.H5_COMPRESS_LZ4),
+        compression="lzf",
+        # compression=bitshuffle.h5.H5FILTER,
+        # compression_opts=(block_size, bitshuffle.h5.H5_COMPRESS_LZ4),
     )
 
     logger.info("Start binning")
