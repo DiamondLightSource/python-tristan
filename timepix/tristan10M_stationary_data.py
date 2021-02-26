@@ -81,9 +81,16 @@ def discover_trigger_times(cues, cues_t, sh_open, sh_close):
     return ttl_up.astype(int)
 
 
-def calculate_time_per_frame(time_start, time_end, bins):
-    res = (time_end - time_start) / bins
-    return int(res)
+def calculate_time_per_frame(trigger_array, bins):
+    diff = np.array([])
+    for i in range(1, trigger_array.size):
+        res = (trigger_array[i] - trigger_array[i - 1]) // 20
+        diff = np.append(diff, res)
+    assert np.all(diff), "Trigger timestamps are not evenly spaced"
+    diff = np.unique(diff)
+    return diff[0].astype(int)
+    # res = (time_end - time_start) // bins
+    # return int(res)
 
 
 def get_valid_data(pos, t, sh_open, sh_close):
@@ -166,6 +173,8 @@ def create_images(event_data: h5py.File, num_bins, image_file: h5py.File):
         count = num_events // step
     else:
         count = (num_events // step) + 1
+    # Find time per frame
+    T = calculate_time_per_frame(ttl_up, num_bins)
     for n in range(count):
         pos = event_id[n * step : (n + 1) * step]
         t = event_time[n * step : (n + 1) * step]
@@ -175,7 +184,6 @@ def create_images(event_data: h5py.File, num_bins, image_file: h5py.File):
         for j in range(ttl_up.size - 1):
             t_i = ttl_up[j]
             t_f = ttl_up[j + 1]
-            T = calculate_time_per_frame(t_i, t_f, num_bins)
             xyt_tmp = xyt[:, (t > t_i) & (t < t_f)]
             if xyt_tmp.size == 0:
                 continue
