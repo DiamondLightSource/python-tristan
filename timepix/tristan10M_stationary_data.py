@@ -104,9 +104,9 @@ def get_valid_data(pos, t, sh_open, sh_close):
 
 def make_histogram(xyt, img_shape, T, nbins):
     img_start = int(xyt[2].min() // T)
-    img_end = int(xyt[2].max() // T)
-    # img_count = nbins
-    img_count = img_end - img_start
+    # img_end = int(xyt[2].max() // T)
+    img_count = nbins
+    # img_count = img_end - img_start
 
     # Bin the events into images
     time_bounds = T * (img_start + np.array([0, img_count]))
@@ -117,16 +117,12 @@ def make_histogram(xyt, img_shape, T, nbins):
     images = np.moveaxis(images, 2, 0)
     images = images.astype(np.uint32, copy=False)
 
-    return images, edges
+    return images
 
 
 def write_to_file(dset, images):
     start_dset = dset[:, :, :]
     dset[:, :, :] = start_dset + images
-
-
-# class Tristan2ImagesConverter:
-#    pass
 
 
 def create_images(event_data: h5py.File, num_bins, image_file: h5py.File):
@@ -139,7 +135,7 @@ def create_images(event_data: h5py.File, num_bins, image_file: h5py.File):
     )
     # logger.info()
 
-    image_size = event_data["entry/instrument/detector/module/data_size"][()]
+    image_size = list(event_data["entry/instrument/detector/module/data_size"][()])
     # Data is to be found in vds (external link in "entry/data/data")
     data = event_data["entry/data/data"]
     # Look at cue messages
@@ -182,14 +178,16 @@ def create_images(event_data: h5py.File, num_bins, image_file: h5py.File):
         pos = coordinates(pos)
         xyt = np.array([pos[0], pos[1], t])
         xyt = xyt[:, (t > _open) & (t < _close)]
-        for j in range(ttl_up.size - 1):
-            t_i = ttl_up[j]
-            t_f = ttl_up[j + 1]
+        for j in range(1, ttl_up.size):
+            t_i = ttl_up[j - 1]
+            t_f = ttl_up[j]
             xyt_tmp = xyt[:, (t > t_i) & (t < t_f)]
             if xyt_tmp.size == 0:
                 continue
+            print(j)
             images = make_histogram(xyt_tmp, image_size, T, num_bins)
             write_to_file(dset, images)
+            print("images written")
         # TODO need to handle ttl[-1] to shutter_close
 
     # for n in range(ttl_up.size - 1):
