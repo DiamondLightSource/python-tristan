@@ -77,18 +77,15 @@ def find_file_names(args: argparse.Namespace) -> (Path, Path):
     input_file = Path(args.input_file).expanduser().resolve()
     output_file = Path(args.output_file or "").expanduser().resolve()
 
-    # Get the segment 'name_root' from 'name_root.nxs' or 'name_root_meta.h5' or
-    # 'name_root_000001.h5'.
-    if input_file.suffix == ".nxs":
-        file_name_stem = input_file.stem
-    else:
+    # Crudely check the input file is a NeXus file.  We need the its data_size data set.
+    if input_file.suffix != ".nxs":
         sys.exit(
             "Input file name did not have the expected format '<name>.nxs':\n"
             f"\t{input_file}"
         )
 
     if output_file.is_dir():
-        output_file /= file_name_stem + "_single_image.h5"
+        output_file /= input_file.stem + "_single_image.h5"
 
     if not args.force and output_file.exists():
         sys.exit(
