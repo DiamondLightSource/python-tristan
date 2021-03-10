@@ -37,9 +37,6 @@ parser.add_argument(
 shutter_open = 0x840
 shutter_close = 0x880
 
-event_keys = "event_id", "event_time_offset"
-cue_keys = "cue_id", "cue_timestamp_zero"
-
 
 def first_cue_time(cue_ids: da.Array, cue_times: da.Array, msg: int) -> Optional[int]:
     """Find the timestamp of the first instance of a message."""
