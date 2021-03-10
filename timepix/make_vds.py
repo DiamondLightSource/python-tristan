@@ -316,8 +316,10 @@ if __name__ == "__main__":
 
     info = data_info(data_dir, root)
 
+    layouts = virtual_data_set(*info)
+
     with h5py.File(output_file, "w" if args.force else "x") as f:
-        for layout in virtual_data_set(*info).items():
+        for layout in layouts.items():
             f.create_virtual_dataset(*layout)
 
     print(f"Virtual data set file written to\n\t{output_file}")
