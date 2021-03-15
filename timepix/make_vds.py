@@ -13,11 +13,10 @@ import sys
 from contextlib import ExitStack
 from itertools import chain, compress, cycle, filterfalse, zip_longest
 from pathlib import Path
-from typing import Dict, Iterable, List, Union
+from typing import Dict, Iterable, List
 
 import h5py
 import numpy as np
-from dask import array as da
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
@@ -45,9 +44,9 @@ parser.add_argument(
 
 TimeSliceInfo = List[slice], np.ndarray, List[slice], List[slice]
 DataInfo = List[Path], *TimeSliceInfo
-Sources = Dict[str, List[Union[h5py.VirtualSource, da.Array]]]
+Sources = Dict[str, List[h5py.VirtualSource]]
 VirtualSourceInfo = Sources, Sources, List[int], Dict[str, type]
-Layouts = Dict[str, Union[h5py.VirtualLayout, da.Array]]
+Layouts = Dict[str, h5py.VirtualLayout]
 
 event_keys = "event_energy", "event_id", "event_time_offset"
 cue_keys = "cue_id", "cue_timestamp_zero"
@@ -127,18 +126,12 @@ def ts_from_metadata(meta_file: h5py.File) -> TimeSliceInfo:
     return fp_per_module, num_events_per_ts, event_slices, time_slices
 
 
-def data_sources(
-    files: List[Path], source_object: callable = h5py.VirtualSource
-) -> VirtualSourceInfo:
+def virtual_sources(files: List[Path]) -> VirtualSourceInfo:
     """
     Create HDF5 virtual sources and collate ancillary information from raw data files.
 
-    TODO:  Generalise docstring with Dask info.
-
     Args:
-        files:          Lexicographically sorted list of raw file paths.
-        source_object:  Class or function for generating the source array.  Choice of
-                        h5py.VirtualSource or dask.array.from_array.
+        files:  Lexicographically sorted list of raw file paths.
 
     Returns:
         - Dictionary of event data set names and lists of corresponding HDF5 virtual
@@ -164,29 +157,20 @@ def data_sources(
             # The cues are padded with zeroes.  Find the first so we can slice them off.
             num_cues_per_file.append(np.argmax(raw_file["cue_id"][()] == 0))
             for key in event_keys:
-                event_sources[key].append(source_object(raw_file[key]))
+                event_sources[key].append(h5py.VirtualSource(raw_file[key]))
             for key in cue_keys:
-                cue_sources[key].append(source_object(raw_file[key]))
+                cue_sources[key].append(h5py.VirtualSource(raw_file[key]))
 
     return event_sources, cue_sources, num_cues_per_file, dtypes
 
 
-def data_layouts(
-    num_events: int,
-    num_cues: int,
-    dtypes: Dict[str, type],
-    layout_object: callable = h5py.VirtualLayout,
-) -> Layouts:
-    """
-    Create a dictionary of data set names and corresponding data layouts.
-
-    TODO:  Fill out with Dask info.
-    """
+def virtual_layouts(num_events: int, num_cues: int, dtypes: Dict[str, type]) -> Layouts:
+    """Create a dictionary of data set names and corresponding HDF5 virtual layouts."""
     layouts = {}
     for key in event_keys:
-        layouts[key] = layout_object(shape=(num_events,), dtype=dtypes[key])
+        layouts[key] = h5py.VirtualLayout(shape=(num_events,), dtype=dtypes[key])
     for key in cue_keys:
-        layouts[key] = layout_object(shape=(num_cues,), dtype=dtypes[key])
+        layouts[key] = h5py.VirtualLayout(shape=(num_cues,), dtype=dtypes[key])
     return layouts
 
 
@@ -236,7 +220,6 @@ def virtual_data_set(
     events_per_ts: Iterable,
     event_slices: List[slice],
     time_slices: List[slice],
-    type: str = "VDS",
 ) -> Layouts:
     """
     Define a virtual data set in the form of virtual layouts linked to virtual sources.
@@ -264,18 +247,7 @@ def virtual_data_set(
     Returns:
         A dictionary of raw data set names and corresponding HDF5 virtual layouts.
     """
-    # TODO:  Allow passing a choice of event and cue keys to specify which virtual
-    #        data sets to create.
-    source_type, layout_type = data_type = {
-        "VDS": (h5py.VirtualSource, h5py.VirtualLayout),
-        "Dask": 2 * (da.from_array,),
-    }.get(type)
-    if not data_type:
-        sys.exit("Unknown data structure type specified.")
-
-    event_sources, cue_sources, num_cues_per_file, dtypes = data_sources(
-        raw_files, source_object=source_type
-    )
+    event_sources, cue_sources, num_cues_per_file, dtypes = virtual_sources(raw_files)
 
     # In order to assemble the event time slices in the desired order (chronological,
     # then by  module), we need to create a carousel of the event data sources.
@@ -289,7 +261,7 @@ def virtual_data_set(
 
     num_events = event_slices[-1].stop
     num_cues = cue_slices[-1].stop
-    layouts = data_layouts(num_events, num_cues, dtypes, layout_object=layout_type)
+    layouts = virtual_layouts(num_events, num_cues, dtypes)
 
     # Map virtual source slices to virtual layout slices.
     for key, sources in event_sources.items():
