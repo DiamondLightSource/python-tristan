@@ -93,6 +93,7 @@ def find_file_names(args: argparse.Namespace) -> (Path, Path):
 
 
 def main(args=None):
+    """Utility for making a single image from event-mode data."""
     args = parser.parse_args(args)
     input_file, output_file = find_file_names(args)
 

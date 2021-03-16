@@ -311,6 +311,7 @@ def find_file_names(args: argparse.Namespace) -> (Path, str, Path):
 
 
 def main(args=None):
+    """Utility for making an HDF5 VDS from raw Tristan data."""
     args = parser.parse_args(args)
     data_dir, root, output_file = find_file_names(args)
 
