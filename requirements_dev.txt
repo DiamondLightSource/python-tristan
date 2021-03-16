@@ -1,0 +1,6 @@
+dask
+h5py
+numpy
+pytest
+pytest-cov
+zarr
