@@ -310,8 +310,8 @@ def find_file_names(args: argparse.Namespace) -> (Path, str, Path):
     return data_dir, file_name_root, output_file
 
 
-if __name__ == "__main__":
-    args = parser.parse_args()
+def main(args=None):
+    args = parser.parse_args(args)
     data_dir, root, output_file = find_file_names(args)
 
     info = data_info(data_dir, root)

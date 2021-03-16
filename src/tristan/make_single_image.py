@@ -13,6 +13,8 @@ from dask import array as da
 from dask.diagnostics import ProgressBar
 from hdf5plugin import Bitshuffle
 
+from . import shutter_close, shutter_open
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
     "input_file",
@@ -33,9 +35,6 @@ parser.add_argument(
     "name.",
     action="store_true",
 )
-
-shutter_open = 0x840
-shutter_close = 0x880
 
 
 def first_cue_time(cue_ids: da.Array, cue_times: da.Array, msg: int) -> Optional[int]:
@@ -93,8 +92,8 @@ def find_file_names(args: argparse.Namespace) -> (Path, Path):
     return input_file, output_file
 
 
-if __name__ == "__main__":
-    args = parser.parse_args()
+def main(args=None):
+    args = parser.parse_args(args)
     input_file, output_file = find_file_names(args)
 
     with h5py.File(input_file, "r") as f:
