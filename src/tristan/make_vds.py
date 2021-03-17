@@ -18,6 +18,7 @@ from typing import Dict, Iterable, List
 import h5py
 import numpy as np
 
+from . import cue_keys, event_keys
 from .data import data_files, source_carousel, time_slice_info_from_metadata
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -46,9 +47,6 @@ parser.add_argument(
 Sources = Dict[str, List[h5py.VirtualSource]]
 VirtualSourceInfo = Sources, Sources, List[int], Dict[str, type]
 Layouts = Dict[str, h5py.VirtualLayout]
-
-event_keys = "event_energy", "event_id", "event_time_offset"
-cue_keys = "cue_id", "cue_timestamp_zero"
 
 
 def find_file_names(in_file: str, out_file: str, force: bool) -> (Path, str, Path):

@@ -63,6 +63,10 @@ cue_time_key = "cue_timestamp_zero"
 event_location_key = "event_id"
 event_time_key = "event_time_offset"
 event_energy_key = "event_energy"
+
+cue_keys = cue_id_key, cue_time_key
+event_keys = event_location_key, event_time_key, event_energy_key
+
 size_key = "entry/instrument/detector/module/data_size"
 
 
