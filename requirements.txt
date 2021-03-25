@@ -1,4 +1,4 @@
-dask != 2021.03.0
+dask[array,diagnostics] != 2021.03.0
 h5py
 hdf5plugin
 numpy
