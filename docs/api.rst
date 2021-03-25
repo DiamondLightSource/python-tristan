@@ -2,7 +2,7 @@
 API
 ===
 
-.. automodule:: timepix
+.. automodule:: tristan
     :members:
     :show-inheritance:
 

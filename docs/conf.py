@@ -19,7 +19,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = "tristan-dls"
+project = "tristan"
 copyright = "2021, Diamond Light Source Ltd."
 author = "Diamond Light Source — Data Analysis"
 
@@ -104,7 +104,7 @@ html_static_path = ["_static"]
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = "tristan-dlsdoc"
+htmlhelp_basename = "tristandoc"
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -130,8 +130,8 @@ latex_elements = {
 latex_documents = [
     (
         master_doc,
-        "tristan-dls.tex",
-        "tristan-dls Documentation",
+        "tristan.tex",
+        "tristan Documentation",
         "Diamond Light Source — Data Analysis",
         "manual",
     ),
@@ -142,7 +142,7 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "tristan-dls", "tristan-dls Documentation", [author], 1)]
+man_pages = [(master_doc, "tristan", "tristan Documentation", [author], 1)]
 
 
 # -- Options for Texinfo output ----------------------------------------------
@@ -153,10 +153,10 @@ man_pages = [(master_doc, "tristan-dls", "tristan-dls Documentation", [author], 
 texinfo_documents = [
     (
         master_doc,
-        "tristan-dls",
-        "tristan-dls Documentation",
+        "tristan",
+        "tristan Documentation",
         author,
-        "tristan-dls",
+        "tristan",
         "One line description of project.",
         "Miscellaneous",
     ),
