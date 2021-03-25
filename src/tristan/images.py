@@ -17,7 +17,6 @@ from . import (
     cue_id_key,
     cue_keys,
     cue_time_key,
-    event_keys,
     event_location_key,
     event_time_key,
     shutter_close,
@@ -171,7 +170,7 @@ def main_single_image(args=None):
         files = [stack.enter_context(h5py.File(f, "r")) for f in raw_files]
         data = {
             key: da.concatenate([f[key] for f in files]).rechunk()
-            for key in event_keys + cue_keys
+            for key in (event_location_key, event_time_key) + cue_keys
         }
 
         image = make_single_image(data, image_size)
@@ -203,7 +202,7 @@ def main_multiple_images(args=None):
         files = [stack.enter_context(h5py.File(f, "r")) for f in raw_files]
         data = {
             key: da.concatenate([f[key] for f in files]).rechunk()
-            for key in event_keys + cue_keys
+            for key in (event_location_key, event_time_key) + cue_keys
         }
 
         image = make_multiple_images(data, args.num_images, image_size)
