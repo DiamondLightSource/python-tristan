@@ -27,7 +27,7 @@ steps:
   displayName: Install package
 
 - script: |
-    PYTHONDEVMODE=1 pytest -ra --cov=timepix --cov-report=xml --cov-branch
+    PYTHONDEVMODE=1 pytest -ra --cov=tristan --cov-report=xml --cov-branch
   displayName: Run tests
   workingDirectory: $(Pipeline.Workspace)/src
 
