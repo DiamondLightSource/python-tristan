@@ -1,11 +1,11 @@
 """
-Aggregate all the events from a LATRD Tristan data collection into a single image.
+Aggregate all the events from a LATRD Tristan data collection into images.
 """
 
 import argparse
-import sys
-from pathlib import Path
-from typing import Optional
+from contextlib import ExitStack
+from operator import mul
+from typing import Dict, Optional, Tuple
 
 import h5py
 import numpy as np
@@ -13,22 +13,76 @@ from dask import array as da
 from dask.diagnostics import ProgressBar
 from hdf5plugin import Bitshuffle
 
-from . import shutter_close, shutter_open
+from . import (
+    cue_id_key,
+    cue_keys,
+    cue_time_key,
+    event_keys,
+    event_location_key,
+    event_time_key,
+    shutter_close,
+    shutter_open,
+)
+from .data import data_files, find_file_names
 
-parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument(
+parser_single = argparse.ArgumentParser(
+    description=(
+        "Aggregate all the events from a LATRD Tristan data collection "
+        "into a single image."
+    )
+)
+parser_single.add_argument(
     "input_file",
-    help="Tristan NeXus ('.nxs') file containing events data.",
+    help="Tristan raw data file ('.h5') file containing events data or detector "
+    "metadata.",
     metavar="input-file",
 )
-parser.add_argument(
+parser_single.add_argument(
     "-o",
     "--output-file",
     help="File name or location for output image file, defaults to working directory.  "
-    "If only a directory location is given, the pattern of the input file will be "
-    "used, with '<name>.nxs' replaced with '<name>_single_image.h5'.",
+    "If only a directory location is given, the pattern of the raw data files will be "
+    "used, with '<name>_meta.h5' replaced with '<name>_single_image.h5'.",
 )
-parser.add_argument(
+parser_single.add_argument(
+    "-s",
+    "--image-size",
+    help="Dimensions of the detector in pixels, separated by a comma, as 'x,y'.",
+)
+parser_single.add_argument(
+    "-f",
+    "--force",
+    help="Force the output image file to over-write any existing file with the same "
+    "name.",
+    action="store_true",
+)
+
+parser_multiple = argparse.ArgumentParser(
+    description=(
+        "Aggregate all the events from a LATRD Tristan data collection "
+        "into multiple images."
+    )
+)
+parser_multiple.add_argument(
+    "input_file",
+    help="Tristan raw data file ('.h5') file containing events data or detector "
+    "metadata.",
+    metavar="input-file",
+)
+parser_multiple.add_argument("-n", "--num-images", help="Number of images.", type=int)
+parser_multiple.add_argument(
+    "-o",
+    "--output-file",
+    help="File name or location for output image file, defaults to working directory.  "
+    "If only a directory location is given, the pattern of the raw data files will be "
+    "used, with '<name>_meta.h5' replaced with '<name>_images.h5'.",
+)
+parser_multiple.add_argument(
+    "-s",
+    "--image-size",
+    help="Dimensions of the detector in pixels, separated by a comma, as 'x,y'.",
+)
+parser_multiple.add_argument(
     "-f",
     "--force",
     help="Force the output image file to over-write any existing file with the same "
@@ -37,68 +91,125 @@ parser.add_argument(
 )
 
 
-def first_cue_time(cue_ids: da.Array, cue_times: da.Array, msg: int) -> Optional[int]:
-    """Find the timestamp of the first instance of a message."""
-    index = da.argmax(cue_ids == msg)
-    if index == 0 and cue_ids[0] != msg:
-        return
-    return cue_times[index]
+def first_cue_time(data: Dict[str, da.Array], message: int) -> Optional[int]:
+    index = da.argmax(data[cue_id_key] == message)
+    if index or data[cue_id_key][0] == message:
+        return data[cue_time_key][index]
 
 
-def make_image(nexus_file: h5py.File) -> da.Array:
-    """Make a single image from all events occurring between shutter open and close."""
-    image_shape = nexus_file["/entry/instrument/detector/module/data_size"][()]
-
-    cue_ids = da.from_array(nexus_file["entry/data/data/cue_id"])
-    cue_times = da.from_array(nexus_file["entry/data/data/cue_timestamp_zero"])
-    event_ids = da.from_array(nexus_file["entry/data/data/event_id"])
-    event_times = da.from_array((nexus_file["/entry/data/data/event_time_offset"]))
-
-    start_time = first_cue_time(cue_ids, cue_times, shutter_open).compute()
-    end_time = first_cue_time(cue_ids, cue_times, shutter_close).compute()
-    measurement_window = (event_times >= start_time) & (event_times < end_time)
-
-    locations = event_ids[measurement_window]
-    x, y = da.divmod(locations, 0x2000)
-    locations = x + y * image_shape[1]
-
-    image = da.bincount(locations, minlength=np.prod(image_shape))
-    image = image.reshape((1, *image_shape))
-
-    return image
+def compressed_coordinate(location: da.Array, image_size: Tuple[int, int]) -> da.Array:
+    x, y = da.divmod(location, 0x2000)
+    return x + y * image_size[1]
 
 
-def find_file_names(args: argparse.Namespace) -> (Path, Path):
-    """Resolve the input and output file names."""
-    input_file = Path(args.input_file).expanduser().resolve()
-    output_file = Path(args.output_file or "").expanduser().resolve()
+def make_single_image(
+    data: Dict[str, da.Array], image_size: Tuple[int, int]
+) -> da.Array:
+    start_time = first_cue_time(data, shutter_open)
+    end_time = first_cue_time(data, shutter_close)
+    start_time, end_time = da.compute(start_time, end_time)
 
-    # Crudely check the input file is a NeXus file.  We need the its data_size data set.
-    if input_file.suffix != ".nxs":
-        sys.exit(
-            "Input file name did not have the expected format '<name>.nxs':\n"
-            f"\t{input_file}"
-        )
+    event_times = data[event_time_key]
+    event_locations = data[event_location_key]
 
-    if output_file.is_dir():
-        output_file /= input_file.stem + "_single_image.h5"
+    valid_events = (start_time <= event_times) & (event_times < end_time)
+    event_locations = event_locations[valid_events]
+    event_locations = compressed_coordinate(event_locations, image_size)
 
-    if not args.force and output_file.exists():
-        sys.exit(
-            f"This output file already exists:\n\t{output_file}\n"
-            f"Use '-f' to override or specify a different output file path with '-o'."
-        )
-
-    return input_file, output_file
+    image = da.bincount(event_locations, minlength=mul(*image_size))
+    return image.astype(np.uint32).reshape(1, *image_size)
 
 
-def main(args=None):
+def make_multiple_images(
+    data: Dict[str, da.Array], num_images: int, image_size: Tuple[int, int]
+) -> da.Array:
+    start_time = first_cue_time(data, shutter_open)
+    end_time = first_cue_time(data, shutter_close)
+    start_time, end_time = da.compute(start_time, end_time)
+
+    event_times = data[event_time_key]
+    event_locations = data[event_location_key]
+
+    valid_events = (start_time <= event_times) & (event_times < end_time)
+    event_times = event_times[valid_events]
+    event_locations = event_locations[valid_events]
+
+    bins = da.linspace(start_time, end_time, num_images + 1, dtype=event_times.dtype)
+    image_indices = da.digitize(event_times, bins) - 1
+    event_locations = compressed_coordinate(event_locations, image_size)
+
+    image_indices = [
+        image_indices == image_number for image_number in range(num_images)
+    ]
+    images = da.stack(
+        [
+            da.bincount(event_locations[indices], minlength=mul(*image_size))
+            for indices in image_indices
+        ]
+    )
+
+    return images.astype(np.uint32).reshape(num_images, *image_size)
+
+
+def main_single_image(args=None):
     """Utility for making a single image from event-mode data."""
-    args = parser.parse_args(args)
-    input_file, output_file = find_file_names(args)
+    args = parser_single.parse_args(args)
+    data_dir, root, output_file = find_file_names(
+        args.input_file, args.output_file, "single_image", args.force
+    )
 
-    with h5py.File(input_file, "r") as f:
-        image = make_image(f)
-        print(f"Writing image to {output_file}.")
+    if args.image_size:
+        image_size = tuple(map(int, args.image_size.split(",")))[::-1]
+    else:
+        nexus_file = data_dir / f"{root}.nxs"
+        with h5py.File(nexus_file, "r") as f:
+            image_size = f["entry/instrument/detector/module/data_size"][()]
+
+    raw_files, _ = data_files(data_dir, root)
+
+    with ExitStack() as stack:
+        files = [stack.enter_context(h5py.File(f, "r")) for f in raw_files]
+        data = {
+            key: da.concatenate([f[key] for f in files]).rechunk()
+            for key in event_keys + cue_keys
+        }
+
+        image = make_single_image(data, image_size)
+
+        print("Binning events into a single image.")
         with ProgressBar():
-            image.to_hdf5(output_file, "data", **Bitshuffle(nelems=0, lz4=True))
+            image.to_hdf5(output_file, "data", **Bitshuffle())
+
+    print(f"Image file written to\n\t{output_file}")
+
+
+def main_multiple_images(args=None):
+    """Utility for making multiple images from event-mode data."""
+    args = parser_multiple.parse_args(args)
+    data_dir, root, output_file = find_file_names(
+        args.input_file, args.output_file, "images", args.force
+    )
+
+    if args.image_size:
+        image_size = tuple(map(int, args.image_size.split(",")))[::-1]
+    else:
+        nexus_file = data_dir / f"{root}.nxs"
+        with h5py.File(nexus_file, "r") as f:
+            image_size = f["entry/instrument/detector/module/data_size"][()]
+
+    raw_files, _ = data_files(data_dir, root)
+
+    with ExitStack() as stack:
+        files = [stack.enter_context(h5py.File(f, "r")) for f in raw_files]
+        data = {
+            key: da.concatenate([f[key] for f in files]).rechunk()
+            for key in event_keys + cue_keys
+        }
+
+        image = make_multiple_images(data, args.num_images, image_size)
+
+        print("Binning events into images.")
+        with ProgressBar():
+            image.to_hdf5(output_file, "data", **Bitshuffle())
+
+    print(f"Images file written to\n\t{output_file}")

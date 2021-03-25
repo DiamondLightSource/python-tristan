@@ -1,9 +1,10 @@
 """Tools for extracting data on cues and events from Tristan data files."""
+import glob
 import re
 import sys
 from itertools import filterfalse
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import h5py
 import numpy as np
@@ -13,9 +14,41 @@ import numpy as np
 ts_key_regex = re.compile(r"ts_qty_module\d{2}")
 
 
+def find_file_names(
+    in_file: str, out_file: Optional[str], default_out_label: str, force: bool
+) -> (Path, str, Path):
+    """Resolve the input and output file names."""
+    in_file = Path(in_file).expanduser().resolve()
+
+    data_dir = in_file.parent
+
+    # Get the segment 'name_root' from 'name_root_meta.h5' or 'name_root_000001.h5'.
+    file_name_root = re.fullmatch(r"(.*)_(?:meta|\d+)", in_file.stem)
+    if file_name_root:
+        file_name_root = file_name_root[1]
+    else:
+        sys.exit(
+            "Input file name did not have the expected format '<name>_meta.h5':\n"
+            f"\t{in_file}"
+        )
+
+    if out_file:
+        out_file = Path(out_file).expanduser().resolve()
+    else:
+        out_file = Path(f"{file_name_root}_{default_out_label}.h5")
+
+    if not force and out_file.exists():
+        sys.exit(
+            f"This output file already exists:\n\t{out_file}\n"
+            f"Use '-f' to override or specify a different output file path with '-o'."
+        )
+
+    return data_dir, file_name_root, out_file
+
+
 def data_files(data_dir: Path, root: str, n_dig: int = 6) -> (List[Path], Path):
     """
-    Extract information about the layout of events data on disk, for creating a VDS.
+    Extract information about the files containing raw cues and events data.
 
     Args:
         data_dir: Directory containing the raw data and time slice metadata HDF5 files.
@@ -31,11 +64,20 @@ def data_files(data_dir: Path, root: str, n_dig: int = 6) -> (List[Path], Path):
         sys.exit(f"Could not find the expected detector metadata file:\n\t{meta_file}")
 
     with h5py.File(meta_file, "r") as f:
-        num_files = np.sum(f["fp_per_module"])
-    raw_files = [data_dir / f"{root}_{n + 1:0{n_dig}d}.h5" for n in range(num_files)]
-    missing_files = list(filterfalse(Path.exists, raw_files))
-    if missing_files:
-        missing_files = "\n\t".join(map(str, missing_files))
-        sys.exit(f"The following expected data files are missing:\n\t{missing_files}")
+        n_files = np.sum(f.get("fp_per_module") or ())
+
+    if n_files:
+        raw_files = [data_dir / f"{root}_{n + 1:0{n_dig}d}.h5" for n in range(n_files)]
+        missing = list(filterfalse(Path.exists, raw_files))
+        if missing:
+            missing = "\n\t".join(map(str, missing))
+            sys.exit(f"The following expected data files are missing:\n\t{missing}")
+    else:
+        print(
+            "The detector metadata holds no information about the number of "
+            "expected raw data files.  Falling back on finding the data dynamically."
+        )
+        search_path = str(data_dir / f"{root}_{n_dig * '[0-9]'}.h5")
+        raw_files = [Path(path_str) for path_str in sorted(glob.glob(search_path))]
 
     return raw_files, meta_file

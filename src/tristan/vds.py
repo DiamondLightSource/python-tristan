@@ -8,8 +8,6 @@ file is named 'my_data_1_meta.h5', then the new VDS file will be named
 """
 
 import argparse
-import re
-import sys
 from contextlib import ExitStack
 from itertools import chain, compress, cycle, zip_longest
 from pathlib import Path
@@ -19,7 +17,7 @@ import h5py
 import numpy as np
 
 from . import cue_keys, event_keys
-from .data import data_files, ts_key_regex
+from .data import data_files, find_file_names, ts_key_regex
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
@@ -34,8 +32,7 @@ parser.add_argument(
     "--output-file",
     help="File name for output VDS file.  "
     "By default, the pattern of the input file will be used, with '_meta.h5' "
-    "replaced with '_vds.h5', and the VDS will be saved in the same directory "
-    "as the input file.",
+    "replaced with '_vds.h5'.",
 )
 parser.add_argument(
     "-f",
@@ -48,36 +45,6 @@ Sources = Dict[str, Iterable[h5py.VirtualSource]]
 TimeSliceInfo = List[slice], np.ndarray, List[slice], List[slice]
 VirtualSourceInfo = Sources, Sources, List[int], Dict[str, type]
 Layouts = Dict[str, h5py.VirtualLayout]
-
-
-def find_file_names(in_file: str, out_file: str, force: bool) -> (Path, str, Path):
-    """Resolve the input and output file names."""
-    in_file = Path(in_file).expanduser().resolve()
-
-    data_dir = in_file.parent
-
-    # Get the segment 'name_root' from 'name_root_meta.h5' or 'name_root_000001.h5'.
-    file_name_root = re.fullmatch(r"(.*)_(?:meta|\d+)", in_file.stem)
-    if file_name_root:
-        file_name_root = file_name_root[1]
-    else:
-        sys.exit(
-            "Input file name did not have the expected format '<name>_meta.h5':\n"
-            f"\t{in_file}"
-        )
-
-    if out_file:
-        out_file = Path(out_file).expanduser().resolve()
-    else:
-        out_file = data_dir / (file_name_root + "_vds.h5")
-
-    if not force and out_file.exists():
-        sys.exit(
-            f"This output file already exists:\n\t{out_file}\n"
-            f"Use '-f' to override or specify a different output file path with '-o'."
-        )
-
-    return data_dir, file_name_root, out_file
 
 
 def time_slice_info(meta_file: h5py.File) -> TimeSliceInfo:
@@ -261,7 +228,7 @@ def main(args=None):
     """Utility for making an HDF5 VDS from raw Tristan data."""
     args = parser.parse_args(args)
     data_dir, root, output_file = find_file_names(
-        args.input_file, args.output_file, args.force
+        args.input_file, args.output_file, "vds", args.force
     )
 
     raw_files, meta_file = data_files(data_dir, root)
