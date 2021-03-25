@@ -3,6 +3,7 @@ Aggregate all the events from a LATRD Tristan data collection into images.
 """
 
 import argparse
+import sys
 from contextlib import ExitStack
 from operator import mul
 from typing import Dict, Optional, Tuple
@@ -161,8 +162,14 @@ def main_single_image(args=None):
         image_size = tuple(map(int, args.image_size.split(",")))[::-1]
     else:
         nexus_file = data_dir / f"{root}.nxs"
-        with h5py.File(nexus_file, "r") as f:
-            image_size = f["entry/instrument/detector/module/data_size"][()]
+        try:
+            with h5py.File(nexus_file, "r") as f:
+                image_size = f["entry/instrument/detector/module/data_size"][()]
+        except (FileNotFoundError, OSError):
+            sys.exit(
+                f"Cannot find NeXus file:\n\t{nexus_file}\nPlease specify the "
+                f"detector dimensions in (x, y) with '--image-size'."
+            )
 
     raw_files, _ = data_files(data_dir, root)
 
@@ -176,8 +183,15 @@ def main_single_image(args=None):
         image = make_single_image(data, image_size)
 
         print("Binning events into a single image.")
-        with ProgressBar():
-            image.to_hdf5(output_file, "data", **Bitshuffle())
+        with ProgressBar(), h5py.File(output_file, "w" if args.force else "x") as f:
+            data_set = f.require_dataset(
+                "data",
+                shape=image.shape,
+                dtype=image.dtype,
+                chunks=image.chunksize,
+                **Bitshuffle(),
+            )
+            image.store(data_set)
 
     print(f"Image file written to\n\t{output_file}")
 
@@ -193,8 +207,14 @@ def main_multiple_images(args=None):
         image_size = tuple(map(int, args.image_size.split(",")))[::-1]
     else:
         nexus_file = data_dir / f"{root}.nxs"
-        with h5py.File(nexus_file, "r") as f:
-            image_size = f["entry/instrument/detector/module/data_size"][()]
+        try:
+            with h5py.File(nexus_file, "r") as f:
+                image_size = f["entry/instrument/detector/module/data_size"][()]
+        except (FileNotFoundError, OSError):
+            sys.exit(
+                f"Cannot find NeXus file:\n\t{nexus_file}\nPlease specify the "
+                f"detector dimensions in (x, y) with '--image-size'."
+            )
 
     raw_files, _ = data_files(data_dir, root)
 
@@ -205,10 +225,17 @@ def main_multiple_images(args=None):
             for key in (event_location_key, event_time_key) + cue_keys
         }
 
-        image = make_multiple_images(data, args.num_images, image_size)
+        images = make_multiple_images(data, args.num_images, image_size)
 
         print("Binning events into images.")
-        with ProgressBar():
-            image.to_hdf5(output_file, "data", **Bitshuffle())
+        with ProgressBar(), h5py.File(output_file, "w" if args.force else "x") as f:
+            data_set = f.require_dataset(
+                "data",
+                shape=images.shape,
+                dtype=images.dtype,
+                chunks=images.chunksize,
+                **Bitshuffle(),
+            )
+            images.store(data_set)
 
     print(f"Images file written to\n\t{output_file}")
