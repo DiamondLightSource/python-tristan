@@ -64,7 +64,7 @@ def data_files(data_dir: Path, root: str, n_dig: int = 6) -> (List[Path], Path):
         sys.exit(f"Could not find the expected detector metadata file:\n\t{meta_file}")
 
     with h5py.File(meta_file, "r") as f:
-        n_files = np.sum(f.get("fp_per_module") or ())
+        n_files = np.sum(f.get("fp_per_module", default=()))
 
     if n_files:
         raw_files = [data_dir / f"{root}_{n + 1:0{n_dig}d}.h5" for n in range(n_files)]
