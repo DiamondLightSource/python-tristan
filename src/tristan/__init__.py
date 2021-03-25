@@ -8,11 +8,9 @@ experimental Timepix-based event-mode detector, codenamed Tristan, at Diamond Li
 Source.
 """
 
-import os
-from typing import MutableSequence, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
-import h5py
-import numpy as np
+from dask import array as da
 
 clock_frequency = 6.4e8
 
@@ -70,55 +68,43 @@ event_keys = event_location_key, event_time_key, event_energy_key
 size_key = "entry/instrument/detector/module/data_size"
 
 
-def fullpath(path: str) -> str:
-    """Get an absolute path with tilde home directory shorthand expanded."""
-    return os.path.abspath(os.path.expanduser(path))
-
-
-def first_cue_time(
-    data: h5py.File, message: int, events_group: Optional[str] = "/"
-) -> Optional[int]:
+def first_cue_time(data: Dict[str, da.Array], message: int) -> Optional[int]:
     """
-    Find the timestamp of the first instance of a cue message in a data file.
+    Find the timestamp of the first instance of a cue message in a Tristan data set.
 
     Args:
-        data:  A NeXus-like LATRD data file.
+        data:     A NeXus-like LATRD data dictionary (a dictionary with data set
+                  names as keys and Dask arrays as values).  Must contain one entry
+                  for cue id messages and one for cue timestamps.  The two arrays are
+                  assumed to have the same length.
         message:  The message code, as defined in the Tristan standard.
-        events_group:  HDF5 group containing the events data.
 
     Returns:
         The timestamp, measured in clock cycles from the global synchronisation signal.
         If the message doesn't exist in the data set, this returns None.
     """
-    events_group = events_group or "/"
-
-    index = np.argmax(data[events_group + cue_id_key][...] == message)
-
-    # Catch the case in which the message is not present in the data set.
-    if index == 0 and data[events_group + cue_id_key][0] != message:
-        return None
-
-    return data[events_group + cue_time_key][index].astype(int)
+    index = da.argmax(data[cue_id_key] == message)
+    if index or data[cue_id_key][0] == message:
+        return data[cue_time_key][index]
 
 
-def cue_times(
-    data: h5py.File, message: int, events_group: Optional[str] = "/"
-) -> MutableSequence[int]:
+def cue_times(data: Dict[str, da.Array], message: int) -> da.Array:
     """
-    Find the timestamps of all instances of a cue message in a data file.
+    Find the timestamps of all instances of a cue message in a Tristan data set.
 
     Args:
-        data:  A NeXus-like LATRD data file.
+        data:     A NeXus-like LATRD data dictionary (a dictionary with data set
+                  names as keys and Dask arrays as values).  Must contain one entry
+                  for cue id messages and one for cue timestamps.  The two arrays are
+                  assumed to have the same length.
         message:  The message code, as defined in the Tristan standard.
-        events_group:  HDF5 group containing the events data.
 
     Returns:
-        The timestamps, measured in clock cycles from the global synchronisation signal.
+        The timestamps, measured in clock cycles from the global synchronisation
+        signal, de-duplicated.
     """
-    events_group = events_group or "/"
-
-    index = np.nonzero(data[events_group + cue_id_key][...] == message)
-    return np.unique(data[events_group + cue_time_key][index].astype(int))
+    index = da.nonzero(data[cue_id_key] == message)
+    return da.unique(data[cue_time_key][index])
 
 
 def seconds(timestamp: int, reference: int = 0) -> float:
@@ -140,25 +126,29 @@ def seconds(timestamp: int, reference: int = 0) -> float:
     return (timestamp - reference) / clock_frequency
 
 
-def coordinates(event_location: int) -> Tuple[int, int]:
+def compressed_coordinate(location: da.Array, image_size: Tuple[int, int]) -> da.Array:
     """
     Extract pixel coordinate information from an event location message.
 
-    The pixel coordinates of an event on a Tristan detector are encoded in an
+    Label each pixel in the image by its index in the flattened image array (i.e.
+    numbered from zero, in row-major order).  For each event, find the corresponding
+    label of the pixel at which it occurred.
+
+    The pixel coordinates of an event on a Tristan detector are encoded in a 32-bit
     integer location message with 26 bits of useful information.  Extract the y
     coordinate (the 13 least significant bits) and the x coordinate (the 13 next
-    least significant bits).
+    least significant bits).  Find the corresponding pixel index in the flattened
+    image array by multiplying the y value by the size of the array in x, and adding
+    the x value.
 
     Args:
-        event_location:  Either a single event location message (an integer) or a NumPy
-                         array of multiple integers representing the coordinates for
-                         several events.
+        location:    Either a single event location message (an integer) or a NumPy
+                     array of multiple integers representing the coordinates for
+                     several events.
+        image_size:
 
     Returns:
-        A tuple (x, y) of decoded coordinates.
+        An array of pixel indices, with shape and dtype identical to the input array.
     """
-    x, y = divmod(event_location, 0x2000)
-    if isinstance(event_location, np.ndarray):
-        return x.astype(np.int16), y.astype(np.int16)
-    else:
-        return x, y
+    x, y = da.divmod(location, 0x2000)
+    return x + y * image_size[1]

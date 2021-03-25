@@ -1,4 +1,5 @@
 """Tools for extracting data on cues and events from Tristan data files."""
+
 import glob
 import re
 import sys

@@ -6,7 +6,7 @@ import argparse
 import sys
 from contextlib import ExitStack
 from operator import mul
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 import h5py
 import numpy as np
@@ -15,11 +15,11 @@ from dask.diagnostics import ProgressBar
 from hdf5plugin import Bitshuffle
 
 from . import (
-    cue_id_key,
+    compressed_coordinate,
     cue_keys,
-    cue_time_key,
     event_location_key,
     event_time_key,
+    first_cue_time,
     shutter_close,
     shutter_open,
 )
@@ -89,17 +89,6 @@ parser_multiple.add_argument(
     "name.",
     action="store_true",
 )
-
-
-def first_cue_time(data: Dict[str, da.Array], message: int) -> Optional[int]:
-    index = da.argmax(data[cue_id_key] == message)
-    if index or data[cue_id_key][0] == message:
-        return data[cue_time_key][index]
-
-
-def compressed_coordinate(location: da.Array, image_size: Tuple[int, int]) -> da.Array:
-    x, y = da.divmod(location, 0x2000)
-    return x + y * image_size[1]
 
 
 def make_single_image(
