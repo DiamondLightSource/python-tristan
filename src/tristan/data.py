@@ -74,7 +74,7 @@ def data_files(data_dir: Path, root: str, n_dig: int = 6) -> (List[Path], Path):
             sys.exit(f"The following expected data files are missing:\n\t{missing}")
     else:
         print(
-            "The detector metadata holds no information about the number of "
+            "The detector metadata hold no information about the number of "
             "expected raw data files.  Falling back on finding the data dynamically."
         )
         search_path = str(data_dir / f"{root}_{n_dig * '[0-9]'}.h5")
