@@ -14,7 +14,12 @@ import pint
 from dask import array as da
 from dask.diagnostics import ProgressBar
 from hdf5plugin import Bitshuffle
-from numpy.typing import ArrayLike
+
+try:
+    from numpy.typing import ArrayLike
+except ImportError:
+    # NumPy versions compatible with Python 3.6 do not have the numpy.typing module.
+    ArrayLike = np.ndarray
 
 from . import (
     clock_frequency,

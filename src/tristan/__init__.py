@@ -16,7 +16,14 @@ __version_tuple__ = tuple(int(x) for x in __version__.split("."))
 from typing import Dict, Optional, Tuple
 
 from dask import array as da
-from numpy.typing import ArrayLike
+
+try:
+    from numpy.typing import ArrayLike
+except ImportError:
+    # NumPy versions compatible with Python 3.6 do not have the numpy.typing module.
+    import numpy as np
+
+    ArrayLike = np.ndarray
 
 clock_frequency = 6.4e8
 
