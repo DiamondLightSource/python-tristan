@@ -114,7 +114,7 @@ def cue_times(data: Dict[str, da.Array], message: int) -> da.Array:
         The timestamps, measured in clock cycles from the global synchronisation
         signal, de-duplicated.
     """
-    index = da.nonzero(data[cue_id_key] == message)
+    index = da.argwhere(data[cue_id_key] == message)
     return da.unique(data[cue_time_key][index])
 
 
