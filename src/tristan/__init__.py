@@ -16,6 +16,7 @@ __version_tuple__ = tuple(int(x) for x in __version__.split("."))
 from typing import Dict, Optional, Tuple
 
 from dask import array as da
+from numpy.typing import ArrayLike
 
 clock_frequency = 6.4e8
 
@@ -112,7 +113,7 @@ def cue_times(data: Dict[str, da.Array], message: int) -> da.Array:
     return da.unique(data[cue_time_key][index])
 
 
-def seconds(timestamp: int, reference: int = 0) -> float:
+def seconds(timestamp: ArrayLike, reference: ArrayLike = 0) -> ArrayLike:
     """
     Convert a Tristan timestamp to seconds, measured from a given time.
 
@@ -131,29 +132,29 @@ def seconds(timestamp: int, reference: int = 0) -> float:
     return (timestamp - reference) / clock_frequency
 
 
-def compressed_coordinate(location: da.Array, image_size: Tuple[int, int]) -> da.Array:
+def pixel_index(location: ArrayLike, image_size: Tuple[int, int]) -> ArrayLike:
     """
-    Extract pixel coordinate information from an event location message.
+    Extract pixel coordinate information from an event location (event_id) message.
 
-    Label each pixel in the image by its index in the flattened image array (i.e.
-    numbered from zero, in row-major order).  For each event, find the corresponding
-    label of the pixel at which it occurred.
+    Translate a Tristan event location message to the index of the corresponding
+    pixel in the flattened image array (i.e. numbered from zero, in row-major order).
 
     The pixel coordinates of an event on a Tristan detector are encoded in a 32-bit
-    integer location message with 26 bits of useful information.  Extract the y
-    coordinate (the 13 least significant bits) and the x coordinate (the 13 next
-    least significant bits).  Find the corresponding pixel index in the flattened
-    image array by multiplying the y value by the size of the array in x, and adding
-    the x value.
+    integer location message (the event_id) with 26 bits of useful information.
+    Extract the y coordinate (the 13 least significant bits) and the x coordinate
+    (the 13 next least significant bits).  Find the corresponding pixel index in the
+    flattened image array by multiplying the y value by the size of the array in x,
+    and adding the x value.
+
+    This function calls the Python built-in divmod and so can be broadcast over NumPy
+    and Dask arrays.
 
     Args:
-        location:    Either a single event location message (an integer) or a NumPy
-                     array of multiple integers representing the coordinates for
-                     several events.
-        image_size:
+        location:    Event location message (an integer).
+        image_size:  Shape of the image array in (y, x), i.e. (slow, fast).
 
     Returns:
-        An array of pixel indices, with shape and dtype identical to the input array.
+        Index in the flattened image array of the pixel where the event occurred.
     """
-    x, y = da.divmod(location, 0x2000)
+    x, y = divmod(location, 0x2000)
     return x + y * image_size[1]

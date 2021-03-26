@@ -15,11 +15,11 @@ from dask.diagnostics import ProgressBar
 from hdf5plugin import Bitshuffle
 
 from . import (
-    compressed_coordinate,
     cue_keys,
     event_location_key,
     event_time_key,
     first_cue_time,
+    pixel_index,
     shutter_close,
     shutter_open,
 )
@@ -103,7 +103,7 @@ def make_single_image(
 
     valid_events = (start_time <= event_times) & (event_times < end_time)
     event_locations = event_locations[valid_events]
-    event_locations = compressed_coordinate(event_locations, image_size)
+    event_locations = pixel_index(event_locations, image_size)
 
     image = da.bincount(event_locations, minlength=mul(*image_size))
     return image.astype(np.uint32).reshape(1, *image_size)
@@ -125,7 +125,7 @@ def make_multiple_images(
 
     bins = da.linspace(start_time, end_time, num_images + 1, dtype=event_times.dtype)
     image_indices = da.digitize(event_times, bins) - 1
-    event_locations = compressed_coordinate(event_locations, image_size)
+    event_locations = pixel_index(event_locations, image_size)
 
     image_indices = [
         image_indices == image_number for image_number in range(num_images)
