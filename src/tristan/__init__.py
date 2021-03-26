@@ -20,45 +20,50 @@ from numpy.typing import ArrayLike
 
 clock_frequency = 6.4e8
 
-# Translations of the cue_id messages.
+# Translations of the basic cue_id messages.
 padding = 0
 sync = 0x800
-sync_module_1 = 0x801
-sync_module_2 = 0x802
 shutter_open = 0x840
-shutter_open_module_1 = 0x841
-shutter_open_module_2 = 0x842
 shutter_close = 0x880
-shutter_close_module_1 = 0x881
-shutter_close_module_2 = 0x882
 fem_falling = 0x8C1
 fem_rising = 0x8E1
 ttl_falling = 0x8C9
 ttl_rising = 0x8E9
 lvds_falling = 0x8CA
 lvds_rising = 0x8EA
+tzero_falling = 0x8CB
+tzero_rising = 0x8EB
+sync_falling = 0x8CC
+sync_rising = 0x8EC
 reserved = 0xF00
 
 cues = {
     padding: "Padding",
     sync: "Extended time stamp, global synchronisation signal",
-    sync_module_1: "Extended time stamp, sensor module 1",
-    sync_module_2: "Extended time stamp, sensor module 2",
     shutter_open: "Shutter open time stamp, global",
-    shutter_open_module_1: "Shutter open time stamp, sensor module 1",
-    shutter_open_module_2: "Shutter open time stamp, sensor module 2",
     shutter_close: "Shutter close time stamp, global",
-    shutter_close_module_1: "Shutter close time stamp, sensor module 1",
-    shutter_close_module_2: "Shutter close time stamp, sensor module 2",
-    fem_falling: "FEM trigger input, falling edge",
-    fem_rising: "FEM trigger input, rising edge",
+    fem_falling: "FEM trigger, falling edge",
+    fem_rising: "FEM trigger, rising edge",
     ttl_falling: "Clock trigger TTL input, falling edge",
     ttl_rising: "Clock trigger TTL input, rising edge",
     lvds_falling: "Clock trigger LVDS input, falling edge",
     lvds_rising: "Clock trigger LVDS input, rising edge",
+    tzero_falling: "Clock trigger TZERO input, falling edge",
+    tzero_rising: "Clock trigger TZERO input, rising edge",
+    sync_falling: "Clock trigger SYNC input, falling edge",
+    sync_rising: "Clock trigger SYNC input, rising edge",
     0xBC6: "Error: messages out of sync",
     0xBCA: "Error: messages out of sync",
     reserved: "Reserved",
+    **{
+        basic + n: f"{name} time stamp, sensor module {n}"
+        for basic, name in (
+            (sync, "Extended"),
+            (shutter_open, "Shutter open"),
+            (shutter_close, "Shutter close"),
+        )
+        for n in range(1, 64)
+    },
 }
 
 # Keys of event data in the HDF5 file structure.
@@ -71,7 +76,7 @@ event_energy_key = "event_energy"
 cue_keys = cue_id_key, cue_time_key
 event_keys = event_location_key, event_time_key, event_energy_key
 
-size_key = "entry/instrument/detector/module/data_size"
+nx_size_key = "entry/instrument/detector/module/data_size"
 
 
 def first_cue_time(data: Dict[str, da.Array], message: int) -> Optional[int]:
