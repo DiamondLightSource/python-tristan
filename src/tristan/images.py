@@ -10,20 +10,39 @@ from typing import Dict, Tuple
 
 import h5py
 import numpy as np
+import pint
 from dask import array as da
 from dask.diagnostics import ProgressBar
 from hdf5plugin import Bitshuffle
+from numpy.typing import ArrayLike
 
 from . import (
+    clock_frequency,
     cue_keys,
+    cues,
     event_location_key,
     event_time_key,
+    fem_falling,
+    fem_rising,
     first_cue_time,
+    lvds_falling,
+    lvds_rising,
     pixel_index,
     shutter_close,
     shutter_open,
+    ttl_falling,
+    ttl_rising,
 )
 from .data import data_files, find_file_names
+
+triggers = {
+    "TTL-rising": ttl_rising,
+    "TTL-falling": ttl_falling,
+    "LVDS-rising": lvds_rising,
+    "LVDS-falling": lvds_falling,
+    "FEM-rising": fem_rising,
+    "FEM-falling": fem_falling,
+}
 
 parser_single = argparse.ArgumentParser(
     description=(
@@ -47,7 +66,8 @@ parser_single.add_argument(
 parser_single.add_argument(
     "-s",
     "--image-size",
-    help="Dimensions of the detector in pixels, separated by a comma, as 'x,y'.",
+    help="Dimensions of the detector in pixels, separated by a comma, as 'x,y', i.e. "
+    "'fast,slow'.",
 )
 parser_single.add_argument(
     "-f",
@@ -69,18 +89,42 @@ parser_multiple.add_argument(
     "metadata.",
     metavar="input-file",
 )
+parser_multiple.add_argument(
+    "-e",
+    "--exposure-time",
+    help="Duration of each image.  This will be used to calculate the number of "
+    "images, so if --exposure-time is specified, --num-images will be ignored.  "
+    "Specify a value with units like '--exposure-time .5ms', '-e 500µs' or '-e 500us'.",
+    type=pint.Quantity,
+)
 parser_multiple.add_argument("-n", "--num-images", help="Number of images.", type=int)
+parser_multiple.add_argument(
+    "-a",
+    "--align-trigger",
+    help="Align the start and end time of images such that the first trigger signal "
+    "of a given type is matched up with an image start time.  Useful for "
+    "examining effects in the data before and after a single trigger pulse.  The "
+    "trigger type should be specified with --trigger-type.",
+    action="store_true",
+)
+parser_multiple.add_argument(
+    "-t",
+    "--trigger-type",
+    help="The relevant trigger signal.",
+    choices=triggers.keys(),
+)
+parser_multiple.add_argument(
+    "-s",
+    "--image-size",
+    help="Dimensions of the detector in pixels, separated by a comma, as 'x,y', i.e. "
+    "'fast,slow'.",
+)
 parser_multiple.add_argument(
     "-o",
     "--output-file",
     help="File name or location for output image file, defaults to working directory.  "
     "If only a directory location is given, the pattern of the raw data files will be "
     "used, with '<name>_meta.h5' replaced with '<name>_images.h5'.",
-)
-parser_multiple.add_argument(
-    "-s",
-    "--image-size",
-    help="Dimensions of the detector in pixels, separated by a comma, as 'x,y'.",
 )
 parser_multiple.add_argument(
     "-f",
@@ -91,17 +135,19 @@ parser_multiple.add_argument(
 )
 
 
-def make_single_image(
-    data: Dict[str, da.Array], image_size: Tuple[int, int]
-) -> da.Array:
+def find_start_end(data):
     start_time = first_cue_time(data, shutter_open)
     end_time = first_cue_time(data, shutter_close)
-    start_time, end_time = da.compute(start_time, end_time)
+    return da.compute(start_time, end_time)
 
+
+def make_single_image(
+    data: Dict[str, da.Array], image_size: Tuple[int, int], start: int, end: int
+) -> da.Array:
     event_times = data[event_time_key]
     event_locations = data[event_location_key]
 
-    valid_events = (start_time <= event_times) & (event_times < end_time)
+    valid_events = (start <= event_times) & (event_times < end)
     event_locations = event_locations[valid_events]
     event_locations = pixel_index(event_locations, image_size)
 
@@ -110,22 +156,18 @@ def make_single_image(
 
 
 def make_multiple_images(
-    data: Dict[str, da.Array], num_images: int, image_size: Tuple[int, int]
+    data: Dict[str, da.Array], image_size: Tuple[int, int], bins: ArrayLike
 ) -> da.Array:
-    start_time = first_cue_time(data, shutter_open)
-    end_time = first_cue_time(data, shutter_close)
-    start_time, end_time = da.compute(start_time, end_time)
-
     event_times = data[event_time_key]
     event_locations = data[event_location_key]
 
-    valid_events = (start_time <= event_times) & (event_times < end_time)
+    valid_events = (bins[0] <= event_times) & (event_times < bins[-1])
     event_times = event_times[valid_events]
     event_locations = event_locations[valid_events]
 
-    bins = da.linspace(start_time, end_time, num_images + 1, dtype=event_times.dtype)
     image_indices = da.digitize(event_times, bins) - 1
     event_locations = pixel_index(event_locations, image_size)
+    num_images = bins.size - 1
 
     image_indices = [
         image_indices == image_number for image_number in range(num_images)
@@ -169,9 +211,9 @@ def main_single_image(args=None):
             for key in (event_location_key, event_time_key) + cue_keys
         }
 
-        image = make_single_image(data, image_size)
-
         print("Binning events into a single image.")
+        image = make_single_image(data, image_size, *find_start_end(data))
+
         with ProgressBar(), h5py.File(output_file, "w" if args.force else "x") as f:
             data_set = f.require_dataset(
                 "data",
@@ -214,9 +256,53 @@ def main_multiple_images(args=None):
             for key in (event_location_key, event_time_key) + cue_keys
         }
 
-        images = make_multiple_images(data, args.num_images, image_size)
+        start, end = find_start_end(data)
 
-        print("Binning events into images.")
+        freq = pint.Quantity(clock_frequency, "Hz")
+        if args.exposure_time:
+            exposure_time = args.exposure_time.to_base_units().to_compact()
+            exposure_cycles = (exposure_time * freq).to_base_units().magnitude
+            num_images = int((end - start) // exposure_cycles)
+        elif args.num_images:
+            num_images = args.num_images
+            exposure_cycles = (end - start) / num_images
+            exposure_time = exposure_cycles / freq
+            exposure_time = exposure_time.to_base_units().to_compact()
+        else:
+            sys.exit("Please specify either --exposure-time or --num-images.")
+
+        print(
+            f"Binning events into {num_images} images with an exposure time of "
+            f"{exposure_time:~g}."
+        )
+
+        trigger_type = triggers.get(args.trigger_type)
+        if args.align_trigger and trigger_type:
+            print(
+                f"Image start and end times will be chosen such that the first "
+                f"{cues[trigger_type]} is aligned with an image boundary."
+            )
+            # Note we are assuming that the first trigger time is after shutter open.
+            trigger_time = first_cue_time(data, trigger_type)
+            if trigger_time is None:
+                sys.exit(f"Could not find a {cues[trigger_type]}.")
+            else:
+                trigger_time = trigger_time.compute().astype(int)
+            bins_pre = np.arange(
+                trigger_time - exposure_cycles, start, -exposure_cycles, dtype=np.uint64
+            )[::-1]
+            bins_post = np.arange(trigger_time, end, exposure_cycles, dtype=np.uint64)
+            bins = np.concatenate((bins_pre, bins_post))
+        elif args.align_trigger or trigger_type:
+            sys.exit(
+                "To align images with the first trigger time of a given type, "
+                "please specify both --align-trigger and --trigger-type."
+            )
+        else:
+            bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
+
+        images = make_multiple_images(data, image_size, bins)
+
         with ProgressBar(), h5py.File(output_file, "w" if args.force else "x") as f:
             data_set = f.require_dataset(
                 "data",
