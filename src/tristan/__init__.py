@@ -15,6 +15,7 @@ __version_tuple__ = tuple(int(x) for x in __version__.split("."))
 
 from typing import Dict, Optional, Tuple
 
+import pint
 from dask import array as da
 
 try:
@@ -141,7 +142,7 @@ def seconds(timestamp: ArrayLike, reference: ArrayLike = 0) -> ArrayLike:
     Returns:
         The difference between the two timestamps in seconds.
     """
-    return (timestamp - reference) / clock_frequency
+    return pint.Quantity((timestamp - reference) / clock_frequency, "s").to_compact()
 
 
 def pixel_index(location: ArrayLike, image_size: Tuple[int, int]) -> ArrayLike:
