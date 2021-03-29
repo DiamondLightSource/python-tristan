@@ -77,9 +77,9 @@ def main(args=None):
 {cues.get(cue, f'Unknown (0x{cue:04x})')}:
 Found {cue_times_sel.size} instances.
 Found {deduplicated.size} de-duplicated instances with
-\tSmallest time difference: {min_diff} cycles ({seconds(min_diff):.3g})
-\tLargest time difference: {max_diff} cycles ({seconds(max_diff):.3g})
-\tMean time difference: {avg_diff:.2f} cycles ({seconds(avg_diff):.3g})"""
+\tsmallest time difference: {min_diff} cycles ({seconds(min_diff):~.3g}),
+\tlargest time difference: {max_diff} cycles ({seconds(max_diff):~.3g}),
+\tmean time difference: {avg_diff:.2f} cycles ({seconds(avg_diff):~.3g})."""
             )
         elif cue_times_sel.size > 1:
             n = cue_times_sel.size
