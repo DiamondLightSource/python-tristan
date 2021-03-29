@@ -74,12 +74,18 @@ def main(args=None):
 
             print(
                 f"""
-{cues[cue]}:
+{cues.get(cue, f'Unknown (0x{cue:04x})')}:
 Found {cue_times_sel.size} instances.
 Found {deduplicated.size} de-duplicated instances with
 \tSmallest time difference: {min_diff} cycles ({seconds(min_diff):.3g})
 \tLargest time difference: {max_diff} cycles ({seconds(max_diff):.3g})
 \tMean time difference: {avg_diff:.2f} cycles ({seconds(avg_diff):.3g})"""
             )
+        elif cue_times_sel.size > 1:
+            n = cue_times_sel.size
+            print(
+                f"\n{cues.get(cue, f'Unknown (0x{cue:04x})')}:  Found {n} instances,\n"
+                f"\tall with the same timestamp."
+            )
         else:
-            print(f"\n{cues[cue]}:  Found 1 instance.")
+            print(f"\n{cues.get(cue, f'Unknown (0x{cue:04x})')}:  Found 1 instance.")
