@@ -16,6 +16,7 @@ from hdf5plugin import Bitshuffle
 from .. import (
     clock_frequency,
     cue_keys,
+    cue_times,
     cues,
     event_location_key,
     event_time_key,
@@ -177,6 +178,68 @@ def multiple_images_cli(args):
     print(f"Images file written to\n\t{output_file}")
 
 
+def pump_probe_cli(args):
+    """Utility for making multiple images from """
+    data_dir, root, output_file = find_file_names(
+        args.input_file, args.output_file, "images", args.force
+    )
+
+    if args.image_size:
+        image_size = tuple(map(int, args.image_size.split(",")))[::-1]
+    else:
+        image_size = determine_image_size(data_dir, root)
+
+    raw_files, _ = data_files(data_dir, root)
+
+    with ExitStack() as stack:
+        files = [stack.enter_context(h5py.File(f, "r")) for f in raw_files]
+        data = {
+            key: da.concatenate([f[key] for f in files]).rechunk()
+            for key in (event_location_key, event_time_key) + cue_keys
+        }
+
+        trigger_type = triggers.get(args.trigger_type)
+
+        trigger_times = cue_times(data, trigger_type).compute().astype(int)
+        trigger_times = np.sort(np.unique(trigger_times))
+        end = np.diff(trigger_times).min()
+
+        if not np.any(trigger_times):
+            sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
+
+        exposure_time, exposure_cycles, num_images = exposure(
+            0, end, args.exposure_time, args.num_images
+        )
+
+        print(
+            f"Binning events into {num_images} images with an exposure time of "
+            f"{exposure_time:~.3g} according to the time elapsed since the mose recent "
+            f"'{cues[trigger_type]}' signal."
+        )
+
+        # Measure the event time as time elapsed since the most recent trigger signal.
+        data[event_time_key] = data[event_time_key].astype(np.int64)
+        data[event_time_key] -= trigger_times[
+            da.digitize(data[event_time_key], trigger_times) - 1
+        ]
+
+        bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
+
+        images = make_multiple_images(data, image_size, bins)
+
+        with ProgressBar(), h5py.File(output_file, "w" if args.force else "x") as f:
+            data_set = f.require_dataset(
+                "data",
+                shape=images.shape,
+                dtype=images.dtype,
+                chunks=images.chunksize,
+                **Bitshuffle(),
+            )
+            images.store(data_set)
+
+    print(f"Images file written to\n\t{output_file}")
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 subparsers = parser.add_subparsers(
     help="Choose the manner in which to create images.",
@@ -212,6 +275,23 @@ parser_multiple.add_argument(
     choices=triggers.keys(),
 )
 parser_multiple.set_defaults(func=multiple_images_cli)
+
+parser_pump_probe = subparsers.add_parser(
+    "pump-probe",
+    aliases=["pp"],
+    description="With LATRD data from a pump-probe experiment, where the pump "
+    "signal has a regular repeat rate, bin events into images "
+    "according to the time elapsed since the most recent pump trigger "
+    "signal.",
+    parents=[version_parser, input_parser, image_output_parser, exposure_parser],
+)
+parser_pump_probe.add_argument(
+    "-t",
+    "--trigger-type",
+    help="The type of trigger signal used as the pump pulse marker.",
+    choices=triggers.keys(),
+)
+parser_pump_probe.set_defaults(func=pump_probe_cli)
 
 
 def main(args=None):
