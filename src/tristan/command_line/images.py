@@ -3,6 +3,8 @@
 import argparse
 import sys
 from contextlib import ExitStack
+from pathlib import Path
+from typing import Tuple
 
 import h5py
 import numpy as np
@@ -43,6 +45,19 @@ triggers = {
 }
 
 
+def determine_image_size(data_dir: Path, root: str) -> Tuple[int, int]:
+    """Find the image size from metadata."""
+    nexus_file = data_dir / f"{root}.nxs"
+    try:
+        with h5py.File(nexus_file, "r") as f:
+            return f["entry/instrument/detector/module/data_size"][()]
+    except (FileNotFoundError, OSError):
+        sys.exit(
+            f"Cannot find NeXus file:\n\t{nexus_file}\nPlease specify the "
+            f"detector dimensions in (x, y) with '--image-size'."
+        )
+
+
 def exposure(
     start: int, end: int, exposure_time: pint.Quantity = None, num_images: int = None
 ):
@@ -71,15 +86,7 @@ def single_image_cli(args):
     if args.image_size:
         image_size = tuple(map(int, args.image_size.split(",")))[::-1]
     else:
-        nexus_file = data_dir / f"{root}.nxs"
-        try:
-            with h5py.File(nexus_file, "r") as f:
-                image_size = f["entry/instrument/detector/module/data_size"][()]
-        except (FileNotFoundError, OSError):
-            sys.exit(
-                f"Cannot find NeXus file:\n\t{nexus_file}\nPlease specify the "
-                f"detector dimensions in (x, y) with '--image-size'."
-            )
+        image_size = determine_image_size(data_dir, root)
 
     raw_files, _ = data_files(data_dir, root)
 
@@ -115,15 +122,7 @@ def multiple_images_cli(args):
     if args.image_size:
         image_size = tuple(map(int, args.image_size.split(",")))[::-1]
     else:
-        nexus_file = data_dir / f"{root}.nxs"
-        try:
-            with h5py.File(nexus_file, "r") as f:
-                image_size = f["entry/instrument/detector/module/data_size"][()]
-        except (FileNotFoundError, OSError):
-            sys.exit(
-                f"Cannot find NeXus file:\n\t{nexus_file}\nPlease specify the "
-                f"detector dimensions in (x, y) with '--image-size'."
-            )
+        image_size = determine_image_size(data_dir, root)
 
     raw_files, _ = data_files(data_dir, root)
 
