@@ -279,10 +279,10 @@ parser_multiple.set_defaults(func=multiple_images_cli)
 parser_pump_probe = subparsers.add_parser(
     "pump-probe",
     aliases=["pp"],
-    description="With LATRD data from a pump-probe experiment, where the pump "
-    "signal has a regular repeat rate, bin events into images "
-    "according to the time elapsed since the most recent pump trigger "
-    "signal.",
+    description="Bin events into images representing different pump-probe delays.\n\n"
+    "With LATRD data from a pump-probe experiment, where the pump signal has a fairly "
+    "constant repeat rate, bin events into images spanning a range of pump-probe "
+    "delay times.",
     parents=[version_parser, input_parser, image_output_parser, exposure_parser],
 )
 parser_pump_probe.add_argument(
