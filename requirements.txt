@@ -1,4 +1,6 @@
-dask
+dask[array,diagnostics] != 2021.03.0
 h5py
+hdf5plugin
 numpy
+pint
 zarr
