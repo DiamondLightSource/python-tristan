@@ -3,13 +3,13 @@ repos:
 
 # Bring Python code up to date with pyupgrade
 - repo: https://github.com/asottile/pyupgrade
-  rev: v2.7.2
+  rev: v2.11.0
   hooks:
   - id: pyupgrade
 
 # Automatically sort imports with isort
 - repo: https://github.com/timothycrosley/isort.git
-  rev: 5.7.0
+  rev: 5.8.0
   hooks:
   - id: isort
     additional_dependencies: [toml]
@@ -30,7 +30,7 @@ repos:
 
 # Format YAML & TOML files prettily
 - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
-  rev: v1.5.0
+  rev: v2.0.0
   hooks:
   - id: pretty-format-yaml
     args: [--autofix, --indent, '2']
