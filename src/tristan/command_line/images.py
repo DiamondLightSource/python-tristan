@@ -140,7 +140,7 @@ def multiple_images_cli(args):
 
         print(
             f"Binning events into {num_images} images with an exposure time of "
-            f"{exposure_time:~g}."
+            f"{exposure_time:~.3g}."
         )
 
         if args.align_trigger:
@@ -152,9 +152,8 @@ def multiple_images_cli(args):
             # Note we are assuming that the first trigger time is after shutter open.
             trigger_time = first_cue_time(data, trigger_type)
             if trigger_time is None:
-                sys.exit(f"Could not find a {cues[trigger_type]}.")
-            else:
-                trigger_time = trigger_time.compute().astype(int)
+                sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
+            trigger_time = trigger_time.compute().astype(int)
             bins_pre = np.arange(
                 trigger_time - exposure_cycles, start, -exposure_cycles, dtype=np.uint64
             )[::-1]

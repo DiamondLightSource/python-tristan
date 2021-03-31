@@ -47,7 +47,7 @@ reserved = 0xF00
 
 cues = {
     padding: "Padding",
-    sync: "Extended time stamp, global synchronisation signal",
+    sync: "Extended time stamp, global synchronisation",
     shutter_open: "Shutter open time stamp, global",
     shutter_close: "Shutter close time stamp, global",
     fem_falling: "FEM trigger, falling edge",
