@@ -24,6 +24,7 @@ from .. import (
     fem_rising,
     lvds_falling,
     lvds_rising,
+    seconds,
     ttl_falling,
     ttl_rising,
 )
@@ -72,8 +73,7 @@ def exposure(
         # exposure_time, there must be a num_images.
         num_images = num_images
         exposure_cycles = (end - start) / num_images
-        exposure_time = exposure_cycles / freq
-        exposure_time = exposure_time.to_base_units().to_compact()
+        exposure_time = seconds(exposure_cycles)
 
     return exposure_time, exposure_cycles, num_images
 
