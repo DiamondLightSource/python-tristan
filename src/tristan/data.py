@@ -15,6 +15,25 @@ import numpy as np
 ts_key_regex = re.compile(r"ts_qty_module\d{2}")
 
 
+def find_input_file_name(in_file):
+    """Resolve the input file name."""
+    in_file = Path(in_file).expanduser().resolve()
+
+    data_dir = in_file.parent
+
+    # Get the segment 'name_root' from 'name_root_meta.h5' or 'name_root_000001.h5'.
+    file_name_root = re.fullmatch(r"(.*)_(?:meta|\d+)", in_file.stem)
+    if file_name_root:
+        file_name_root = file_name_root[1]
+    else:
+        sys.exit(
+            "Input file name did not have the expected format '<name>_meta.h5':\n"
+            f"\t{in_file}"
+        )
+
+    return data_dir, file_name_root
+
+
 def find_file_names(
     in_file: str, out_file: Optional[str], default_out_label: str, force: bool
 ) -> (Path, str, Path):

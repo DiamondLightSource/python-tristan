@@ -1,13 +1,5 @@
-"""
-Create an HDF5 virtual data set (VDS) file to aggregate raw Tristan events data.
+"""Tools for creating and manipulating an HDF5 VDS for Tristan data."""
 
-By default, this file will be saved in the same directory as the raw data and
-detector metadata files, retaining the same naming convention.  So if the metadata
-file is named 'my_data_1_meta.h5', then the new VDS file will be named
-'my_data_1_vds.h5'.
-"""
-
-import argparse
 from contextlib import ExitStack
 from itertools import chain, compress, cycle, zip_longest
 from pathlib import Path
@@ -17,29 +9,7 @@ import h5py
 import numpy as np
 
 from . import cue_keys, event_keys
-from .data import data_files, find_file_names, ts_key_regex
-
-parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument(
-    "input_file",
-    help="Tristan metadata ('_meta.h5') or raw data ('_000001.h5', etc.) file.  "
-    "This file must be in the same directory as the HDF5 files containing the "
-    "corresponding raw events data.",
-    metavar="input-file",
-)
-parser.add_argument(
-    "-o",
-    "--output-file",
-    help="File name for output VDS file.  "
-    "By default, the pattern of the input file will be used, with '_meta.h5' "
-    "replaced with '_vds.h5'.",
-)
-parser.add_argument(
-    "-f",
-    "--force",
-    help="Force the output file to over-write any existing file with the same name.",
-    action="store_true",
-)
+from .data import ts_key_regex
 
 Sources = Dict[str, Iterable[h5py.VirtualSource]]
 TimeSliceInfo = List[slice], np.ndarray, List[slice], List[slice]
@@ -222,22 +192,3 @@ def virtual_data_set(
             layout[cue_slice] = source[:count]
 
     return layouts
-
-
-def main(args=None):
-    """Utility for making an HDF5 VDS from raw Tristan data."""
-    args = parser.parse_args(args)
-    data_dir, root, output_file = find_file_names(
-        args.input_file, args.output_file, "vds", args.force
-    )
-
-    raw_files, meta_file = data_files(data_dir, root)
-    with h5py.File(meta_file, "r") as f:
-        ts_info = time_slice_info(f)
-        layouts = virtual_data_set(raw_files, f, *ts_info)
-
-    with h5py.File(output_file, "w" if args.force else "x") as f:
-        for layout in layouts.items():
-            f.create_virtual_dataset(*layout)
-
-    print(f"Virtual data set file written to\n\t{output_file}")
