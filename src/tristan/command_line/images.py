@@ -71,7 +71,6 @@ def exposure(
     else:
         # Because they are expected to be mutually exclusive, if there is no
         # exposure_time, there must be a num_images.
-        num_images = num_images
         exposure_cycles = (end - start) / num_images
         exposure_time = seconds(exposure_cycles)
 
