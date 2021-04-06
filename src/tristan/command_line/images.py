@@ -290,6 +290,7 @@ parser_pump_probe.add_argument(
     "--trigger-type",
     help="The type of trigger signal used as the pump pulse marker.",
     choices=triggers.keys(),
+    required=True,
 )
 parser_pump_probe.set_defaults(func=pump_probe_cli)
 
