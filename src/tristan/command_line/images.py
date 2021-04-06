@@ -239,7 +239,7 @@ def pump_probe_cli(args):
     print(f"Images file written to\n\t{output_file}")
 
 
-parser = argparse.ArgumentParser(description=__doc__)
+parser = argparse.ArgumentParser(description=__doc__, parents=[version_parser])
 subparsers = parser.add_subparsers(
     help="Choose the manner in which to create images.",
     required=True,
