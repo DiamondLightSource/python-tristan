@@ -63,10 +63,9 @@ def determine_image_size(data_dir: Path, root: str) -> Tuple[int, int]:
 def exposure(
     start: int, end: int, exposure_time: pint.Quantity = None, num_images: int = None
 ):
-    freq = pint.Quantity(clock_frequency, "Hz")
     if exposure_time:
         exposure_time = exposure_time.to_base_units().to_compact()
-        exposure_cycles = (exposure_time * freq).to_base_units().magnitude
+        exposure_cycles = (exposure_time * clock_frequency).to_base_units().magnitude
         num_images = int((end - start) // exposure_cycles)
     else:
         # Because they are expected to be mutually exclusive, if there is no
@@ -217,6 +216,7 @@ def pump_probe_cli(args):
         )
 
         # Measure the event time as time elapsed since the most recent trigger signal.
+        trigger_times = da.from_array(trigger_times)
         data[event_time_key] = data[event_time_key].astype(np.int64)
         data[event_time_key] -= trigger_times[
             da.digitize(data[event_time_key], trigger_times) - 1
@@ -289,6 +289,7 @@ parser_pump_probe.add_argument(
     "--trigger-type",
     help="The type of trigger signal used as the pump pulse marker.",
     choices=triggers.keys(),
+    required=True,
 )
 parser_pump_probe.set_defaults(func=pump_probe_cli)
 
