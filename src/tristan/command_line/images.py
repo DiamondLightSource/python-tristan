@@ -217,6 +217,7 @@ def pump_probe_cli(args):
         )
 
         # Measure the event time as time elapsed since the most recent trigger signal.
+        trigger_times = da.from_array(trigger_times)
         data[event_time_key] = data[event_time_key].astype(np.int64)
         data[event_time_key] -= trigger_times[
             da.digitize(data[event_time_key], trigger_times) - 1
