@@ -1,12 +1,19 @@
 """General utilities for the command-line tools."""
 
 import argparse
+from typing import SupportsFloat, Union
 
-import pint
-
-from .. import __version__
+from .. import __version__, ureg
 
 __all__ = ("version_parser", "input_parser", "image_output_parser", "exposure_parser")
+
+
+Quantity, Unit = ureg.Quantity, ureg.Unit
+
+
+def default_unit(quantity: Union[Quantity, SupportsFloat], unit: str = "s") -> Quantity:
+    quantity = Quantity(quantity)
+    return quantity * Unit(unit) if quantity.dimensionless else quantity
 
 
 version_parser = argparse.ArgumentParser(add_help=False)
@@ -60,6 +67,6 @@ group.add_argument(
     help="Duration of each image.  This will be used to calculate the number of "
     "images.  Specify a value with units like '--exposure-time .5ms', '-e 500µs' or "
     "'-e 500us'.",
-    type=pint.Quantity,
+    type=default_unit,
 )
 group.add_argument("-n", "--num-images", help="Number of images.", type=int)

@@ -63,10 +63,9 @@ def determine_image_size(data_dir: Path, root: str) -> Tuple[int, int]:
 def exposure(
     start: int, end: int, exposure_time: pint.Quantity = None, num_images: int = None
 ):
-    freq = pint.Quantity(clock_frequency, "Hz")
     if exposure_time:
         exposure_time = exposure_time.to_base_units().to_compact()
-        exposure_cycles = (exposure_time * freq).to_base_units().magnitude
+        exposure_cycles = (exposure_time * clock_frequency).to_base_units().magnitude
         num_images = int((end - start) // exposure_cycles)
     else:
         # Because they are expected to be mutually exclusive, if there is no

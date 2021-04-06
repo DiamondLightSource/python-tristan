@@ -26,7 +26,10 @@ except ImportError:
 
     ArrayLike = np.ndarray
 
-clock_frequency = 6.4e8
+
+ureg = pint.UnitRegistry()
+
+clock_frequency = ureg.Quantity(6.4e8, "Hz").to_compact()
 
 # Translations of the basic cue_id messages.
 padding = 0
@@ -142,7 +145,7 @@ def seconds(timestamp: ArrayLike, reference: ArrayLike = 0) -> ArrayLike:
     Returns:
         The difference between the two timestamps in seconds.
     """
-    return pint.Quantity((timestamp - reference) / clock_frequency, "s").to_compact()
+    return ((timestamp - reference) / clock_frequency).to_base_units().to_compact()
 
 
 def pixel_index(location: ArrayLike, image_size: Tuple[int, int]) -> ArrayLike:
