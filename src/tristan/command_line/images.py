@@ -47,9 +47,8 @@ triggers = {
 }
 
 
-def determine_image_size(data_dir: Path, root: str) -> Tuple[int, int]:
+def determine_image_size(nexus_file: Path) -> Tuple[int, int]:
     """Find the image size from metadata."""
-    nexus_file = data_dir / f"{root}.nxs"
     try:
         with h5py.File(nexus_file, "r") as f:
             return f["entry/instrument/detector/module/data_size"][()]
@@ -81,11 +80,12 @@ def single_image_cli(args):
     data_dir, root, output_file = find_file_names(
         args.input_file, args.output_file, "single_image", args.force
     )
+    nexus_file = data_dir / f"{root}.nxs"
 
     if args.image_size:
         image_size = tuple(map(int, args.image_size.split(",")))[::-1]
     else:
-        image_size = determine_image_size(data_dir, root)
+        image_size = determine_image_size(nexus_file)
 
     raw_files, _ = data_files(data_dir, root)
 
@@ -117,11 +117,12 @@ def multiple_images_cli(args):
     data_dir, root, output_file = find_file_names(
         args.input_file, args.output_file, "images", args.force
     )
+    nexus_file = data_dir / f"{root}.nxs"
 
     if args.image_size:
         image_size = tuple(map(int, args.image_size.split(",")))[::-1]
     else:
-        image_size = determine_image_size(data_dir, root)
+        image_size = determine_image_size(nexus_file)
 
     raw_files, _ = data_files(data_dir, root)
 
@@ -181,11 +182,12 @@ def pump_probe_cli(args):
     data_dir, root, output_file = find_file_names(
         args.input_file, args.output_file, "images", args.force
     )
+    nexus_file = data_dir / f"{root}.nxs"
 
     if args.image_size:
         image_size = tuple(map(int, args.image_size.split(",")))[::-1]
     else:
-        image_size = determine_image_size(data_dir, root)
+        image_size = determine_image_size(nexus_file)
 
     raw_files, _ = data_files(data_dir, root)
 
