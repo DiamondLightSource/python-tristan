@@ -12,6 +12,7 @@ import numpy as np
 
 # Regex for the names of data sets, in the time slice metadata file, representing the
 # distribution of time slices across raw data files for each module.
+meta_file_name_regex = re.compile(r"(.*)_(?:meta|\d+)")
 ts_key_regex = re.compile(r"ts_qty_module\d{2}")
 
 
@@ -40,17 +41,28 @@ def find_file_names(
     """Resolve the input and output file names."""
     in_file = Path(in_file).expanduser().resolve()
 
-    data_dir = in_file.parent
-
-    # Get the segment 'name_root' from 'name_root_meta.h5' or 'name_root_000001.h5'.
-    file_name_root = re.fullmatch(r"(.*)_(?:meta|\d+)", in_file.stem)
-    if file_name_root:
-        file_name_root = file_name_root[1]
+    if in_file.is_dir():
+        data_dir = in_file
+        try:
+            (file_name,) = data_dir.glob("*_meta.h5")
+        except ValueError:
+            sys.exit(
+                "Could not find a single unique '<filename>_meta.h5' file in the "
+                "specified directory.\n"
+                "Please specify the desired input file name instead."
+            )
+        file_name_root = meta_file_name_regex.fullmatch(file_name.stem)[1]
     else:
-        sys.exit(
-            "Input file name did not have the expected format '<name>_meta.h5':\n"
-            f"\t{in_file}"
-        )
+        data_dir = in_file.parent
+        # Get the segment 'name_root' from 'name_root_meta.h5' or 'name_root_000001.h5'.
+        file_name_root = meta_file_name_regex.fullmatch(in_file.stem)
+        if file_name_root:
+            file_name_root = file_name_root[1]
+        else:
+            sys.exit(
+                "Input file name did not have the expected format '<name>_meta.h5':\n"
+                f"\t{in_file}"
+            )
 
     if out_file:
         out_file = Path(out_file).expanduser().resolve()
