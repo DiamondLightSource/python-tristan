@@ -37,6 +37,8 @@ from ..binning import (
 from ..data import data_files, find_file_names
 from . import exposure_parser, image_output_parser, input_parser, version_parser
 
+from nexgen.copy import CopyTristanNexus
+
 triggers = {
     "TTL-rising": ttl_rising,
     "TTL-falling": ttl_falling,
