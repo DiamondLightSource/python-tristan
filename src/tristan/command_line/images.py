@@ -12,6 +12,7 @@ import pint
 from dask import array as da
 from dask.diagnostics import ProgressBar
 from hdf5plugin import Bitshuffle
+from nexgen.copy import CopyTristanNexus
 
 from .. import (
     clock_frequency,
@@ -36,8 +37,6 @@ from ..binning import (
 )
 from ..data import data_files, find_file_names
 from . import exposure_parser, image_output_parser, input_parser, version_parser
-
-from nexgen.copy import CopyTristanNexus
 
 triggers = {
     "TTL-rising": ttl_rising,
@@ -112,6 +111,10 @@ def single_image_cli(args):
             image.store(data_set)
 
     print(f"Image file written to\n\t{output_file}")
+
+    # Write NeXus file
+    CopyTristanNexus.single_image_nexus(output_file, nexus_file)
+    print("Relative NeXus file written.")
 
 
 def multiple_images_cli(args):
@@ -241,6 +244,10 @@ def pump_probe_cli(args):
             images.store(data_set)
 
     print(f"Images file written to\n\t{output_file}")
+
+    # Write NeXus file
+    CopyTristanNexus.pump_probe_nexus(output_file, nexus_file)
+    print("Relative NeXus file written.")
 
 
 parser = argparse.ArgumentParser(description=__doc__, parents=[version_parser])
