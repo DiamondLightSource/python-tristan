@@ -4,3 +4,4 @@ hdf5plugin
 numpy
 pint
 zarr
+nexgen
