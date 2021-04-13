@@ -6,3 +6,4 @@ pint
 pytest
 pytest-cov
 zarr
+nexgen
