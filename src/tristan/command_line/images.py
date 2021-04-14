@@ -108,7 +108,12 @@ def single_image_cli(args):
 
 
 def multiple_images_cli(args):
-    """Utility for making multiple images from event-mode data."""
+    """
+    Utility for making multiple images from event-mode data.
+
+    The time between the start and end of the data collection is subdivided into a
+    number of exposures of equal duration, providing a chronological stack of images.
+    """
     data_dir, root, output_file = find_file_names(
         args.input_file, args.output_file, "images", args.force
     )
@@ -173,7 +178,14 @@ def multiple_images_cli(args):
 
 
 def pump_probe_cli(args):
-    """Utility for making multiple images from """
+    """
+    Utility for making multiple images from a pump-probe data collection.
+
+    The time between one pump trigger signal and the next is subdivided into a number
+    of exposures of equal duration.  Data from all such pump-to-pump intervals is
+    aggregated, providing a single stack of images that captures the evolution of the
+    response of the measurement to a pump signal.
+    """
     data_dir, root, output_file = find_file_names(
         args.input_file, args.output_file, "images", args.force
     )

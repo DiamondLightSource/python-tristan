@@ -12,6 +12,7 @@ Quantity, Unit = ureg.Quantity, ureg.Unit
 
 
 def default_unit(quantity: Union[Quantity, SupportsFloat], unit: str = "s") -> Quantity:
+    """Provide units for a quantity if it doesn't already have any."""
     quantity = Quantity(quantity)
     return quantity * Unit(unit) if quantity.dimensionless else quantity
 

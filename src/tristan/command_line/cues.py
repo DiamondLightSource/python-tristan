@@ -17,6 +17,7 @@ parser = argparse.ArgumentParser(
 
 
 def main(args=None):
+    """Print a human-readable summary of the cue messages in a LATRD data set."""
     args = parser.parse_args(args)
 
     data_dir, root = find_input_file_name(args.input_file)

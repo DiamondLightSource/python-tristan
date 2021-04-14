@@ -95,10 +95,10 @@ def first_cue_time(data: Dict[str, da.Array], message: int) -> Optional[int]:
     Find the timestamp of the first instance of a cue message in a Tristan data set.
 
     Args:
-        data:     A NeXus-like LATRD data dictionary (a dictionary with data set
-                  names as keys and Dask arrays as values).  Must contain one entry
-                  for cue id messages and one for cue timestamps.  The two arrays are
-                  assumed to have the same length.
+        data:     A LATRD data dictionary (a dictionary with data set names as keys
+                  and Dask arrays as values).  Must contain one entry for cue id
+                  messages and one for cue timestamps.  The two arrays are assumed
+                  to have the same length.
         message:  The message code, as defined in the Tristan standard.
 
     Returns:
@@ -115,10 +115,10 @@ def cue_times(data: Dict[str, da.Array], message: int) -> da.Array:
     Find the timestamps of all instances of a cue message in a Tristan data set.
 
     Args:
-        data:     A NeXus-like LATRD data dictionary (a dictionary with data set
-                  names as keys and Dask arrays as values).  Must contain one entry
-                  for cue id messages and one for cue timestamps.  The two arrays are
-                  assumed to have the same length.
+        data:     A LATRD data dictionary (a dictionary with data set names as keys
+                  and Dask arrays as values).  Must contain one entry for cue id
+                  messages and one for cue timestamps.  The two arrays are assumed
+                  to have the same length.
         message:  The message code, as defined in the Tristan standard.
 
     Returns:

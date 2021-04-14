@@ -23,7 +23,19 @@ from . import (
 )
 
 
-def find_start_end(data):
+def find_start_end(data: Dict[str, da.Array]) -> (int, int):
+    """
+    Find the shutter open and shutter close timestamps.
+
+    Args:
+        data:  A LATRD data dictionary (a dictionary with data set names as keys
+               and Dask arrays as values).  Must contain one entry for cue id
+               messages and one for cue timestamps.  The two arrays are assumed
+               to have the same length.
+
+    Returns:
+        The shutter open and shutter close timestamps, in clock cycles.
+    """
     start_time = first_cue_time(data, shutter_open)
     end_time = first_cue_time(data, shutter_close)
     return da.compute(start_time, end_time)

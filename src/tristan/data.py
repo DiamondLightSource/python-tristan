@@ -10,9 +10,9 @@ from typing import List, Optional
 import h5py
 import numpy as np
 
+meta_file_name_regex = re.compile(r"(.*)_(?:meta|\d+)")
 # Regex for the names of data sets, in the time slice metadata file, representing the
 # distribution of time slices across raw data files for each module.
-meta_file_name_regex = re.compile(r"(.*)_(?:meta|\d+)")
 ts_key_regex = re.compile(r"ts_qty_module\d{2}")
 
 
