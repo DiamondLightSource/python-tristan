@@ -28,12 +28,7 @@ from .. import (
     ttl_falling,
     ttl_rising,
 )
-from ..binning import (
-    find_start_end,
-    first_cue_time,
-    make_multiple_images,
-    make_single_image,
-)
+from ..binning import find_start_end, first_cue_time, make_images
 from ..data import data_files, find_file_names
 from . import exposure_parser, image_output_parser, input_parser, version_parser
 
@@ -97,7 +92,7 @@ def single_image_cli(args):
         }
 
         print("Binning events into a single image.")
-        image = make_single_image(data, image_size, *find_start_end(data))
+        image = make_images(data, image_size, find_start_end(data))
 
         with ProgressBar(), h5py.File(output_file, "w" if args.force else "x") as f:
             data_set = f.require_dataset(
@@ -162,7 +157,7 @@ def multiple_images_cli(args):
         else:
             bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
 
-        images = make_multiple_images(data, image_size, bins)
+        images = make_images(data, image_size, bins)
 
         with ProgressBar(), h5py.File(output_file, "w" if args.force else "x") as f:
             data_set = f.require_dataset(
@@ -226,7 +221,7 @@ def pump_probe_cli(args):
 
         bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
 
-        images = make_multiple_images(data, image_size, bins)
+        images = make_images(data, image_size, bins)
 
         with ProgressBar(), h5py.File(output_file, "w" if args.force else "x") as f:
             data_set = f.require_dataset(
