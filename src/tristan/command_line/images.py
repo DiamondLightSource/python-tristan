@@ -12,6 +12,7 @@ import pint
 from dask import array as da
 from dask.diagnostics import ProgressBar
 from hdf5plugin import Bitshuffle
+from nexgen.copy import CopyTristanNexus
 
 from .. import (
     clock_frequency,
@@ -76,6 +77,17 @@ def single_image_cli(args):
         args.input_file, args.output_file, "single_image", args.force
     )
     nexus_file = data_dir / f"{root}.nxs"
+    if nexus_file.exists():
+        # Write output NeXus file if we have an input NeXus file.
+        output_nexus = CopyTristanNexus.single_image_nexus(
+            output_file, nexus_file, write_mode="w" if args.force else "x"
+        )
+    else:
+        output_nexus = None
+        print(
+            "Could not find a NeXus file containing experiment metadata.\n"
+            "Resorting to writing raw image data without accompanying metadata."
+        )
 
     if args.image_size:
         image_size = tuple(map(int, args.image_size.split(",")))[::-1]
@@ -104,7 +116,7 @@ def single_image_cli(args):
             )
             image.store(data_set)
 
-    print(f"Image file written to\n\t{output_file}")
+    print(f"Images written to\n\t{output_nexus or output_file}")
 
 
 def multiple_images_cli(args):
@@ -118,6 +130,11 @@ def multiple_images_cli(args):
         args.input_file, args.output_file, "images", args.force
     )
     nexus_file = data_dir / f"{root}.nxs"
+    if not nexus_file.exists():
+        print(
+            "Could not find a NeXus file containing experiment metadata.\n"
+            "Resorting to writing raw image data without accompanying metadata."
+        )
 
     if args.image_size:
         image_size = tuple(map(int, args.image_size.split(",")))[::-1]
@@ -174,7 +191,18 @@ def multiple_images_cli(args):
             )
             images.store(data_set)
 
-    print(f"Images file written to\n\t{output_file}")
+    if nexus_file.exists():
+        # Write output NeXus file if we have an input NeXus file.
+        output_nexus = CopyTristanNexus.multiple_images_nexus(
+            output_file,
+            nexus_file,
+            nbins=num_images,
+            write_mode="w" if args.force else "x",
+        )
+    else:
+        output_nexus = None
+
+    print(f"Images written to\n\t{output_nexus or output_file}")
 
 
 def pump_probe_cli(args):
@@ -190,6 +218,17 @@ def pump_probe_cli(args):
         args.input_file, args.output_file, "images", args.force
     )
     nexus_file = data_dir / f"{root}.nxs"
+    if nexus_file.exists():
+        # Write output NeXus file if we have an input NeXus file.
+        output_nexus = CopyTristanNexus.pump_probe_nexus(
+            output_file, nexus_file, write_mode="w" if args.force else "x"
+        )
+    else:
+        output_nexus = None
+        print(
+            "Could not find a NeXus file containing experiment metadata.\n"
+            "Resorting to writing raw image data without accompanying metadata."
+        )
 
     if args.image_size:
         image_size = tuple(map(int, args.image_size.split(",")))[::-1]
@@ -245,7 +284,7 @@ def pump_probe_cli(args):
             )
             images.store(data_set)
 
-    print(f"Images file written to\n\t{output_file}")
+    print(f"Images written to\n\t{output_nexus or output_file}")
 
 
 parser = argparse.ArgumentParser(description=__doc__, parents=[version_parser])
