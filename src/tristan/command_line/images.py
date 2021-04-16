@@ -182,7 +182,7 @@ def multiple_images_cli(args):
     print(f"Images file written to\n\t{output_file}")
 
     CopyTristanNexus.multiple_images_nexus(
-        output_file, nexus_file, nbins=len(bins[:-1])
+        output_file, nexus_file, nbins=num_images
     )
     print("Relative NeXus file written.")
 
