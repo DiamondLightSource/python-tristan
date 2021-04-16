@@ -84,7 +84,9 @@ def single_image_cli(args):
     nexus_file = data_dir / f"{root}.nxs"
     if nexus_file.exists():
         # Write output NeXus file if we have an input NeXus file.
-        output_nexus = CopyTristanNexus.single_image_nexus(output_file, nexus_file)
+        output_nexus = CopyTristanNexus.single_image_nexus(
+            output_file, nexus_file, write_mode="w" if args.force else "x"
+        )
     else:
         output_nexus = None
         print(
@@ -192,7 +194,10 @@ def multiple_images_cli(args):
     if nexus_file.exists():
         # Write output NeXus file if we have an input NeXus file.
         output_nexus = CopyTristanNexus.multiple_images_nexus(
-            output_file, nexus_file, nbins=num_images
+            output_file,
+            nexus_file,
+            nbins=num_images,
+            write_mode="w" if args.force else "x",
         )
     else:
         output_nexus = None
@@ -208,7 +213,9 @@ def pump_probe_cli(args):
     nexus_file = data_dir / f"{root}.nxs"
     if nexus_file.exists():
         # Write output NeXus file if we have an input NeXus file.
-        output_nexus = CopyTristanNexus.pump_probe_nexus(output_file, nexus_file)
+        output_nexus = CopyTristanNexus.pump_probe_nexus(
+            output_file, nexus_file, write_mode="w" if args.force else "x"
+        )
     else:
         output_nexus = None
         print(
