@@ -38,6 +38,7 @@ def main(args=None):
     print("\nSummary of cue messages:")
 
     for cue in unique_cues:
+        cue_description = cues.get(cue, f"Unknown (0x{cue:04x})")
         cues_sel = cue_ids == cue
         cue_times_sel = cue_times[cues_sel]
         deduplicated = np.sort(np.unique(cue_times_sel))
@@ -50,7 +51,7 @@ def main(args=None):
 
             print(
                 f"""
-{cues.get(cue, f'Unknown (0x{cue:04x})')}:
+{cue_description}:
 Found {cue_times_sel.size} instances.
 Found {deduplicated.size} de-duplicated instances with
 \tsmallest time difference: {min_diff} cycles ({seconds(min_diff):~.3g}),
@@ -60,8 +61,8 @@ Found {deduplicated.size} de-duplicated instances with
         elif cue_times_sel.size > 1:
             n = cue_times_sel.size
             print(
-                f"\n{cues.get(cue, f'Unknown (0x{cue:04x})')}:  Found {n} instances,\n"
+                f"\n{cue_description}:  Found {n} instances,\n"
                 f"\tall with the same timestamp."
             )
         else:
-            print(f"\n{cues.get(cue, f'Unknown (0x{cue:04x})')}:  Found 1 instance.")
+            print(f"\n{cue_description}:  Found 1 instance.")

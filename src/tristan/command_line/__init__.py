@@ -51,14 +51,12 @@ image_output_parser.add_argument(
     "name.",
     action="store_true",
 )
-
 image_output_parser.add_argument(
     "-s",
     "--image-size",
     help="Dimensions of the detector in pixels, separated by a comma, as 'x,y', i.e. "
     "'fast,slow'.",
 )
-
 
 exposure_parser = argparse.ArgumentParser(add_help=False)
 group = exposure_parser.add_mutually_exclusive_group(required=True)

@@ -134,7 +134,7 @@ def seconds(timestamp: ArrayLike, reference: ArrayLike = 0) -> ArrayLike:
     Convert a Tristan timestamp to seconds, measured from a given time.
 
     The time between the provided timestamp and a reference timestamp, both provided
-    as a number of cock cycles from the same time origin, is converted to units of
+    as a number of clock cycles from the same time origin, is converted to units of
     seconds.  By default, the reference timestamp is zero clock cycles, the beginning
     of the detector epoch.
 
