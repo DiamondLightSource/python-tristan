@@ -88,7 +88,6 @@ def make_images(
             ]
         )
     else:
-        print(mul(*image_size))
         images = da.bincount(event_locations, minlength=mul(*image_size))
 
     return images.astype(np.uint32).reshape(num_images, *image_size)
