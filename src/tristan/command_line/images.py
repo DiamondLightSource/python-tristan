@@ -2,7 +2,6 @@
 
 import argparse
 import sys
-from contextlib import ExitStack
 from pathlib import Path
 from typing import Tuple
 
@@ -23,6 +22,7 @@ from .. import (
     event_time_key,
     fem_falling,
     fem_rising,
+    latrd_data,
     lvds_falling,
     lvds_rising,
     seconds,
@@ -96,13 +96,8 @@ def single_image_cli(args):
 
     raw_files, _ = data_files(data_dir, root)
 
-    with ExitStack() as stack:
-        files = [stack.enter_context(h5py.File(f, "r")) for f in raw_files]
-        data = {
-            key: da.concatenate([f[key] for f in files]).rechunk()
-            for key in (event_location_key, event_time_key) + cue_keys
-        }
-
+    keys = (event_location_key, event_time_key) + cue_keys
+    with latrd_data(raw_files, keys=keys) as data:
         print("Binning events into a single image.")
         image = make_images(data, image_size, find_start_end(data))
 
@@ -143,13 +138,8 @@ def multiple_images_cli(args):
 
     raw_files, _ = data_files(data_dir, root)
 
-    with ExitStack() as stack:
-        files = [stack.enter_context(h5py.File(f, "r")) for f in raw_files]
-        data = {
-            key: da.concatenate([f[key] for f in files]).rechunk()
-            for key in (event_location_key, event_time_key) + cue_keys
-        }
-
+    keys = (event_location_key, event_time_key) + cue_keys
+    with latrd_data(raw_files, keys=keys) as data:
         start, end = find_start_end(data)
         exposure_time, exposure_cycles, num_images = exposure(
             start, end, args.exposure_time, args.num_images
@@ -237,13 +227,8 @@ def pump_probe_cli(args):
 
     raw_files, _ = data_files(data_dir, root)
 
-    with ExitStack() as stack:
-        files = [stack.enter_context(h5py.File(f, "r")) for f in raw_files]
-        data = {
-            key: da.concatenate([f[key] for f in files]).rechunk()
-            for key in (event_location_key, event_time_key) + cue_keys
-        }
-
+    keys = (event_location_key, event_time_key) + cue_keys
+    with latrd_data(raw_files, keys=keys) as data:
         trigger_type = triggers.get(args.trigger_type)
 
         trigger_times = cue_times(data, trigger_type).compute().astype(int)

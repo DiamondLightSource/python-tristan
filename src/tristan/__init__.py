@@ -13,8 +13,11 @@ __email__ = "scientificsoftware@diamond.ac.uk"
 __version__ = "0.1.2"
 __version_tuple__ = tuple(int(x) for x in __version__.split("."))
 
-from typing import Dict, Optional, Tuple
+from contextlib import ExitStack, contextmanager
+from pathlib import Path
+from typing import Dict, Iterable, Optional, Tuple, Union
 
+import h5py
 import pint
 from dask import array as da
 
@@ -25,6 +28,9 @@ except ImportError:
     import numpy as np
 
     ArrayLike = np.ndarray
+
+
+RawFiles = Iterable[Union[str, Path]]
 
 
 ureg = pint.UnitRegistry()
@@ -88,6 +94,30 @@ cue_keys = cue_id_key, cue_time_key
 event_keys = event_location_key, event_time_key, event_energy_key
 
 nx_size_key = "entry/instrument/detector/module/data_size"
+
+
+@contextmanager
+def latrd_data(
+    raw_file_paths: RawFiles, keys: Iterable[str] = cue_keys + event_keys
+) -> Dict[str, da.Array]:
+    """
+    A context manager to read LATRD data sets from multiple files.
+
+    The yielded dictionary has an entry for each of the specified LATRD data keys.
+    Each key must be a valid LATRD data key and the corresponding value is a Dask
+    array containing the corresponding LATRD data from all the raw data files.
+
+    Args:
+        raw_file_paths:  The paths of the raw LATRD data files.
+        keys:  The set of LATRD data keys to be read.
+
+    Yields:
+        A dictionary of LATRD data keys and arrays of the corresponding data.
+    """
+    with ExitStack() as stack:
+        files = [stack.enter_context(h5py.File(path, "r")) for path in raw_file_paths]
+
+        yield {key: da.concatenate([f[key] for f in files]).rechunk() for key in keys}
 
 
 def first_cue_time(data: Dict[str, da.Array], message: int) -> Optional[int]:
