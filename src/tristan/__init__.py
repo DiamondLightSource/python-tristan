@@ -173,4 +173,6 @@ def pixel_index(location: ArrayLike, image_size: Tuple[int, int]) -> ArrayLike:
         Index in the flattened image array of the pixel where the event occurred.
     """
     x, y = divmod(location, 0x2000)
+    # The following is equivalent to, but a little simpler than
+    # return da.ravel_multi_index(da.stack([y, x]), image_size)
     return x + y * image_size[1]
