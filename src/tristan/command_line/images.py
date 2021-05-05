@@ -12,7 +12,11 @@ import pint
 from dask import array as da
 from dask.diagnostics import ProgressBar
 from hdf5plugin import Bitshuffle
-from nexgen.copy import CopyTristanNexus
+
+try:
+    from nexgen.nxs_copy import CopyTristanNexus  # nexgen version >= 0.4.8
+except ModuleNotFoundError:
+    from nexgen.copy import CopyTristanNexus
 
 from .. import (
     clock_frequency,
