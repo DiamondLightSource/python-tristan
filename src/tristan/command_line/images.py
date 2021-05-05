@@ -14,9 +14,9 @@ from dask.diagnostics import ProgressBar
 from hdf5plugin import Bitshuffle
 
 try:
-    from nexgen.copy import CopyTristanNexus
-except ModuleNotFoundError:
     from nexgen.nxs_copy import CopyTristanNexus  # nexgen version >= 0.4.8
+except ModuleNotFoundError:
+    from nexgen.copy import CopyTristanNexus
 
 from .. import (
     clock_frequency,
