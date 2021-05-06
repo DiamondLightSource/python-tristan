@@ -4,7 +4,8 @@ bokeh==2.3.1
 certifi==2020.12.5
 cloudpickle==1.6.0
 coverage==5.5
-dask==2021.4.1
+dask==2021.4.1;python_version>"3.6"
+dask==2021.2.0;python_version=="3.6"
 fasteners==0.16
 freephil==0.2.1
 fsspec==2021.4.0
