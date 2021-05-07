@@ -22,7 +22,6 @@ from .. import (
     event_time_key,
     fem_falling,
     fem_rising,
-    latrd_data,
     lvds_falling,
     lvds_rising,
     seconds,
@@ -30,7 +29,7 @@ from .. import (
     ttl_rising,
 )
 from ..binning import find_start_end, first_cue_time, make_images
-from ..data import data_files, find_file_names
+from ..data import data_files, find_file_names, latrd_data
 from . import exposure_parser, image_output_parser, input_parser, version_parser
 
 triggers = {

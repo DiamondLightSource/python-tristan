@@ -3,12 +3,19 @@
 import glob
 import re
 import sys
+from contextlib import ExitStack, contextmanager
 from itertools import filterfalse
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, Iterable, List, Optional, Union
 
 import h5py
 import numpy as np
+from dask import array as da
+
+from . import cue_keys, event_keys
+
+# Type alias for collections of raw file paths.
+RawFiles = Iterable[Union[str, Path]]
 
 meta_file_name_regex = re.compile(r"(.*)_(?:meta|\d+)")
 # Regex for the names of data sets, in the time slice metadata file, representing the
@@ -113,3 +120,27 @@ def data_files(data_dir: Path, root: str, n_dig: int = 6) -> (List[Path], Path):
         raw_files = [Path(path_str) for path_str in sorted(glob.glob(search_path))]
 
     return raw_files, meta_file
+
+
+@contextmanager
+def latrd_data(
+    raw_file_paths: RawFiles, keys: Iterable[str] = cue_keys + event_keys
+) -> Dict[str, da.Array]:
+    """
+    A context manager to read LATRD data sets from multiple files.
+
+    The yielded dictionary has an entry for each of the specified LATRD data keys.
+    Each key must be a valid LATRD data key and the corresponding value is a Dask
+    array containing the corresponding LATRD data from all the raw data files.
+
+    Args:
+        raw_file_paths:  The paths of the raw LATRD data files.
+        keys:  The set of LATRD data keys to be read.
+
+    Yields:
+        A dictionary of LATRD data keys and arrays of the corresponding data.
+    """
+    with ExitStack() as stack:
+        files = [stack.enter_context(h5py.File(path, "r")) for path in raw_file_paths]
+
+        yield {key: da.concatenate([f[key] for f in files]).rechunk() for key in keys}
