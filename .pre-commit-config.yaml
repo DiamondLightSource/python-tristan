@@ -3,7 +3,7 @@ repos:
 
 # Bring Python code up to date with pyupgrade
 - repo: https://github.com/asottile/pyupgrade
-  rev: v2.15.0
+  rev: v2.19.0
   hooks:
   - id: pyupgrade
 
@@ -16,7 +16,7 @@ repos:
 
 # Automatic source code formatting with Black
 - repo: https://github.com/psf/black
-  rev: 21.5b0
+  rev: 21.5b1
   hooks:
   - id: black
     args: [--safe, --quiet]
@@ -30,7 +30,7 @@ repos:
 
 # Format YAML & TOML files prettily
 - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
-  rev: v2.0.0
+  rev: v2.1.0
   hooks:
   - id: pretty-format-yaml
     args: [--autofix, --indent, '2']
@@ -39,7 +39,7 @@ repos:
 
 # Syntax check with pre-commit out-of-the-box hooks
 - repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v3.4.0
+  rev: v4.0.1
   hooks:
   - id: check-ast
   - id: check-yaml
