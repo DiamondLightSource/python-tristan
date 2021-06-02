@@ -26,8 +26,15 @@
   "prCreation": "not-pending",
   "prHourlyLimit": 2,
   "pre-commit": {
-    "groupName": "all pre-commit hooks",
-    "groupSlug": "all-pre-commit",
+    "packageRules": [
+      {
+        "groupName": "all pre-commit hooks",
+        "groupSlug": "all-pre-commit",
+        "matchPackagePatterns": [
+          "*"
+        ]
+      }
+    ],
     "schedule": [
       "after 10am and before 4pm every 3 months on the first day of the month"
     ],
