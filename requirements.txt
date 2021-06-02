@@ -4,8 +4,8 @@ freephil==0.2.1
 h5py==3.2.1;python_version>"3.6"
 h5py==3.1.0;python_version=="3.6"
 hdf5plugin==2.3.2
-nexgen==0.4.8
+nexgen==0.4.16
 numpy==1.20.2;python_version>"3.6"
 numpy==1.19.5;python_version=="3.6"
 Pint==0.17
-zarr==2.8.1
+zarr==2.8.3
