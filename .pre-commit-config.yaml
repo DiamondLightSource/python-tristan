@@ -48,3 +48,4 @@ repos:
   - id: check-merge-conflict
   - id: check-added-large-files
     args: [--maxkb=200]
+  - id: requirements-txt-fixer
