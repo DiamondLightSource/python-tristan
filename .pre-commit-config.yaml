@@ -42,6 +42,9 @@ repos:
   rev: v3.4.0
   hooks:
   - id: check-ast
+  - id: check-json
+  - id: pretty-format-json
+    args: [--autofix, --no-ensure-ascii, --no-sort-keys]
   - id: check-yaml
   - id: check-merge-conflict
   - id: check-added-large-files
