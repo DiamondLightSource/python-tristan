@@ -3,7 +3,7 @@ repos:
 
 # Bring Python code up to date with pyupgrade
 - repo: https://github.com/asottile/pyupgrade
-  rev: v2.15.0
+  rev: v2.19.1
   hooks:
   - id: pyupgrade
 
