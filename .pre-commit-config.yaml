@@ -12,7 +12,6 @@ repos:
   rev: 5.8.0
   hooks:
   - id: isort
-    additional_dependencies: [toml]
 
 # Automatic source code formatting with Black
 - repo: https://github.com/psf/black
