@@ -13,23 +13,26 @@ from dask.diagnostics import ProgressBar
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
 
-from .. import (
-    clock_frequency,
+from .. import clock_frequency
+from ..binning import find_start_end, make_images
+from ..data import (
     cue_keys,
     cue_times,
     cues,
+    data_files,
     event_location_key,
     event_time_key,
     fem_falling,
     fem_rising,
+    find_file_names,
+    first_cue_time,
+    latrd_data,
     lvds_falling,
     lvds_rising,
     seconds,
     ttl_falling,
     ttl_rising,
 )
-from ..binning import find_start_end, first_cue_time, make_images
-from ..data import data_files, find_file_names, latrd_data
 from . import exposure_parser, image_output_parser, input_parser, version_parser
 
 triggers = {

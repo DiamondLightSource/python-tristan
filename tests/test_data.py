@@ -5,8 +5,7 @@ import numpy as np
 from dask.array import assert_eq
 from pytest import fixture
 
-from tristan import cue_keys, event_keys
-from tristan.data import latrd_data
+from tristan.data import cue_keys, event_keys, latrd_data
 
 # A set of arbitrary offsets to distinguish the dummy data sets from one another.
 offsets = dict(zip(cue_keys + event_keys, range(0, 500, 100)))

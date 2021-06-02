@@ -4,8 +4,17 @@ import argparse
 
 import numpy as np
 
-from .. import cue_id_key, cue_keys, cue_time_key, cues, latrd_data, reserved, seconds
-from ..data import data_files, find_input_file_name
+from ..data import (
+    cue_id_key,
+    cue_keys,
+    cue_time_key,
+    cues,
+    data_files,
+    find_input_file_name,
+    latrd_data,
+    reserved,
+    seconds,
+)
 from . import input_parser, version_parser
 
 parser = argparse.ArgumentParser(
