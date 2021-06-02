@@ -3,7 +3,7 @@ repos:
 
 # Bring Python code up to date with pyupgrade
 - repo: https://github.com/asottile/pyupgrade
-  rev: v2.15.0
+  rev: v2.19.1
   hooks:
   - id: pyupgrade
 
@@ -29,7 +29,7 @@ repos:
 
 # Format YAML & TOML files prettily
 - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
-  rev: v2.0.0
+  rev: v2.1.0
   hooks:
   - id: pretty-format-yaml
     args: [--autofix, --indent, '2']
