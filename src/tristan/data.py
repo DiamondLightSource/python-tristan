@@ -236,6 +236,8 @@ def cue_times(data: Dict[str, da.Array], message: int) -> da.Array:
     """
     Find the timestamps of all instances of a cue message in a Tristan data set.
 
+    The found timestamps are de-duplicated.
+
     Args:
         data:     A LATRD data dictionary (a dictionary with data set names as keys
                   and Dask arrays as values).  Must contain one entry for cue id
