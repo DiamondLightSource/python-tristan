@@ -28,7 +28,6 @@ random_range = 10
 @contextmanager
 def dummy_latrd_data(path_factory):
     """
-
     Construct a temporary directory containing dummy LATRD data.
 
     The data are spread across several files, in the manner of a LATRD data
@@ -65,8 +64,8 @@ def dummy_data_transient(tmp_path_factory):
         yield data_path
 
 
-@pytest.mark.parametrize("directory", (".", "/", "~", "test_dir"))
 @pytest.mark.parametrize("stem", ("dummy_meta", "dummy_1", "dummy_0001"))
+@pytest.mark.parametrize("directory", (".", "/", "~", "test_dir"))
 def test_find_input_file_name(directory, stem):
     """Test the determination of input file names."""
     in_file = "/".join([directory, stem + ".h5"])
