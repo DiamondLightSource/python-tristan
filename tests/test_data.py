@@ -1,8 +1,4 @@
 """Tests of utilities for handling LATRD Tristan data."""
-from contextlib import contextmanager
-from pathlib import Path
-
-import h5py
 import numpy as np
 import pint
 import pytest
@@ -13,109 +9,14 @@ from tristan.data import (
     cue_keys,
     cue_time_key,
     cue_times,
-    data_files,
     event_keys,
-    find_input_file_name,
     first_cue_time,
     latrd_data,
     pixel_index,
     seconds,
 )
 
-random_range = 10
-
-
-@contextmanager
-def dummy_latrd_data(path_factory):
-    """
-    Construct a temporary directory containing dummy LATRD data.
-
-    The data are spread across several files, in the manner of a LATRD data
-    collection, with each file having an entry for each of the LATRD data keys.
-
-    Args:
-        path_factory:  The Pytest tmp_path_factory fixture.
-
-    Yields:
-        A temporary directory containing dummy data files.
-    """
-    tmp_path = path_factory.mktemp("dummy_data")
-    # Seed for a consistent pseudo-random array.
-    np.random.seed(0)
-    all_values = np.random.randint(random_range, size=150).reshape(3, 5, 10)
-    for i, values in enumerate(all_values, 1):
-        with h5py.File(tmp_path / f"dummy_{i:06d}.h5", "w") as f:
-            f.update(dict(zip(cue_keys + event_keys, values)))
-
-    yield tmp_path
-
-
-@pytest.fixture(scope="session")
-def dummy_data(tmp_path_factory):
-    """A session-scoped dummy LATRD data fixture."""
-    with dummy_latrd_data(tmp_path_factory) as data_path:
-        yield data_path
-
-
-@pytest.fixture(scope="function")
-def dummy_data_transient(tmp_path_factory):
-    """A function-scoped dummy LATRD data fixture."""
-    with dummy_latrd_data(tmp_path_factory) as data_path:
-        yield data_path
-
-
-@pytest.mark.parametrize("stem", ("dummy_meta", "dummy_1", "dummy_0001"))
-@pytest.mark.parametrize("directory", (".", "/", "~", "test_dir"))
-def test_find_input_file_name(directory, stem):
-    """Test the determination of input file names."""
-    in_file = "/".join([directory, stem + ".h5"])
-    expected_dir = Path(directory).expanduser().resolve()
-    assert find_input_file_name(in_file) == (expected_dir, "dummy")
-
-
-def test_find_input_file_name_unexpected():
-    """Test that a malformed input file name raises an error."""
-    in_file = "dummy_invalid.h5"
-    error = (
-        f"Input file name did not have the expected format '<name>_meta.h5':\n"
-        f"\t.*{in_file}"
-    )
-    with pytest.raises(SystemExit, match=error):
-        find_input_file_name(in_file)
-
-
-def test_data_files(dummy_data_transient):
-    """Test the utility for discovering Tristan data file paths."""
-    # Expected file paths.
-    root = "dummy"
-    meta_file = dummy_data_transient / f"{root}_meta.h5"
-    raw_files = sorted(dummy_data_transient.iterdir())
-
-    # Check that the absence of the metadata file raises an error.
-    with pytest.raises(
-        SystemExit, match="Could not find the expected detector metadata file:"
-    ):
-        data_files(dummy_data_transient, root)
-
-    # Check that a metadata file with a valid (or missing) frame-processors-per-module
-    # metadatum results in the correct file paths being determined.
-    for fp_per_module in ((), (1, 1, 1), (3,)):
-        with h5py.File(meta_file, "w") as f:
-            f["fp_per_module"] = fp_per_module
-
-        assert data_files(dummy_data_transient, root) == (raw_files, meta_file)
-
-    # Check that missing raw files, as determined from the fp-per-module metadatum,
-    # raise an error.
-    fp_per_module = (4,)
-    missing_file = f"{dummy_data_transient / root}_000004.h5"
-    with h5py.File(meta_file, "w") as f:
-        f["fp_per_module"] = fp_per_module
-    with pytest.raises(
-        SystemExit,
-        match=f"The following expected data files are missing:\n\t{missing_file}",
-    ):
-        data_files(dummy_data_transient, root)
+from .conftest import random_range
 
 
 def test_latrd_data_default_keys(dummy_data):

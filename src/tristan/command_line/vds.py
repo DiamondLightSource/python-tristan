@@ -11,9 +11,8 @@ import argparse
 
 import h5py
 
-from ..data import data_files, find_file_names
 from ..vds import time_slice_info, virtual_data_set
-from . import input_parser, version_parser
+from . import check_output_file, data_files, input_parser, version_parser
 
 parser = argparse.ArgumentParser(
     description=__doc__, parents=[version_parser, input_parser]
@@ -36,11 +35,9 @@ parser.add_argument(
 def main(args=None):
     """Utility for making an HDF5 VDS from raw Tristan data."""
     args = parser.parse_args(args)
-    data_dir, root, output_file = find_file_names(
-        args.input_file, args.output_file, "vds", args.force
-    )
+    output_file = check_output_file(args.output_file, suffix="vds", force=args.force)
 
-    raw_files, meta_file = data_files(data_dir, root)
+    raw_files, meta_file = data_files(args.data_dir, args.root)
     with h5py.File(meta_file, "r") as f:
         ts_info = time_slice_info(f)
         layouts = virtual_data_set(raw_files, f, *ts_info)
