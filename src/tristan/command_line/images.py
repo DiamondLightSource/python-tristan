@@ -47,14 +47,14 @@ triggers = {
 
 def determine_image_size(nexus_file: Path) -> Tuple[int, int]:
     """Find the image size from metadata."""
+    recommend = f"Please specify the detector dimensions in (x, y) with '--image-size'."
     try:
         with h5py.File(nexus_file, "r") as f:
             return f["entry/instrument/detector/module/data_size"][()]
     except (FileNotFoundError, OSError):
-        sys.exit(
-            f"Cannot find NeXus file:\n\t{nexus_file}\nPlease specify the "
-            f"detector dimensions in (x, y) with '--image-size'."
-        )
+        sys.exit(f"Cannot find NeXus file:\n\t{nexus_file}\n{recommend}")
+    except KeyError:
+        sys.exit(f"Input NeXus file does not contain image size metadata.\n{recommend}")
 
 
 def exposure(
