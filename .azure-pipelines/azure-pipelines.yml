@@ -57,7 +57,9 @@ stages:
         mkdir -p dist/pypi
         shopt -s extglob
         mv -v dist/!(pypi) dist/pypi
-        git archive HEAD | gzip > dist/repo-source.tar.gz
+        git archive HEAD > dist/repo-source.tar
+        tar -rf dist/repo-source.tar .git
+        gzip dist/repo-source.tar
         ls -laR dist
       displayName: Build python package
 
