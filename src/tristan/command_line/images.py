@@ -96,10 +96,7 @@ def single_image_cli(args):
             "Resorting to writing raw image data without accompanying metadata."
         )
 
-    if args.image_size:
-        image_size = tuple(map(int, args.image_size.split(",")))[::-1]
-    else:
-        image_size = determine_image_size(input_nexus)
+    image_size = args.image_size or determine_image_size(input_nexus)
 
     raw_files, _ = data_files(args.data_dir, args.root)
 
@@ -136,10 +133,7 @@ def multiple_images_cli(args):
             "Resorting to writing raw image data without accompanying metadata."
         )
 
-    if args.image_size:
-        image_size = tuple(map(int, args.image_size.split(",")))[::-1]
-    else:
-        image_size = determine_image_size(input_nexus)
+    image_size = args.image_size or determine_image_size(input_nexus)
 
     raw_files, _ = data_files(args.data_dir, args.root)
 
@@ -223,10 +217,7 @@ def pump_probe_cli(args):
             "Resorting to writing raw image data without accompanying metadata."
         )
 
-    if args.image_size:
-        image_size = tuple(map(int, args.image_size.split(",")))[::-1]
-    else:
-        image_size = determine_image_size(input_nexus)
+    image_size = args.image_size or determine_image_size(input_nexus)
 
     raw_files, _ = data_files(args.data_dir, args.root)
 

@@ -6,10 +6,11 @@ import re
 import sys
 from itertools import filterfalse
 from pathlib import Path
-from typing import List, Optional, SupportsFloat, Union
+from typing import List, Optional, SupportsFloat, SupportsInt, Union
 
 import h5py
 import numpy as np
+import pint.errors
 
 from .. import __version__, ureg
 
@@ -29,13 +30,45 @@ Quantity, Unit = ureg.Quantity, ureg.Unit
 meta_file_name_regex = re.compile(r"(.*)_(?:meta|\d+)")
 
 
-def default_unit(quantity: Union[Quantity, SupportsFloat], unit: str = "s") -> Quantity:
-    """Provide units for a quantity if it doesn't already have any."""
-    quantity = Quantity(quantity)
-    return quantity * Unit(unit) if quantity.dimensionless else quantity
+def units_of_time(quantity: Union[Quantity, SupportsFloat, str]) -> Quantity:
+    """
+    Ensure a quantity of time, has compatible units, defaulting to seconds.
+
+    Args:
+        quantity:  Any object that can be interpreted as a Pint quantity, with or
+                   without units.
+
+    Returns:
+        The initial quantity, with units of seconds applied if it was previously
+        dimensionless.
+
+    Raises:
+        pint.errors.DimensionalityError:  The specified quantity is not dimensionless
+                                          and does not have dimension [time].
+    """
+    # Catch any UndefinedUnitError (which is a subclass of AttributeError) and
+    # re-raise it as a ValueError so that argparse knows that this is a bad argument.
+    try:
+        quantity = Quantity(quantity)
+    except pint.errors.UndefinedUnitError as e:
+        raise ValueError(e)
+
+    if quantity <= 0:
+        raise ValueError("Time quantity must be positive.")
+
+    quantity = quantity * Unit("s") if quantity.dimensionless else quantity
+    if quantity.check("[time]"):
+        return quantity
+    else:
+        raise pint.errors.DimensionalityError(
+            quantity,
+            "a quantity of",
+            quantity.dimensionality,
+            pint.Unit("s").dimensionality,
+        )
 
 
-def find_input_file_name(in_file: Union[Path, str]) -> (Path, str):
+def _find_input_file_name(in_file: Union[Path, str]) -> (Path, str):
     """
     Resolve the input file name into a directory and a file name root.
 
@@ -150,7 +183,7 @@ def data_files(data_dir: Path, root: str, n_dig: int = 6) -> (List[Path], Path):
     return raw_files, meta_file
 
 
-class InputFileAction(argparse.Action):
+class _InputFileAction(argparse.Action):
     """
     From an input file name argument, find the directory and file name root.
 
@@ -158,9 +191,47 @@ class InputFileAction(argparse.Action):
     """
 
     def __call__(self, parser, namespace, values, option_string=None):
-        data_dir, file_name_root = find_input_file_name(values)
+        data_dir, file_name_root = _find_input_file_name(values)
         setattr(namespace, "data_dir", data_dir)
         setattr(namespace, "root", file_name_root)
+
+
+def image_size(size: str) -> (int, int):
+    """
+    Unpack an image size tuple from a comma-separated string of integers.
+
+    Args:
+        size:  A string of comma-separated values, representing the size in pixels of
+               the image, in the order (x, y).
+
+    Returns:
+        The image size tuple in the order (y, x), for compatibility with row-major data.
+    """
+    x_size, y_size = map(int, size.strip("()'\"").split(","))
+    if x_size < 0 or y_size < 0:
+        raise ValueError("Image dimensions must not be negative.")
+    if not (x_size and y_size):
+        raise ValueError("At least one image dimension must be positive.")
+    return y_size, x_size
+
+
+def positive_int(value: SupportsInt) -> int:
+    """
+    Check that an integer value is positive.
+
+    Args:
+        value:  A value that can be cast to an integer.
+
+    Returns:
+        'value' as an integer, if it is positive.
+
+    Raises:
+        ValueError:  If 'value' does not cast to a positive integer.
+    """
+    int_value = int(value)
+    if not int_value > 0:
+        raise ValueError(f"The value {value} does not cast to a positive integer.")
+    return int_value
 
 
 # A simple version parser.  Print the version and exit.
@@ -182,7 +253,7 @@ input_parser.add_argument(
     "This file must be in the same directory as the HDF5 files containing all the "
     "corresponding raw events data.",
     metavar="input-file",
-    action=InputFileAction,
+    action=_InputFileAction,
 )
 
 
@@ -196,7 +267,7 @@ image_output_parser.add_argument(
     "--output-file",
     help="File name or location for output image file, defaults to the working "
     "directory.  If only a directory location is given, the pattern of the raw data "
-    "files will be used, with '<name>_meta.h5' replaced with '<name>_single_image.h5'.",
+    "files will be used.",
 )
 image_output_parser.add_argument(
     "-f",
@@ -210,6 +281,7 @@ image_output_parser.add_argument(
     "--image-size",
     help="Dimensions of the detector in pixels, separated by a comma, as 'x,y', i.e. "
     "'fast,slow'.",
+    type=image_size,
 )
 
 
@@ -222,7 +294,7 @@ group.add_argument(
     "--exposure-time",
     help="Duration of each image.  This will be used to calculate the number of "
     "images.  Specify a value with units like '--exposure-time .5ms', '-e 500µs' or "
-    "'-e 500us'.",
-    type=default_unit,
+    "'-e 500us'.  Unspecified units default to seconds.",
+    type=units_of_time,
 )
-group.add_argument("-n", "--num-images", help="Number of images.", type=int)
+group.add_argument("-n", "--num-images", help="Number of images.", type=positive_int)
