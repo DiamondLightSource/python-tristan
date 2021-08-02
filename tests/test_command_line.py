@@ -30,21 +30,30 @@ def test_units_of_time():
     # Check standard expected input.
     assert units_of_time("2ms") == ureg.Quantity(2, "ms")
 
-    # Check that we catch invalid units.
+
+def test_units_of_time_invalid():
+    """Check that we catch invalid units in the units_of_time function."""
     error = (
         r"Cannot convert from '3 meter' \(\[length\]\) to 'a quantity of' \(\[time\]\)"
     )
     with pytest.raises(pint.errors.DimensionalityError, match=error):
         units_of_time("3m")
 
-    # Check that we catch undefined units and re-raise the UndefinedUnitError (which
-    # is a subclass of AttributeError) as a ValueError, so that argparse recognises
-    # that this is a bad argument.
+
+def test_units_of_time_undefined():
+    """
+    Check that we catch undefined units in the units_of_time function.
+
+    Check that the UndefinedUnitError (which is a subclass of AttributeError) is
+    re-raised as a ValueError, so that argparse recognises that this is a bad argument.
+    """
     error = "'foo' is not defined in the unit registry"
     with pytest.raises(ValueError, match=error):
         units_of_time("foo")
 
-    # Catch non-positive values.
+
+def test_units_of_time_nonpositive():
+    """Catch non-positive values in the units_of_time function."""
     for duration in "0", "0s", "-1", "-s", "-1s":
         with pytest.raises(ValueError, match="Time quantity must be positive."):
             units_of_time(duration)
@@ -52,11 +61,12 @@ def test_units_of_time():
 
 def test_positive_int():
     """Test the utility for checking an integer value is positive."""
-    # Check standard expected behaviour.
     for value in 1, "1", 1.1, True:
         assert positive_int(value) == 1
 
-    # Check that non-positive values raise a ValueError.
+
+def test_positive_int_nonpositive():
+    """Check that non-positive values passed to positive_int raise a ValueError."""
     for value in -1, "-1", 0, "0", 0.1, False:
         msg = f"The value {value} does not cast to a positive integer."
         with pytest.raises(ValueError, match=msg):
@@ -159,10 +169,14 @@ def test_version_parser(capsys):
             version_parser.parse_args([flag])
         assert f"Tristan tools {__version__}" in capsys.readouterr().out
 
-    # Check that the version flag is not mandatory.
+
+def test_version_parser_optional():
+    """Check that the version flag is not mandatory."""
     assert version_parser.parse_args([]) == argparse.Namespace()
 
-    # Check that this parser does not introduce a help flag.
+
+def test_version_parser_no_help(capsys):
+    """Check that the version parser does not introduce a help flag."""
     with pytest.raises(SystemExit, match="2"):
         version_parser.parse_args(["-h"])
     assert "error: unrecognized arguments: -h" in capsys.readouterr().err
@@ -179,24 +193,31 @@ def test_input_file_action():
     assert namespace.root == root
 
 
-def test_input_parser(capsys):
+def test_input_parser():
     """Test the parser for handling the input file path."""
-    # Check normal expected behaviour.
     directory = "some/dummy/path/to"
     root = "file_name"
     args = input_parser.parse_args([f"{directory}/{root}_meta.h5"])
     assert args.data_dir == Path(directory).resolve()
     assert args.root == root
 
-    # Check that the input file path is a mandatory argument.
+
+def test_input_parser_mandatory(capsys):
+    """Check that the input file path is a mandatory argument."""
     with pytest.raises(SystemExit, match="2"):
         input_parser.parse_args([])
     error = capsys.readouterr().err
     assert "error: the following arguments are required: input-file" in error
 
-    # Check that an undefined directory defaults to the current working directory,
-    # and that a file name that doesn't match the expected format is caught with a
-    # help message.
+
+def test_input_parser_cwd_improper_input():
+    """
+    Check the default directory and that a mangled meta file name is caught.
+
+    Check that an undefined directory defaults to the current working directory,
+    and that a file name that doesn't match the expected format is caught with a
+    help message.
+    """
     error = (
         "Input file name did not have the expected format '<name>_meta.h5':\n\t"
         f"{Path.cwd() / 'test.h5'}"
@@ -204,7 +225,11 @@ def test_input_parser(capsys):
     with pytest.raises(SystemExit, match=error):
         input_parser.parse_args(["test.h5"])
 
-    # Check that this parser does not introduce a help flag.
+
+def test_input_parser_no_help(capsys):
+    """Check that the input parser parser does not introduce a help flag."""
+    directory = "some/dummy/path/to"
+    root = "file_name"
     for flag in "-h", "--help":
         with pytest.raises(SystemExit, match="2"):
             input_parser.parse_args([f"{directory}/{root}_meta.h5", flag])
@@ -213,54 +238,73 @@ def test_input_parser(capsys):
 
 def test_image_size():
     """Test unpacking an image size tuple from a comma-separated string of integers."""
-    # Check normal expected behaviour.
-    for size in ("1,2", "1, 2", "1 ,2", "1 , 2", "(1,2)", "'1,2'", '"1,2"', "'\"(1,2"):
+    for size in "1,2", "1, 2", "1 ,2", "1 , 2", "(1,2)", "'1,2'", '"1,2"', "'\"(1,2'\"":
         assert image_size(size) == (2, 1)
 
-    # Check that we catch the wrong number of values passed.
+
+def test_image_size_wrong_number():
+    """Check that we catch the wrong number of values passed."""
     for size in "1", "1, 2, 3":
         with pytest.raises(ValueError, match=r"values to unpack \(expected 2"):
             image_size(size)
 
-    # Check that we catch errant commas.
+
+def test_image_size_mangled_input():
+    """Check that we catch errant commas."""
     for size in "", "1,", ",1", ",", "1,,2", "1,2,", "1.,2.", "a,b":
         with pytest.raises(
             ValueError, match=r"invalid literal for int\(\) with base 10:"
         ):
             image_size(size)
 
-    # Check that we catch negative values.
+
+def test_image_size_negative():
+    """Check that we catch negative values."""
     for size in "-1,0", "-1, 1", "1, -1", "0, -1":
         with pytest.raises(ValueError, match="Image dimensions must not be negative."):
             image_size(size)
 
-    # Check that we catch the case of an image size (0, 0).
+
+def test_image_size_nonpositive():
+    """Check that we catch the case of an image size (0, 0)."""
     error = "At least one image dimension must be positive."
     for size in "1,0", "0, 1":
         with pytest.raises(ValueError, match=error):
             image_size(size)
 
 
-def test_output_file_parser(capsys):
-    """Test the parser for handling the output file path and output image shape."""
-    # Check that none of the arguments belonging to this parser are mandatory.
+def test_output_file_parser_optional():
+    """
+    Test the parser for handling the output file path and output image shape.
+
+    Check that none of the arguments belonging to this parser are mandatory.
+    """
     args = image_output_parser.parse_args([])
     assert args.output_file is None
     assert args.force is False
     assert args.image_size is None
 
-    # Check that the output file argument does its stuff.
+
+def test_output_file_parser_output():
+    """Check that the output/image size parser's output file argument does its stuff."""
     for flag in "-o", "--output-file":
         assert image_output_parser.parse_args([flag, "test"]).output_file == "test"
 
-    # Check that the --force flag stores true.
+
+def test_output_file_parser_force():
+    """Check that the output/image size parser's --force flag stores true."""
     for flag in "-f", "--force":
         assert image_output_parser.parse_args([flag]).force is True
 
-    # Check the normal expected behaviour for the image size argument.
+
+def test_output_file_parser_image_size():
+    """Check the normal expected behaviour for the output parser image size argument."""
     for flag in "-s", "--image-size":
         assert image_output_parser.parse_args([flag, "1,2"]).image_size == (2, 1)
-    # Check that mal-formed image size values are rejected with a help message.
+
+
+def test_output_file_parser_malformed_image_size(capsys):
+    """Check that mal-formed image size values are rejected with a help message."""
     for size in "1", "1,2,", "a,b", ",", "1.,2.":
         with pytest.raises(SystemExit, match="2"):
             image_output_parser.parse_args(["-s", size])
@@ -269,16 +313,17 @@ def test_output_file_parser(capsys):
             in capsys.readouterr().err
         )
 
-    # Check that this parser does not introduce a help flag.
+
+def test_output_file_parser_no_help(capsys):
+    """Check that the output/image size parser parser does not introduce a help flag."""
     for flag in "-h", "--help":
         with pytest.raises(SystemExit, match="2"):
             image_output_parser.parse_args([flag])
         assert f"error: unrecognized arguments: {flag}" in capsys.readouterr().err
 
 
-def test_exposure_parser(capsys):
-    """Test the parser for determining the exposure time for binning into images."""
-    # Check the normal expected behaviour of the --exposure-time flag.
+def test_exposure_parser_exposure_time():
+    """Test the behaviour of the exposure time/image number parser's exposure flag."""
     for flag in "-e", "--exposure-time":
         args = exposure_parser.parse_args([flag, ".1"])
         assert args.exposure_time == pint.Quantity(100, "ms")
@@ -287,7 +332,9 @@ def test_exposure_parser(capsys):
         args = exposure_parser.parse_args(["-e", exposure])
         assert args.exposure_time == pint.Quantity(exposure)
 
-    # Check that mal-formed exposure time values are rejected with a help message.
+
+def test_exposure_parser_invalid_exposure_time(capsys):
+    """Check that mal-formed exposure time values are rejected with a help message."""
     for e in "foo", "1m", "0", "0s", "-1":
         with pytest.raises(SystemExit, match="2"):
             exposure_parser.parse_args(["-e", e])
@@ -296,20 +343,26 @@ def test_exposure_parser(capsys):
             in capsys.readouterr().err
         )
 
-    # Check the normal expected behaviour of the --num-images flag.
+
+def test_exposure_parser_image_number():
+    """Test the behaviour of the exposure time/image number parser's images flag."""
     for flag in "-n", "--num-images":
         args = exposure_parser.parse_args([flag, "100"])
         assert args.exposure_time is None
         assert args.num_images == 100
 
-    # Check that mal-formed image number values are rejected with a help message.
+
+def test_exposure_parser_invalid_image_number(capsys):
+    """Check that mal-formed image number values are rejected with a help message."""
     for number in "100.", "a", "100s", "0", "-1":
         with pytest.raises(SystemExit, match="2"):
             exposure_parser.parse_args(["-n", number])
         msg = f"error: argument -n/--num-images: invalid positive_int value: '{number}'"
         assert msg in capsys.readouterr().err
 
-    # Check that one of the exposure time and number of images arguments is required.
+
+def test_exposure_parser_mandatory(capsys):
+    """Check that either the exposure time or the number of images is required."""
     with pytest.raises(SystemExit, match="2"):
         exposure_parser.parse_args([])
     assert (
@@ -317,7 +370,9 @@ def test_exposure_parser(capsys):
         in capsys.readouterr().err
     )
 
-    # Check that the exposure time and image number arguments are mutually exclusive.
+
+def test_exposure_time_mutually_exclusive(capsys):
+    """Check that the exposure time and image number args are mutually exclusive."""
     with pytest.raises(SystemExit, match="2"):
         exposure_parser.parse_args(["-e", ".1", "-n", "100"])
     assert (
@@ -331,7 +386,9 @@ def test_exposure_parser(capsys):
         in capsys.readouterr().err
     )
 
-    # Check that this parser does not introduce a help flag.
+
+def test_exposure_time_no_help(capsys):
+    """Check that this parser does not introduce a help flag."""
     for flag in "-h", "--help":
         with pytest.raises(SystemExit, match="2"):
             exposure_parser.parse_args(["-e", ".1", flag])
