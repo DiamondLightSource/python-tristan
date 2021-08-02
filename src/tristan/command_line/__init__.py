@@ -30,86 +30,6 @@ Quantity, Unit = ureg.Quantity, ureg.Unit
 meta_file_name_regex = re.compile(r"(.*)_(?:meta|\d+)")
 
 
-def units_of_time(quantity: Union[Quantity, SupportsFloat, str]) -> Quantity:
-    """
-    Ensure a quantity of time, has compatible units, defaulting to seconds.
-
-    Args:
-        quantity:  Any object that can be interpreted as a Pint quantity, with or
-                   without units.
-
-    Returns:
-        The initial quantity, with units of seconds applied if it was previously
-        dimensionless.
-
-    Raises:
-        pint.errors.DimensionalityError:  The specified quantity is not dimensionless
-                                          and does not have dimension [time].
-    """
-    # Catch any UndefinedUnitError (which is a subclass of AttributeError) and
-    # re-raise it as a ValueError so that argparse knows that this is a bad argument.
-    try:
-        quantity = Quantity(quantity)
-    except pint.errors.UndefinedUnitError as e:
-        raise ValueError(e)
-
-    if quantity <= 0:
-        raise ValueError("Time quantity must be positive.")
-
-    quantity = quantity * Unit("s") if quantity.dimensionless else quantity
-    if quantity.check("[time]"):
-        return quantity
-    else:
-        raise pint.errors.DimensionalityError(
-            quantity,
-            "a quantity of",
-            quantity.dimensionality,
-            pint.Unit("s").dimensionality,
-        )
-
-
-def _find_input_file_name(in_file: Union[Path, str]) -> (Path, str):
-    """
-    Resolve the input file name into a directory and a file name root.
-
-    The file name root is the file name stem stripped of the last _(meta|\\d+).
-
-    Args:
-        in_file:  The input file path.
-
-    Returns:
-        The data directory path and the file name root.
-    """
-    in_file = Path(in_file).expanduser().resolve()
-
-    if in_file.is_dir():
-        data_dir = in_file
-
-        try:
-            (file_name,) = data_dir.glob("*_meta.h5")
-        except ValueError:
-            sys.exit(
-                "Could not find a single unique '<filename>_meta.h5' file in the "
-                "specified directory.\n"
-                "Please specify the desired input file name instead."
-            )
-        file_name_root = meta_file_name_regex.fullmatch(file_name.stem)[1]
-    else:
-        data_dir = in_file.parent
-
-        # Get the segment 'name_root' from 'name_root_meta.h5' or 'name_root_000001.h5'.
-        file_name_root = meta_file_name_regex.fullmatch(in_file.stem)
-        if file_name_root:
-            file_name_root = file_name_root[1]
-        else:
-            sys.exit(
-                "Input file name did not have the expected format '<name>_meta.h5':\n"
-                f"\t{in_file}"
-            )
-
-    return data_dir, file_name_root
-
-
 def check_output_file(
     out_file: Optional[Union[Path, str]] = None,
     root: Optional[str] = None,
@@ -183,6 +103,16 @@ def data_files(data_dir: Path, root: str, n_dig: int = 6) -> (List[Path], Path):
     return raw_files, meta_file
 
 
+# A simple version parser.  Print the version and exit.
+version_parser = argparse.ArgumentParser(add_help=False)
+version_parser.add_argument(
+    "-V",
+    "--version",
+    action="version",
+    version="%(prog)s:  Tristan tools {version}".format(version=__version__),
+)
+
+
 class _InputFileAction(argparse.Action):
     """
     From an input file name argument, find the directory and file name root.
@@ -191,9 +121,66 @@ class _InputFileAction(argparse.Action):
     """
 
     def __call__(self, parser, namespace, values, option_string=None):
-        data_dir, file_name_root = _find_input_file_name(values)
+        data_dir, file_name_root = self.find_input_file_name(values)
         setattr(namespace, "data_dir", data_dir)
         setattr(namespace, "root", file_name_root)
+
+    @staticmethod
+    def find_input_file_name(in_file: Union[Path, str]) -> (Path, str):
+        """
+        Resolve the input file name into a directory and a file name root.
+
+        The file name root is the file name stem stripped of the last _(meta|\\d+).
+
+        Args:
+            in_file:  The input file path.
+
+        Returns:
+            The data directory path and the file name root.
+        """
+        in_file = Path(in_file).expanduser().resolve()
+
+        if in_file.is_dir():
+            data_dir = in_file
+
+            try:
+                (file_name,) = data_dir.glob("*_meta.h5")
+            except ValueError:
+                sys.exit(
+                    "Could not find a single unique '<filename>_meta.h5' file in the "
+                    "specified directory.\n"
+                    "Please specify the desired input file name instead."
+                )
+            file_name_root = meta_file_name_regex.fullmatch(file_name.stem)[1]
+        else:
+            data_dir = in_file.parent
+
+            # Get the segment 'name_root' from 'name_root_meta.h5' or
+            # 'name_root_000001.h5'.
+            file_name_root = meta_file_name_regex.fullmatch(in_file.stem)
+            if file_name_root:
+                file_name_root = file_name_root[1]
+            else:
+                sys.exit(
+                    "Input file name did not have the expected format "
+                    "'<name>_meta.h5':\n"
+                    f"\t{in_file}"
+                )
+
+        return data_dir, file_name_root
+
+
+# A parser with the attributes data_dir and root,
+# representing the input Tristan data files.
+input_parser = argparse.ArgumentParser(add_help=False)
+input_parser.add_argument(
+    "input_file",
+    help="Tristan metadata ('_meta.h5') or raw data ('_000001.h5', etc.) file.  "
+    "This file must be in the same directory as the HDF5 files containing all the "
+    "corresponding raw events data.",
+    metavar="input-file",
+    action=_InputFileAction,
+)
 
 
 def image_size(size: str) -> (int, int):
@@ -213,48 +200,6 @@ def image_size(size: str) -> (int, int):
     if not (x_size and y_size):
         raise ValueError("At least one image dimension must be positive.")
     return y_size, x_size
-
-
-def positive_int(value: SupportsInt) -> int:
-    """
-    Check that an integer value is positive.
-
-    Args:
-        value:  A value that can be cast to an integer.
-
-    Returns:
-        'value' as an integer, if it is positive.
-
-    Raises:
-        ValueError:  If 'value' does not cast to a positive integer.
-    """
-    int_value = int(value)
-    if not int_value > 0:
-        raise ValueError(f"The value {value} does not cast to a positive integer.")
-    return int_value
-
-
-# A simple version parser.  Print the version and exit.
-version_parser = argparse.ArgumentParser(add_help=False)
-version_parser.add_argument(
-    "-V",
-    "--version",
-    action="version",
-    version="%(prog)s:  Tristan tools {version}".format(version=__version__),
-)
-
-
-# A parser with the attributes data_dir and root,
-# representing the input Tristan data files.
-input_parser = argparse.ArgumentParser(add_help=False)
-input_parser.add_argument(
-    "input_file",
-    help="Tristan metadata ('_meta.h5') or raw data ('_000001.h5', etc.) file.  "
-    "This file must be in the same directory as the HDF5 files containing all the "
-    "corresponding raw events data.",
-    metavar="input-file",
-    action=_InputFileAction,
-)
 
 
 # A parser to specify
@@ -283,6 +228,63 @@ image_output_parser.add_argument(
     "'fast,slow'.",
     type=image_size,
 )
+
+
+def units_of_time(quantity: Union[Quantity, SupportsFloat, str]) -> Quantity:
+    """
+    Ensure a quantity of time, has compatible units, defaulting to seconds.
+
+    Args:
+        quantity:  Any object that can be interpreted as a Pint quantity, with or
+                   without units.
+
+    Returns:
+        The initial quantity, with units of seconds applied if it was previously
+        dimensionless.
+
+    Raises:
+        pint.errors.DimensionalityError:  The specified quantity is not dimensionless
+                                          and does not have dimension [time].
+    """
+    # Catch any UndefinedUnitError (which is a subclass of AttributeError) and
+    # re-raise it as a ValueError so that argparse knows that this is a bad argument.
+    try:
+        quantity = Quantity(quantity)
+    except pint.errors.UndefinedUnitError as e:
+        raise ValueError(e)
+
+    if quantity <= 0:
+        raise ValueError("Time quantity must be positive.")
+
+    quantity = quantity * Unit("s") if quantity.dimensionless else quantity
+    if quantity.check("[time]"):
+        return quantity
+    else:
+        raise pint.errors.DimensionalityError(
+            quantity,
+            "a quantity of",
+            quantity.dimensionality,
+            pint.Unit("s").dimensionality,
+        )
+
+
+def positive_int(value: SupportsInt) -> int:
+    """
+    Check that an integer value is positive.
+
+    Args:
+        value:  A value that can be cast to an integer.
+
+    Returns:
+        'value' as an integer, if it is positive.
+
+    Raises:
+        ValueError:  If 'value' does not cast to a positive integer.
+    """
+    int_value = int(value)
+    if not int_value > 0:
+        raise ValueError(f"The value {value} does not cast to a positive integer.")
+    return int_value
 
 
 # A parser that determines the desired image exposure time, either from an explicit

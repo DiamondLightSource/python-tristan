@@ -7,7 +7,6 @@ import pytest
 
 from tristan import __version__
 from tristan.command_line import (
-    _find_input_file_name,
     _InputFileAction,
     check_output_file,
     data_files,
@@ -21,95 +20,6 @@ from tristan.command_line import (
 )
 
 ureg = pint.UnitRegistry()
-
-
-def test_units_of_time():
-    """Test the utility for applying a default unit to a quantity."""
-    # Check that a dimensionless input quantity defaults to seconds.
-    assert units_of_time(1) == ureg.Quantity(1, "s")
-    # Check standard expected input.
-    assert units_of_time("2ms") == ureg.Quantity(2, "ms")
-
-
-def test_units_of_time_invalid():
-    """Check that we catch invalid units in the units_of_time function."""
-    error = (
-        r"Cannot convert from '3 meter' \(\[length\]\) to 'a quantity of' \(\[time\]\)"
-    )
-    with pytest.raises(pint.errors.DimensionalityError, match=error):
-        units_of_time("3m")
-
-
-def test_units_of_time_undefined():
-    """
-    Check that we catch undefined units in the units_of_time function.
-
-    Check that the UndefinedUnitError (which is a subclass of AttributeError) is
-    re-raised as a ValueError, so that argparse recognises that this is a bad argument.
-    """
-    error = "'foo' is not defined in the unit registry"
-    with pytest.raises(ValueError, match=error):
-        units_of_time("foo")
-
-
-def test_units_of_time_nonpositive():
-    """Catch non-positive values in the units_of_time function."""
-    for duration in "0", "0s", "-1", "-s", "-1s":
-        with pytest.raises(ValueError, match="Time quantity must be positive."):
-            units_of_time(duration)
-
-
-def test_positive_int():
-    """Test the utility for checking an integer value is positive."""
-    for value in 1, "1", 1.1, True:
-        assert positive_int(value) == 1
-
-
-def test_positive_int_nonpositive():
-    """Check that non-positive values passed to positive_int raise a ValueError."""
-    for value in -1, "-1", 0, "0", 0.1, False:
-        msg = f"The value {value} does not cast to a positive integer."
-        with pytest.raises(ValueError, match=msg):
-            positive_int(value)
-
-
-@pytest.mark.parametrize("stem", ("dummy_meta", "dummy_1", "dummy_0001"))
-@pytest.mark.parametrize("directory", (".", "/", "~", "test_dir"))
-def test_find_input_file_name(directory, stem):
-    """Test the determination of input file names."""
-    in_file = "/".join([directory, stem + ".h5"])
-    expected_dir = Path(directory).expanduser().resolve()
-    assert _find_input_file_name(in_file) == (expected_dir, "dummy")
-
-
-def test_find_input_file_name_by_directory(tmp_path):
-    """Test that the input file name can be found from its parent directory."""
-    with h5py.File(tmp_path / "dummy_meta.h5", "w"):
-        pass
-    assert _find_input_file_name(tmp_path) == (tmp_path, "dummy")
-
-
-def test_find_input_file_name_unexpected():
-    """Test that a malformed input file name raises an error."""
-    in_file = "dummy_invalid.h5"
-    error = (
-        f"Input file name did not have the expected format '<name>_meta.h5':\n"
-        f"\t.*{in_file}"
-    )
-    with pytest.raises(SystemExit, match=error):
-        _find_input_file_name(in_file)
-
-
-def test_find_file_name_empty_directory(tmp_path):
-    """
-    Test that finding an input file in an empty directory raises an appropriate error.
-    """
-    error = (
-        "Could not find a single unique '<filename>_meta.h5' file in the "
-        "specified directory."
-    )
-    with pytest.raises(SystemExit, match=error):
-        _find_input_file_name(tmp_path)
 
 
 def test_check_output_file(tmp_path):
@@ -180,6 +90,45 @@ def test_version_parser_no_help(capsys):
     with pytest.raises(SystemExit, match="2"):
         version_parser.parse_args(["-h"])
     assert "error: unrecognized arguments: -h" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("stem", ("dummy_meta", "dummy_1", "dummy_0001"))
+@pytest.mark.parametrize("directory", (".", "/", "~", "test_dir"))
+def test_find_input_file_name(directory, stem):
+    """Test the determination of input file names."""
+    in_file = "/".join([directory, stem + ".h5"])
+    expected_dir = Path(directory).expanduser().resolve()
+    assert _InputFileAction.find_input_file_name(in_file) == (expected_dir, "dummy")
+
+
+def test_find_input_file_name_by_directory(tmp_path):
+    """Test that the input file name can be found from its parent directory."""
+    with h5py.File(tmp_path / "dummy_meta.h5", "w"):
+        pass
+    assert _InputFileAction.find_input_file_name(tmp_path) == (tmp_path, "dummy")
+
+
+def test_find_input_file_name_unexpected():
+    """Test that a malformed input file name raises an error."""
+    in_file = "dummy_invalid.h5"
+    error = (
+        f"Input file name did not have the expected format '<name>_meta.h5':\n"
+        f"\t.*{in_file}"
+    )
+    with pytest.raises(SystemExit, match=error):
+        _InputFileAction.find_input_file_name(in_file)
+
+
+def test_find_file_name_empty_directory(tmp_path):
+    """
+    Test that finding an input file in an empty directory raises an appropriate error.
+    """
+    error = (
+        "Could not find a single unique '<filename>_meta.h5' file in the "
+        "specified directory."
+    )
+    with pytest.raises(SystemExit, match=error):
+        _InputFileAction.find_input_file_name(tmp_path)
 
 
 def test_input_file_action():
@@ -273,7 +222,7 @@ def test_image_size_nonpositive():
             image_size(size)
 
 
-def test_output_file_parser_optional():
+def test_image_output_parser_optional():
     """
     Test the parser for handling the output file path and output image shape.
 
@@ -285,25 +234,25 @@ def test_output_file_parser_optional():
     assert args.image_size is None
 
 
-def test_output_file_parser_output():
+def test_image_output_parser_output():
     """Check that the output/image size parser's output file argument does its stuff."""
     for flag in "-o", "--output-file":
         assert image_output_parser.parse_args([flag, "test"]).output_file == "test"
 
 
-def test_output_file_parser_force():
+def test_image_output_parser_force():
     """Check that the output/image size parser's --force flag stores true."""
     for flag in "-f", "--force":
         assert image_output_parser.parse_args([flag]).force is True
 
 
-def test_output_file_parser_image_size():
+def test_image_output_parser_image_size():
     """Check the normal expected behaviour for the output parser image size argument."""
     for flag in "-s", "--image-size":
         assert image_output_parser.parse_args([flag, "1,2"]).image_size == (2, 1)
 
 
-def test_output_file_parser_malformed_image_size(capsys):
+def test_image_output_parser_malformed_image_size(capsys):
     """Check that mal-formed image size values are rejected with a help message."""
     for size in "1", "1,2,", "a,b", ",", "1.,2.":
         with pytest.raises(SystemExit, match="2"):
@@ -314,12 +263,62 @@ def test_output_file_parser_malformed_image_size(capsys):
         )
 
 
-def test_output_file_parser_no_help(capsys):
+def test_image_output_parser_no_help(capsys):
     """Check that the output/image size parser parser does not introduce a help flag."""
     for flag in "-h", "--help":
         with pytest.raises(SystemExit, match="2"):
             image_output_parser.parse_args([flag])
         assert f"error: unrecognized arguments: {flag}" in capsys.readouterr().err
+
+
+def test_units_of_time():
+    """Test the utility for applying a default unit to a quantity."""
+    # Check that a dimensionless input quantity defaults to seconds.
+    assert units_of_time(1) == ureg.Quantity(1, "s")
+    # Check standard expected input.
+    assert units_of_time("2ms") == ureg.Quantity(2, "ms")
+
+
+def test_units_of_time_invalid():
+    """Check that we catch invalid units in the units_of_time function."""
+    error = (
+        r"Cannot convert from '3 meter' \(\[length\]\) to 'a quantity of' \(\[time\]\)"
+    )
+    with pytest.raises(pint.errors.DimensionalityError, match=error):
+        units_of_time("3m")
+
+
+def test_units_of_time_undefined():
+    """
+    Check that we catch undefined units in the units_of_time function.
+
+    Check that the UndefinedUnitError (which is a subclass of AttributeError) is
+    re-raised as a ValueError, so that argparse recognises that this is a bad argument.
+    """
+    error = "'foo' is not defined in the unit registry"
+    with pytest.raises(ValueError, match=error):
+        units_of_time("foo")
+
+
+def test_units_of_time_nonpositive():
+    """Catch non-positive values in the units_of_time function."""
+    for duration in "0", "0s", "-1", "-s", "-1s":
+        with pytest.raises(ValueError, match="Time quantity must be positive."):
+            units_of_time(duration)
+
+
+def test_positive_int():
+    """Test the utility for checking an integer value is positive."""
+    for value in 1, "1", 1.1, True:
+        assert positive_int(value) == 1
+
+
+def test_positive_int_nonpositive():
+    """Check that non-positive values passed to positive_int raise a ValueError."""
+    for value in -1, "-1", 0, "0", 0.1, False:
+        msg = f"The value {value} does not cast to a positive integer."
+        with pytest.raises(ValueError, match=msg):
+            positive_int(value)
 
 
 def test_exposure_parser_exposure_time():
