@@ -1,9 +1,9 @@
-.. tristan-dls documentation master file, created by
+.. tristan documentation master file, created by
    sphinx-quickstart on Tue Mar 16 12:45:16 2021.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to tristan-dls's documentation!
+Welcome to tristan's documentation!
 =======================================
 
 .. toctree::

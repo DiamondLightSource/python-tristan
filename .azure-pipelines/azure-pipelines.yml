@@ -126,8 +126,8 @@ stages:
     - task: TwineAuthenticate@1
       displayName: Set up credentials
       inputs:
-        pythonUploadServiceConnection: pypi-tristan-dls
+        pythonUploadServiceConnection: pypi-tristan
 
     - bash: |
-        python -m twine upload -r pypi-tristan-dls --config-file $(PYPIRC_PATH) $(System.ArtifactsDirectory)/package/pypi/*.tar.gz $(System.ArtifactsDirectory)/package/pypi/*.whl
+        python -m twine upload -r pypi-tristan --config-file $(PYPIRC_PATH) $(System.ArtifactsDirectory)/package/pypi/*.tar.gz $(System.ArtifactsDirectory)/package/pypi/*.whl
       displayName: Publish package
