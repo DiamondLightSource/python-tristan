@@ -3,13 +3,13 @@ repos:
 
 # Bring Python code up to date with pyupgrade
 - repo: https://github.com/asottile/pyupgrade
-  rev: v2.19.1
+  rev: v2.24.0
   hooks:
   - id: pyupgrade
 
 # Automatically sort imports with isort
 - repo: https://github.com/pycqa/isort
-  rev: 5.8.0
+  rev: 5.9.3
   hooks:
   - id: isort
 
