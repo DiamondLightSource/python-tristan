@@ -3,7 +3,7 @@ dask==2021.2.0;python_version=="3.6"
 freephil==0.2.1
 h5py==3.2.1;python_version>"3.6"
 h5py==3.1.0;python_version=="3.6"
-hdf5plugin==2.3.2
+hdf5plugin==3.1.1
 nexgen==0.5.3
 numpy==1.20.2;python_version>"3.6"
 numpy==1.19.5;python_version=="3.6"
