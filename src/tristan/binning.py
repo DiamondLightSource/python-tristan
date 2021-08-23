@@ -6,12 +6,7 @@ from typing import Dict, Tuple
 
 import numpy as np
 from dask import array as da
-
-try:
-    from numpy.typing import ArrayLike
-except ImportError:
-    # NumPy versions compatible with Python 3.6 do not have the numpy.typing module.
-    ArrayLike = np.ndarray
+from numpy.typing import ArrayLike
 
 from .data import (
     event_location_key,

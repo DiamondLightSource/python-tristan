@@ -5,16 +5,9 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import Dict, Iterable, Optional, Tuple, Union
 
-try:
-    from numpy.typing import ArrayLike
-except ImportError:
-    # NumPy versions compatible with Python 3.6 do not have the numpy.typing module.
-    import numpy as np
-
-    ArrayLike = np.ndarray
-
 import h5py
 from dask import array as da
+from numpy.typing import ArrayLike
 
 from . import clock_frequency
 
