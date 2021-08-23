@@ -8,8 +8,7 @@ from typing import Dict, Iterable, List
 import h5py
 import numpy as np
 
-from . import cue_keys, event_keys
-from .data import ts_key_regex
+from .data import cue_keys, event_keys, ts_key_regex
 
 Sources = Dict[str, Iterable[h5py.VirtualSource]]
 TimeSliceInfo = List[slice], np.ndarray, List[slice], List[slice]

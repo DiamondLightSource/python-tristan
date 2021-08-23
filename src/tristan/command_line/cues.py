@@ -4,9 +4,16 @@ import argparse
 
 import numpy as np
 
-from .. import cue_id_key, cue_keys, cue_time_key, cues, latrd_data, reserved, seconds
-from ..data import data_files, find_input_file_name
-from . import input_parser, version_parser
+from ..data import (
+    cue_id_key,
+    cue_keys,
+    cue_time_key,
+    cues,
+    latrd_data,
+    reserved,
+    seconds,
+)
+from . import data_files, input_parser, version_parser
 
 parser = argparse.ArgumentParser(
     description=__doc__, parents=[version_parser, input_parser]
@@ -17,8 +24,7 @@ def main(args=None):
     """Print a human-readable summary of the cue messages in a LATRD data set."""
     args = parser.parse_args(args)
 
-    data_dir, root = find_input_file_name(args.input_file)
-    raw_files, _ = data_files(data_dir, root)
+    raw_files, _ = data_files(args.data_dir, args.root)
 
     with latrd_data(raw_files, keys=cue_keys) as data:
         relevant = (data[cue_id_key] > 0) & (data[cue_id_key] != reserved)

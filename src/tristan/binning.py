@@ -13,7 +13,7 @@ except ImportError:
     # NumPy versions compatible with Python 3.6 do not have the numpy.typing module.
     ArrayLike = np.ndarray
 
-from . import (
+from .data import (
     event_location_key,
     event_time_key,
     first_cue_time,

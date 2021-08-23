@@ -13,8 +13,9 @@ from dask.diagnostics import ProgressBar
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
 
-from .. import (
-    clock_frequency,
+from .. import clock_frequency
+from ..binning import find_start_end, make_images
+from ..data import (
     cue_keys,
     cue_times,
     cues,
@@ -22,6 +23,7 @@ from .. import (
     event_time_key,
     fem_falling,
     fem_rising,
+    first_cue_time,
     latrd_data,
     lvds_falling,
     lvds_rising,
@@ -29,9 +31,14 @@ from .. import (
     ttl_falling,
     ttl_rising,
 )
-from ..binning import find_start_end, first_cue_time, make_images
-from ..data import data_files, find_file_names
-from . import exposure_parser, image_output_parser, input_parser, version_parser
+from . import (
+    check_output_file,
+    data_files,
+    exposure_parser,
+    image_output_parser,
+    input_parser,
+    version_parser,
+)
 
 triggers = {
     "TTL-rising": ttl_rising,
@@ -45,14 +52,14 @@ triggers = {
 
 def determine_image_size(nexus_file: Path) -> Tuple[int, int]:
     """Find the image size from metadata."""
+    recommend = f"Please specify the detector dimensions in (x, y) with '--image-size'."
     try:
         with h5py.File(nexus_file, "r") as f:
             return f["entry/instrument/detector/module/data_size"][()]
     except (FileNotFoundError, OSError):
-        sys.exit(
-            f"Cannot find NeXus file:\n\t{nexus_file}\nPlease specify the "
-            f"detector dimensions in (x, y) with '--image-size'."
-        )
+        sys.exit(f"Cannot find NeXus file:\n\t{nexus_file}\n{recommend}")
+    except KeyError:
+        sys.exit(f"Input NeXus file does not contain image size metadata.\n{recommend}")
 
 
 def exposure(
@@ -73,14 +80,14 @@ def exposure(
 
 def single_image_cli(args):
     """Utility for making a single image from event-mode data."""
-    data_dir, root, output_file = find_file_names(
-        args.input_file, args.output_file, "single_image", args.force
+    output_file = check_output_file(
+        args.output_file, args.root, "single_image", args.force
     )
-    nexus_file = data_dir / f"{root}.nxs"
-    if nexus_file.exists():
+    input_nexus = args.data_dir / f"{args.root}.nxs"
+    if input_nexus.exists():
         # Write output NeXus file if we have an input NeXus file.
         output_nexus = CopyTristanNexus.single_image_nexus(
-            output_file, nexus_file, write_mode="w" if args.force else "x"
+            output_file, input_nexus, write_mode="w" if args.force else "x"
         )
     else:
         output_nexus = None
@@ -89,12 +96,9 @@ def single_image_cli(args):
             "Resorting to writing raw image data without accompanying metadata."
         )
 
-    if args.image_size:
-        image_size = tuple(map(int, args.image_size.split(",")))[::-1]
-    else:
-        image_size = determine_image_size(nexus_file)
+    image_size = args.image_size or determine_image_size(input_nexus)
 
-    raw_files, _ = data_files(data_dir, root)
+    raw_files, _ = data_files(args.data_dir, args.root)
 
     keys = (event_location_key, event_time_key) + cue_keys
     with latrd_data(raw_files, keys=keys) as data:
@@ -121,22 +125,17 @@ def multiple_images_cli(args):
     The time between the start and end of the data collection is subdivided into a
     number of exposures of equal duration, providing a chronological stack of images.
     """
-    data_dir, root, output_file = find_file_names(
-        args.input_file, args.output_file, "images", args.force
-    )
-    nexus_file = data_dir / f"{root}.nxs"
-    if not nexus_file.exists():
+    output_file = check_output_file(args.output_file, args.root, "images", args.force)
+    input_nexus = args.data_dir / f"{args.root}.nxs"
+    if not input_nexus.exists():
         print(
             "Could not find a NeXus file containing experiment metadata.\n"
             "Resorting to writing raw image data without accompanying metadata."
         )
 
-    if args.image_size:
-        image_size = tuple(map(int, args.image_size.split(",")))[::-1]
-    else:
-        image_size = determine_image_size(nexus_file)
+    image_size = args.image_size or determine_image_size(input_nexus)
 
-    raw_files, _ = data_files(data_dir, root)
+    raw_files, _ = data_files(args.data_dir, args.root)
 
     keys = (event_location_key, event_time_key) + cue_keys
     with latrd_data(raw_files, keys=keys) as data:
@@ -181,11 +180,11 @@ def multiple_images_cli(args):
             )
             images.store(data_set)
 
-    if nexus_file.exists():
+    if input_nexus.exists():
         # Write output NeXus file if we have an input NeXus file.
         output_nexus = CopyTristanNexus.multiple_images_nexus(
             output_file,
-            nexus_file,
+            input_nexus,
             nbins=num_images,
             write_mode="w" if args.force else "x",
         )
@@ -204,14 +203,12 @@ def pump_probe_cli(args):
     aggregated, providing a single stack of images that captures the evolution of the
     response of the measurement to a pump signal.
     """
-    data_dir, root, output_file = find_file_names(
-        args.input_file, args.output_file, "images", args.force
-    )
-    nexus_file = data_dir / f"{root}.nxs"
-    if nexus_file.exists():
+    output_file = check_output_file(args.output_file, args.root, "images", args.force)
+    input_nexus = args.data_dir / f"{args.root}.nxs"
+    if input_nexus.exists():
         # Write output NeXus file if we have an input NeXus file.
         output_nexus = CopyTristanNexus.pump_probe_nexus(
-            output_file, nexus_file, write_mode="w" if args.force else "x"
+            output_file, input_nexus, write_mode="w" if args.force else "x"
         )
     else:
         output_nexus = None
@@ -220,12 +217,9 @@ def pump_probe_cli(args):
             "Resorting to writing raw image data without accompanying metadata."
         )
 
-    if args.image_size:
-        image_size = tuple(map(int, args.image_size.split(",")))[::-1]
-    else:
-        image_size = determine_image_size(nexus_file)
+    image_size = args.image_size or determine_image_size(input_nexus)
 
-    raw_files, _ = data_files(data_dir, root)
+    raw_files, _ = data_files(args.data_dir, args.root)
 
     keys = (event_location_key, event_time_key) + cue_keys
     with latrd_data(raw_files, keys=keys) as data:
