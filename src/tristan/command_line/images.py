@@ -8,8 +8,10 @@ from typing import Tuple
 import h5py
 import numpy as np
 import pint
+import zarr
 from dask import array as da
 from dask.diagnostics import ProgressBar
+from dask.distributed import Client, progress
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
 
@@ -126,6 +128,7 @@ def multiple_images_cli(args):
     number of exposures of equal duration, providing a chronological stack of images.
     """
     output_file = check_output_file(args.output_file, args.stem, "images", args.force)
+    intermediate = "test"
     input_nexus = args.data_dir / f"{args.stem}.nxs"
     if not input_nexus.exists():
         print(
@@ -170,15 +173,15 @@ def multiple_images_cli(args):
 
         images = make_images(data, image_size, bins)
 
-        with ProgressBar(), h5py.File(output_file, "w" if args.force else "x") as f:
-            data_set = f.require_dataset(
-                "data",
-                shape=images.shape,
-                dtype=images.dtype,
-                chunks=images.chunksize,
-                **Bitshuffle(),
-            )
-            images.store(data_set)
+        with Client(processes=False) as client:
+            method = {"compute": False, "overwrite": True, "return_stored": True}
+            images = images.to_zarr(intermediate, component="data", **method)
+            progress(images.persist())
+            client.cancel(images)
+
+        print("\nTransferring the images to the output file.")
+        with h5py.File(output_file, "w" if args.force else "x") as f:
+            zarr.copy(zarr.open(intermediate, "r"), f, "/", **Bitshuffle())
 
     if input_nexus.exists():
         # Write output NeXus file if we have an input NeXus file.
