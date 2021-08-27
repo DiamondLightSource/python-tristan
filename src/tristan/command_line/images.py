@@ -42,6 +42,9 @@ from . import (
     version_parser,
 )
 
+# from numcodecs.blosc import Blosc, BITSHUFFLE
+
+
 triggers = {
     "TTL-rising": ttl_rising,
     "TTL-falling": ttl_falling,
@@ -120,6 +123,30 @@ def single_image_cli(args):
     print(f"Images written to\n\t{output_nexus or output_file}")
 
 
+def save_multiple_images(images: da.Array, output_file: Path, write_mode: str) -> None:
+    intermediate = str(output_file.parent / f"{output_file.stem}.zarr")
+
+    # Use the Dask distributed scheduler to avoid memory issues.  The default
+    # scheduler lacks any memory limit on the workers and the cached results will
+    # tend to accumulate faster than the file output can drain them to disk.
+    with Client(processes=False):
+        # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
+        # return the Array object so we can compute it with a progress bar.
+        method = {"overwrite": True, "compute": False, "return_stored": True}
+        # compression = {"compressor": Blosc(cname="lz4", shuffle=BITSHUFFLE)}
+        # Save the calculated images to the intermediate Zarr directory store.
+        images = images.to_zarr(
+            intermediate, component="data", **method  # , **compression
+        )
+        progress(images.persist())
+
+    print("\nTransferring the images to the output file.")
+    store = zarr.DirectoryStore(intermediate)
+    with h5py.File(output_file, write_mode) as f:
+        zarr.copy(zarr.open(store), f, "/", **Bitshuffle())
+    store.clear()
+
+
 def multiple_images_cli(args):
     """
     Utility for making multiple images from event-mode data.
@@ -128,7 +155,8 @@ def multiple_images_cli(args):
     number of exposures of equal duration, providing a chronological stack of images.
     """
     output_file = check_output_file(args.output_file, args.stem, "images", args.force)
-    intermediate = "test"
+    write_mode = "w" if args.force else "x"
+
     input_nexus = args.data_dir / f"{args.stem}.nxs"
     if not input_nexus.exists():
         print(
@@ -173,15 +201,7 @@ def multiple_images_cli(args):
 
         images = make_images(data, image_size, bins)
 
-        with Client(processes=False) as client:
-            method = {"compute": False, "overwrite": True, "return_stored": True}
-            images = images.to_zarr(intermediate, component="data", **method)
-            progress(images.persist())
-            client.cancel(images)
-
-        print("\nTransferring the images to the output file.")
-        with h5py.File(output_file, "w" if args.force else "x") as f:
-            zarr.copy(zarr.open(intermediate, "r"), f, "/", **Bitshuffle())
+        save_multiple_images(images, output_file, write_mode)
 
     if input_nexus.exists():
         # Write output NeXus file if we have an input NeXus file.
@@ -189,7 +209,7 @@ def multiple_images_cli(args):
             output_file,
             input_nexus,
             nbins=num_images,
-            write_mode="w" if args.force else "x",
+            write_mode=write_mode,
         )
     else:
         output_nexus = None
@@ -207,11 +227,13 @@ def pump_probe_cli(args):
     response of the measurement to a pump signal.
     """
     output_file = check_output_file(args.output_file, args.stem, "images", args.force)
+    write_mode = "w" if args.force else "x"
+
     input_nexus = args.data_dir / f"{args.stem}.nxs"
     if input_nexus.exists():
         # Write output NeXus file if we have an input NeXus file.
         output_nexus = CopyTristanNexus.pump_probe_nexus(
-            output_file, input_nexus, write_mode="w" if args.force else "x"
+            output_file, input_nexus, write_mode=write_mode
         )
     else:
         output_nexus = None
@@ -256,15 +278,7 @@ def pump_probe_cli(args):
 
         images = make_images(data, image_size, bins)
 
-        with ProgressBar(), h5py.File(output_file, "w" if args.force else "x") as f:
-            data_set = f.require_dataset(
-                "data",
-                shape=images.shape,
-                dtype=images.dtype,
-                chunks=images.chunksize,
-                **Bitshuffle(),
-            )
-            images.store(data_set)
+        save_multiple_images(images, output_file, write_mode)
 
     print(f"Images written to\n\t{output_nexus or output_file}")
 
