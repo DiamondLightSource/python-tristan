@@ -64,7 +64,7 @@ def determine_image_size(nexus_file: Path) -> Tuple[int, int]:
 
 def exposure(
     start: int, end: int, exposure_time: pint.Quantity = None, num_images: int = None
-):
+) -> (pint.Quantity, int, int):
     if exposure_time:
         exposure_time = exposure_time.to_base_units().to_compact()
         exposure_cycles = (exposure_time * clock_frequency).to_base_units().magnitude
@@ -72,7 +72,7 @@ def exposure(
     else:
         # Because they are expected to be mutually exclusive, if there is no
         # exposure_time, there must be a num_images.
-        exposure_cycles = (end - start) / num_images
+        exposure_cycles = int((end - start) / num_images)
         exposure_time = seconds(exposure_cycles)
 
     return exposure_time, exposure_cycles, num_images
@@ -81,9 +81,9 @@ def exposure(
 def single_image_cli(args):
     """Utility for making a single image from event-mode data."""
     output_file = check_output_file(
-        args.output_file, args.root, "single_image", args.force
+        args.output_file, args.stem, "single_image", args.force
     )
-    input_nexus = args.data_dir / f"{args.root}.nxs"
+    input_nexus = args.data_dir / f"{args.stem}.nxs"
     if input_nexus.exists():
         # Write output NeXus file if we have an input NeXus file.
         output_nexus = CopyTristanNexus.single_image_nexus(
@@ -98,7 +98,7 @@ def single_image_cli(args):
 
     image_size = args.image_size or determine_image_size(input_nexus)
 
-    raw_files, _ = data_files(args.data_dir, args.root)
+    raw_files, _ = data_files(args.data_dir, args.stem)
 
     keys = (event_location_key, event_time_key) + cue_keys
     with latrd_data(raw_files, keys=keys) as data:
@@ -125,8 +125,8 @@ def multiple_images_cli(args):
     The time between the start and end of the data collection is subdivided into a
     number of exposures of equal duration, providing a chronological stack of images.
     """
-    output_file = check_output_file(args.output_file, args.root, "images", args.force)
-    input_nexus = args.data_dir / f"{args.root}.nxs"
+    output_file = check_output_file(args.output_file, args.stem, "images", args.force)
+    input_nexus = args.data_dir / f"{args.stem}.nxs"
     if not input_nexus.exists():
         print(
             "Could not find a NeXus file containing experiment metadata.\n"
@@ -135,7 +135,7 @@ def multiple_images_cli(args):
 
     image_size = args.image_size or determine_image_size(input_nexus)
 
-    raw_files, _ = data_files(args.data_dir, args.root)
+    raw_files, _ = data_files(args.data_dir, args.stem)
 
     keys = (event_location_key, event_time_key) + cue_keys
     with latrd_data(raw_files, keys=keys) as data:
@@ -203,8 +203,8 @@ def pump_probe_cli(args):
     aggregated, providing a single stack of images that captures the evolution of the
     response of the measurement to a pump signal.
     """
-    output_file = check_output_file(args.output_file, args.root, "images", args.force)
-    input_nexus = args.data_dir / f"{args.root}.nxs"
+    output_file = check_output_file(args.output_file, args.stem, "images", args.force)
+    input_nexus = args.data_dir / f"{args.stem}.nxs"
     if input_nexus.exists():
         # Write output NeXus file if we have an input NeXus file.
         output_nexus = CopyTristanNexus.pump_probe_nexus(
@@ -219,7 +219,7 @@ def pump_probe_cli(args):
 
     image_size = args.image_size or determine_image_size(input_nexus)
 
-    raw_files, _ = data_files(args.data_dir, args.root)
+    raw_files, _ = data_files(args.data_dir, args.stem)
 
     keys = (event_location_key, event_time_key) + cue_keys
     with latrd_data(raw_files, keys=keys) as data:

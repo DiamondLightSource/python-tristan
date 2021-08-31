@@ -26,9 +26,9 @@ def test_check_output_file(tmp_path):
     """Test the function for checking for a valid output file name."""
     assert check_output_file() is None
     assert check_output_file(out_file="test.ext") == Path("test.ext").resolve()
-    assert check_output_file(root="test") == Path("test_output.h5").resolve()
+    assert check_output_file(stem="test") == Path("test_output.h5").resolve()
     assert (
-        check_output_file(root="test", suffix="other")
+        check_output_file(stem="test", suffix="other")
         == Path("test_other.h5").resolve()
     )
     test_file = tmp_path / "test.ext"
@@ -41,15 +41,15 @@ def test_check_output_file(tmp_path):
 def test_data_files(dummy_data_transient):
     """Test the utility for discovering Tristan data file paths."""
     # Expected file paths.
-    root = "dummy"
-    meta_file = dummy_data_transient / f"{root}_meta.h5"
+    stem = "dummy"
+    meta_file = dummy_data_transient / f"{stem}_meta.h5"
     raw_files = sorted(dummy_data_transient.iterdir())
 
     # Check that the absence of the metadata file raises an error.
     with pytest.raises(
         SystemExit, match="Could not find the expected detector metadata file:"
     ):
-        data_files(dummy_data_transient, root)
+        data_files(dummy_data_transient, stem)
 
     # Check that a metadata file with a valid (or missing) frame-processors-per-module
     # metadatum results in the correct file paths being determined.
@@ -57,19 +57,19 @@ def test_data_files(dummy_data_transient):
         with h5py.File(meta_file, "w") as f:
             f["fp_per_module"] = fp_per_module
 
-        assert data_files(dummy_data_transient, root) == (raw_files, meta_file)
+        assert data_files(dummy_data_transient, stem) == (raw_files, meta_file)
 
     # Check that missing raw files, as determined from the fp-per-module metadatum,
     # raise an error.
     fp_per_module = (4,)
-    missing_file = f"{dummy_data_transient / root}_000004.h5"
+    missing_file = f"{dummy_data_transient / stem}_000004.h5"
     with h5py.File(meta_file, "w") as f:
         f["fp_per_module"] = fp_per_module
     with pytest.raises(
         SystemExit,
         match=f"The following expected data files are missing:\n\t{missing_file}",
     ):
-        data_files(dummy_data_transient, root)
+        data_files(dummy_data_transient, stem)
 
 
 def test_version_parser(capsys):
@@ -136,19 +136,19 @@ def test_input_file_action():
     action = _InputFileAction(option_strings=(), dest="")
     namespace = argparse.Namespace()
     directory = "some/dummy/path/to"
-    root = "file_name"
-    action(argparse.ArgumentParser(), namespace, f"{directory}" f"/{root}_meta.h5")
+    stem = "file_name"
+    action(argparse.ArgumentParser(), namespace, f"{directory}" f"/{stem}_meta.h5")
     assert namespace.data_dir == Path(directory).resolve()
-    assert namespace.root == root
+    assert namespace.stem == stem
 
 
 def test_input_parser():
     """Test the parser for handling the input file path."""
     directory = "some/dummy/path/to"
-    root = "file_name"
-    args = input_parser.parse_args([f"{directory}/{root}_meta.h5"])
+    stem = "file_name"
+    args = input_parser.parse_args([f"{directory}/{stem}_meta.h5"])
     assert args.data_dir == Path(directory).resolve()
-    assert args.root == root
+    assert args.stem == stem
 
 
 def test_input_parser_mandatory(capsys):
@@ -178,10 +178,10 @@ def test_input_parser_cwd_improper_input():
 def test_input_parser_no_help(capsys):
     """Check that the input parser parser does not introduce a help flag."""
     directory = "some/dummy/path/to"
-    root = "file_name"
+    stem = "file_name"
     for flag in "-h", "--help":
         with pytest.raises(SystemExit, match="2"):
-            input_parser.parse_args([f"{directory}/{root}_meta.h5", flag])
+            input_parser.parse_args([f"{directory}/{stem}_meta.h5", flag])
         assert f"error: unrecognized arguments: {flag}" in capsys.readouterr().err
 
 

@@ -32,7 +32,7 @@ meta_file_name_regex = re.compile(r"(.*)_(?:meta|\d+)")
 
 def check_output_file(
     out_file: Optional[Union[Path, str]] = None,
-    root: Optional[str] = None,
+    stem: Optional[str] = None,
     suffix: str = "output",
     force: bool = False,
 ) -> Optional[Path]:
@@ -40,21 +40,24 @@ def check_output_file(
     Find and check the output file path.
 
     Find the output file path, given either a specified output file name or a file
-    name root and suffix.  Exit if the output file already exists, unless instructed
+    name stem and suffix.  Exit if the output file already exists, unless instructed
     to over-write.
 
     Args:
         out_file:  A suggested output file path.
-        root:  A file name root to use if out_file is not provided.
-        suffix:  A suffix to append to root when constructing the output file name.
+        stem:  A file name stem to use if out_file is not provided.
+        suffix:  A suffix to append to stem when constructing the output file name.
         force:  Choose to over-write any existing file of the same name.
 
     Returns:
         The output file path.
+
+    Raises:
+        SystemExit:  if the output file exists and force is not true.
     """
 
-    if out_file or root:
-        out_file = Path(out_file or f"{root}_{suffix}.h5").expanduser().resolve()
+    if out_file or stem:
+        out_file = Path(out_file or f"{stem}_{suffix}.h5").expanduser().resolve()
 
         if not force and out_file.exists():
             sys.exit(
@@ -66,20 +69,20 @@ def check_output_file(
         return out_file
 
 
-def data_files(data_dir: Path, root: str, n_dig: int = 6) -> (List[Path], Path):
+def data_files(data_dir: Path, stem: str, n_dig: int = 6) -> (List[Path], Path):
     """
     Extract information about the files containing raw cues and events data.
 
     Args:
         data_dir: Directory containing the raw data and time slice metadata HDF5 files.
-        root:     Input file name, stripped of '_meta.h5', '_000001.h5', etc..
+        stem:     Input file name, stripped of '_meta.h5', '_000001.h5', etc..
         n_dig:    Number of digits in the raw file number, e.g. six in '_000001.h5'.
 
     Returns:
         - Lexicographically sorted list of raw file paths.
         - File path of the time slice metadata file.
     """
-    meta_file = data_dir / f"{root}_meta.h5"
+    meta_file = data_dir / f"{stem}_meta.h5"
     if not meta_file.exists():
         sys.exit(f"Could not find the expected detector metadata file:\n\t{meta_file}")
 
@@ -87,7 +90,7 @@ def data_files(data_dir: Path, root: str, n_dig: int = 6) -> (List[Path], Path):
         n_files = np.sum(f.get("fp_per_module", default=()))
 
     if n_files:
-        raw_files = [data_dir / f"{root}_{n + 1:0{n_dig}d}.h5" for n in range(n_files)]
+        raw_files = [data_dir / f"{stem}_{n + 1:0{n_dig}d}.h5" for n in range(n_files)]
         missing = list(filterfalse(Path.exists, raw_files))
         if missing:
             missing = "\n\t".join(map(str, missing))
@@ -97,7 +100,7 @@ def data_files(data_dir: Path, root: str, n_dig: int = 6) -> (List[Path], Path):
             "The detector metadata hold no information about the number of "
             "expected raw data files.  Falling back on finding the data dynamically."
         )
-        search_path = str(data_dir / f"{root}_{n_dig * '[0-9]'}.h5")
+        search_path = str(data_dir / f"{stem}_{n_dig * '[0-9]'}.h5")
         raw_files = [Path(path_str) for path_str in sorted(glob.glob(search_path))]
 
     return raw_files, meta_file
@@ -115,28 +118,28 @@ version_parser.add_argument(
 
 class _InputFileAction(argparse.Action):
     """
-    From an input file name argument, find the directory and file name root.
+    From an input file name argument, find the directory and file name stem.
 
     Set them as attributes of the argument parser instance.
     """
 
     def __call__(self, parser, namespace, values, option_string=None):
-        data_dir, file_name_root = self.find_input_file_name(values)
+        data_dir, file_name_stem = self.find_input_file_name(values)
         setattr(namespace, "data_dir", data_dir)
-        setattr(namespace, "root", file_name_root)
+        setattr(namespace, "stem", file_name_stem)
 
     @staticmethod
     def find_input_file_name(in_file: Union[Path, str]) -> (Path, str):
         """
-        Resolve the input file name into a directory and a file name root.
+        Resolve the input file name into a directory and a file name stem.
 
-        The file name root is the file name stem stripped of the last _(meta|\\d+).
+        The file name stem is the file name stem stripped of the last _(meta|\\d+).
 
         Args:
             in_file:  The input file path.
 
         Returns:
-            The data directory path and the file name root.
+            The data directory path and the file name stem.
         """
         in_file = Path(in_file).expanduser().resolve()
 
@@ -151,15 +154,15 @@ class _InputFileAction(argparse.Action):
                     "specified directory.\n"
                     "Please specify the desired input file name instead."
                 )
-            file_name_root = meta_file_name_regex.fullmatch(file_name.stem)[1]
+            file_name_stem = meta_file_name_regex.fullmatch(file_name.stem)[1]
         else:
             data_dir = in_file.parent
 
-            # Get the segment 'name_root' from 'name_root_meta.h5' or
-            # 'name_root_000001.h5'.
-            file_name_root = meta_file_name_regex.fullmatch(in_file.stem)
-            if file_name_root:
-                file_name_root = file_name_root[1]
+            # Get the segment 'name_stem' from 'name_stem_meta.h5' or
+            # 'name_stem_000001.h5'.
+            file_name_stem = meta_file_name_regex.fullmatch(in_file.stem)
+            if file_name_stem:
+                file_name_stem = file_name_stem[1]
             else:
                 sys.exit(
                     "Input file name did not have the expected format "
@@ -167,10 +170,10 @@ class _InputFileAction(argparse.Action):
                     f"\t{in_file}"
                 )
 
-        return data_dir, file_name_root
+        return data_dir, file_name_stem
 
 
-# A parser with the attributes data_dir and root,
+# A parser with the attributes data_dir and stem,
 # representing the input Tristan data files.
 input_parser = argparse.ArgumentParser(add_help=False)
 input_parser.add_argument(

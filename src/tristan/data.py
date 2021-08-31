@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, Iterable, Optional, Tuple, Union
 
 import h5py
+import pint
 from dask import array as da
 from numpy.typing import ArrayLike
 
@@ -142,7 +143,7 @@ def cue_times(data: Dict[str, da.Array], message: int) -> da.Array:
     return da.unique(data[cue_time_key][index])
 
 
-def seconds(timestamp: ArrayLike, reference: ArrayLike = 0) -> ArrayLike:
+def seconds(timestamp: int, reference: int = 0) -> pint.Quantity:
     """
     Convert a Tristan timestamp to seconds, measured from a given reference timestamp.
 

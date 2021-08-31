@@ -37,7 +37,7 @@ def main(args=None):
     args = parser.parse_args(args)
     output_file = check_output_file(args.output_file, suffix="vds", force=args.force)
 
-    raw_files, meta_file = data_files(args.data_dir, args.root)
+    raw_files, meta_file = data_files(args.data_dir, args.stem)
     with h5py.File(meta_file, "r") as f:
         ts_info = time_slice_info(f)
         layouts = virtual_data_set(raw_files, f, *ts_info)
