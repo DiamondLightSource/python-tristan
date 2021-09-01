@@ -42,9 +42,6 @@ from . import (
     version_parser,
 )
 
-# from numcodecs.blosc import Blosc, BITSHUFFLE
-
-
 triggers = {
     "TTL-rising": ttl_rising,
     "TTL-falling": ttl_falling,
