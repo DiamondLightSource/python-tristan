@@ -1,5 +1,4 @@
 dask==2021.4.1
-freephil==0.2.1
 h5py==3.2.1
 hdf5plugin==3.1.1
 nexgen==0.5.3
