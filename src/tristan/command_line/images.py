@@ -133,9 +133,10 @@ def save_multiple_images(
     than the available amount of memory.  Using the distributed scheduler avoids this
     problem.
 
-    The distributed scheduler cannot write directly to HDF5 files because they are
-    not serialisable.  To work around this issue, the data are first stored to a Zarr
-    DirectoryStore, then copied to the final HDF5 file and the Zarr store deleted.
+    The distributed scheduler cannot write directly to HDF5 files because h5py.File
+    objects are not serialisable.  To work around this issue, the data are first
+    stored to a Zarr DirectoryStore, then copied to the final HDF5 file and the Zarr
+    store deleted.
 
     Multithreading is used, as the calculation is assumed to be I/O bound.
 
