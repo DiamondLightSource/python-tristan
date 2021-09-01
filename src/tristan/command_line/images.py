@@ -123,27 +123,45 @@ def single_image_cli(args):
     print(f"Images written to\n\t{output_nexus or output_file}")
 
 
-def save_multiple_images(images: da.Array, output_file: Path, write_mode: str) -> None:
+def save_multiple_images(
+    array: da.Array, output_file: Path, write_mode: str = "x"
+) -> None:
+    """
+    Calculate and store a Dask array in an HDF5 file without exceeding available memory.
+
+    Use the Dask distributed scheduler to compute a Dask array and store the
+    resulting values to a data set 'data' in the root group of an HDF5 file.  The
+    distributed scheduler is capable of managing worker memory better than the
+    default scheduler.  In the latter case, the workers can sometimes demand more
+    than the available amount of memory.  Using the distributed scheduler avoids this
+    problem.
+
+    The distributed scheduler cannot write directly to HDF5 files because they are
+    not serialisable.  To work around this issue, the data are first stored to a Zarr
+    DirectoryStore, then copied to the final HDF5 file and the Zarr store deleted.
+
+    Args:
+        array:  A Dask array to be calculated and stored.
+        output_file:  Path to the output HDF5 file.
+        write_mode:  HDF5 file opening mode.  See :class:`h5py.File`.
+    """
     intermediate = str(output_file.parent / f"{output_file.stem}.zarr")
 
-    # Use the Dask distributed scheduler to avoid memory issues.  The default
-    # scheduler lacks any memory limit on the workers and the cached results will
-    # tend to accumulate faster than the file output can drain them to disk.
     with Client(processes=False):
         # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
         # return the Array object so we can compute it with a progress bar.
         method = {"overwrite": True, "compute": False, "return_stored": True}
-        # compression = {"compressor": Blosc(cname="lz4", shuffle=BITSHUFFLE)}
-        # Save the calculated images to the intermediate Zarr directory store.
-        images = images.to_zarr(
-            intermediate, component="data", **method  # , **compression
-        )
-        progress(images.persist())
+        # Prepare to save the calculated images to the intermediate Zarr store.
+        array = array.to_zarr(intermediate, component="data", **method)
+        # Compute the Array and store the values, using a progress bar.
+        progress(array.persist())
 
     print("\nTransferring the images to the output file.")
     store = zarr.DirectoryStore(intermediate)
     with h5py.File(output_file, write_mode) as f:
         zarr.copy(zarr.open(store), f, "/", **Bitshuffle())
+
+    # Delete the Zarr store.
     store.clear()
 
 
