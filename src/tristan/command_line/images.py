@@ -160,7 +160,7 @@ def save_multiple_images(
     print("\nTransferring the images to the output file.")
     store = zarr.DirectoryStore(intermediate)
     with h5py.File(output_file, write_mode) as f:
-        zarr.copy(zarr.open(store), f, "/", **Bitshuffle())
+        zarr.copy_all(zarr.open(store), f, **Bitshuffle())
 
     # Delete the Zarr store.
     store.clear()
