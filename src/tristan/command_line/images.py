@@ -140,6 +140,8 @@ def save_multiple_images(
     not serialisable.  To work around this issue, the data are first stored to a Zarr
     DirectoryStore, then copied to the final HDF5 file and the Zarr store deleted.
 
+    Multithreading is used, as the calculation is assumed to be I/O bound.
+
     Args:
         array:  A Dask array to be calculated and stored.
         output_file:  Path to the output HDF5 file.
@@ -147,6 +149,7 @@ def save_multiple_images(
     """
     intermediate = str(output_file.parent / f"{output_file.stem}.zarr")
 
+    # Use threads, rather than processes.
     with Client(processes=False):
         # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
         # return the Array object so we can compute it with a progress bar.
