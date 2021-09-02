@@ -73,13 +73,12 @@ def make_images(
     if num_images > 1:
         image_indices = da.digitize(event_times, bins) - 1
 
-        image_indices = [
-            image_indices == image_number for image_number in range(num_images)
-        ]
         images = da.stack(
             [
-                da.bincount(event_locations[indices], minlength=mul(*image_size))
-                for indices in image_indices
+                da.bincount(
+                    event_locations[image_indices == i], minlength=mul(*image_size)
+                )
+                for i in range(num_images)
             ]
         )
     else:
