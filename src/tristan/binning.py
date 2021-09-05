@@ -69,13 +69,21 @@ def make_images(
     event_locations = pixel_index(event_locations, image_size)
 
     num_images = len(bins) - 1
-    pixels_per_image = mul(*image_size)
 
     if num_images > 1:
+        # We cannot perform a single bincount of the entire data set because that
+        # would require allocating enough memory for the entire image stack.
         image_indices = da.digitize(event_times, bins) - 1
-        event_locations = event_locations + image_indices * pixels_per_image
-        images = da.bincount(event_locations, minlength=num_images * pixels_per_image)
+
+        images = da.stack(
+            [
+                da.bincount(
+                    event_locations[image_indices == i], minlength=mul(*image_size)
+                )
+                for i in range(num_images)
+            ]
+        )
     else:
-        images = da.bincount(event_locations, minlength=pixels_per_image)
+        images = da.bincount(event_locations, minlength=mul(*image_size))
 
     return images.astype(np.uint32).reshape(num_images, *image_size)
