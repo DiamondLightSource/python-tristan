@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from typing import Tuple
 
+import dask
 import h5py
 import numpy as np
 import pint
@@ -12,6 +13,7 @@ import zarr
 from dask import array as da
 from dask.diagnostics import ProgressBar
 from dask.distributed import Client, progress
+from dask.system import CPU_COUNT
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
 
@@ -82,6 +84,7 @@ def exposure(
 
 def single_image_cli(args):
     """Utility for making a single image from event-mode data."""
+    write_mode = "w" if args.force else "x"
     output_file = check_output_file(
         args.output_file, args.stem, "single_image", args.force
     )
@@ -89,7 +92,7 @@ def single_image_cli(args):
     if input_nexus.exists():
         # Write output NeXus file if we have an input NeXus file.
         output_nexus = CopyTristanNexus.single_image_nexus(
-            output_file, input_nexus, write_mode="w" if args.force else "x"
+            output_file, input_nexus, write_mode=write_mode
         )
     else:
         output_nexus = None
@@ -107,7 +110,7 @@ def single_image_cli(args):
         print("Binning events into a single image.")
         image = make_images(data, image_size, find_start_end(data))
 
-        with ProgressBar(), h5py.File(output_file, "w" if args.force else "x") as f:
+        with ProgressBar(), h5py.File(output_file, write_mode) as f:
             data_set = f.require_dataset(
                 "data",
                 shape=image.shape,
@@ -145,17 +148,26 @@ def save_multiple_images(
         output_file:  Path to the output HDF5 file.
         write_mode:  HDF5 file opening mode.  See :class:`h5py.File`.
     """
+    # Set a more generous connection timeout than the default 30s.
+    dask.config.set(
+        {
+            "distributed.comm.timeouts.connect": "60s",
+            "distributed.comm.timeouts.tcp": "60s",
+            "distributed.deploy.lost-worker-timeout": "60s",
+            "distributed.scheduler.idle-timeout": "600s",
+            "distributed.scheduler.locks.lease-timeout": "60s",
+        }
+    )
+
     intermediate = str(output_file.parent / f"{output_file.stem}.zarr")
 
-    # Use threads, rather than processes.
-    with Client(processes=False):
-        # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
-        # return the Array object so we can compute it with a progress bar.
-        method = {"overwrite": True, "compute": False, "return_stored": True}
-        # Prepare to save the calculated images to the intermediate Zarr store.
-        array = array.to_zarr(intermediate, component="data", **method)
-        # Compute the Array and store the values, using a progress bar.
-        progress(array.persist())
+    # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
+    # return the Array object so we can compute it with a progress bar.
+    method = {"overwrite": True, "compute": False, "return_stored": True}
+    # Prepare to save the calculated images to the intermediate Zarr store.
+    array = array.to_zarr(intermediate, component="data", **method)
+    # Compute the Array and store the values, using a progress bar.
+    progress(array.persist())
 
     print("\nTransferring the images to the output file.")
     store = zarr.DirectoryStore(intermediate)
@@ -173,6 +185,7 @@ def multiple_images_cli(args):
     The time between the start and end of the data collection is subdivided into a
     number of exposures of equal duration, providing a chronological stack of images.
     """
+    write_mode = "w" if args.force else "x"
     output_file = check_output_file(args.output_file, args.stem, "images", args.force)
     write_mode = "w" if args.force else "x"
 
@@ -187,9 +200,8 @@ def multiple_images_cli(args):
 
     raw_files, _ = data_files(args.data_dir, args.stem)
 
-    keys = (event_location_key, event_time_key) + cue_keys
-    with latrd_data(raw_files, keys=keys) as data:
-        start, end = find_start_end(data)
+    with latrd_data(raw_files, keys=cue_keys) as data:
+        start, end = find_start_end(data, distributed=True)
         exposure_time, exposure_cycles, num_images = exposure(
             start, end, args.exposure_time, args.num_images
         )
@@ -218,8 +230,8 @@ def multiple_images_cli(args):
         else:
             bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
 
+    with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
         images = make_images(data, image_size, bins)
-
         save_multiple_images(images, output_file, write_mode)
 
     if input_nexus.exists():
@@ -245,6 +257,7 @@ def pump_probe_cli(args):
     aggregated, providing a single stack of images that captures the evolution of the
     response of the measurement to a pump signal.
     """
+    write_mode = "w" if args.force else "x"
     output_file = check_output_file(args.output_file, args.stem, "images", args.force)
     write_mode = "w" if args.force else "x"
 
@@ -265,8 +278,7 @@ def pump_probe_cli(args):
 
     raw_files, _ = data_files(args.data_dir, args.stem)
 
-    keys = (event_location_key, event_time_key) + cue_keys
-    with latrd_data(raw_files, keys=keys) as data:
+    with latrd_data(raw_files, keys=cue_keys) as data:
         trigger_type = triggers.get(args.trigger_type)
 
         trigger_times = cue_times(data, trigger_type).compute().astype(int)
@@ -286,6 +298,7 @@ def pump_probe_cli(args):
             f"'{cues[trigger_type]}' signal."
         )
 
+    with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
         # Measure the event time as time elapsed since the most recent trigger signal.
         trigger_times = da.from_array(trigger_times)
         data[event_time_key] = data[event_time_key].astype(np.int64)
@@ -296,7 +309,6 @@ def pump_probe_cli(args):
         bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
 
         images = make_images(data, image_size, bins)
-
         save_multiple_images(images, output_file, write_mode)
 
     print(f"Images written to\n\t{output_nexus or output_file}")
@@ -360,4 +372,10 @@ parser_pump_probe.set_defaults(func=pump_probe_cli)
 def main(args=None):
     """Perform the image binning with a user-specified sub-command."""
     args = parser.parse_args(args)
-    args.func(args)
+    if args.func == single_image_cli:
+        #  Use the default scheduler.
+        args.func(args)
+    else:  # Multi-image binning requires the Dask distributed scheduler.
+        # Use threads, rather than processes.
+        with Client(processes=False, threads_per_worker=int(0.9 * CPU_COUNT) or 1):
+            args.func(args)
