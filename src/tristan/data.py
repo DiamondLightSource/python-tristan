@@ -89,8 +89,13 @@ def latrd_data(
     The yielded dictionary has an entry for each of the specified LATRD data keys.
     Each key must be a valid LATRD data key and the corresponding value is a Dask
     array containing the corresponding LATRD data from all the raw data files,
-    rechunked into blocks approximately the size of the default Dask array chunk
-    size, but with chunk boundaries aligned with HDF5 data set chunk boundaries.
+    rechunked for efficient computation by Dask.  The block layouts will be the same
+    for all the yielded data sets, since it is assumed these data will be passed into
+    a computation together.  The chunk sizes are chosen such that, for the data set
+    with the largest item size, the block size is as large as possible, up to the
+    size of the default Dask array chunk size, but with chunk boundaries aligned with
+    HDF5 data set chunk boundaries.  If the input data sets are small enough,
+    multiple input data sets may be aggregated into a single Dask block.
 
     Args:
         raw_file_paths:  The paths of the raw LATRD data files.
@@ -105,14 +110,14 @@ def latrd_data(
             for path in raw_file_paths
         ]
 
+        # The optimal number of data per Dask chunk.
         target_size_bytes = int(Quantity(config.get("array.chunk-size")).m_as("bytes"))
+        largest_item_size = max(files[0][key].dtype.itemsize for key in keys)
+        target_size = target_size_bytes // largest_item_size
 
         data = {}
         for key in keys:
             data_sets = [f[key] for f in files]
-
-            # The optimal number of data per Dask chunk.
-            target_size = target_size_bytes // data_sets[0].dtype.itemsize
 
             # Try to aggregate the input data into the fewest possible Dask chunks.
             chunks = []
