@@ -8,8 +8,10 @@ from typing import Tuple
 import h5py
 import numpy as np
 import pint
+import zarr
 from dask import array as da
 from dask.diagnostics import ProgressBar
+from dask.distributed import Client, progress
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
 
@@ -118,6 +120,52 @@ def single_image_cli(args):
     print(f"Images written to\n\t{output_nexus or output_file}")
 
 
+def save_multiple_images(
+    array: da.Array, output_file: Path, write_mode: str = "x"
+) -> None:
+    """
+    Calculate and store a Dask array in an HDF5 file without exceeding available memory.
+
+    Use the Dask distributed scheduler to compute a Dask array and store the
+    resulting values to a data set 'data' in the root group of an HDF5 file.  The
+    distributed scheduler is capable of managing worker memory better than the
+    default scheduler.  In the latter case, the workers can sometimes demand more
+    than the available amount of memory.  Using the distributed scheduler avoids this
+    problem.
+
+    The distributed scheduler cannot write directly to HDF5 files because h5py.File
+    objects are not serialisable.  To work around this issue, the data are first
+    stored to a Zarr DirectoryStore, then copied to the final HDF5 file and the Zarr
+    store deleted.
+
+    Multithreading is used, as the calculation is assumed to be I/O bound.
+
+    Args:
+        array:  A Dask array to be calculated and stored.
+        output_file:  Path to the output HDF5 file.
+        write_mode:  HDF5 file opening mode.  See :class:`h5py.File`.
+    """
+    intermediate = str(output_file.parent / f"{output_file.stem}.zarr")
+
+    # Use threads, rather than processes.
+    with Client(processes=False):
+        # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
+        # return the Array object so we can compute it with a progress bar.
+        method = {"overwrite": True, "compute": False, "return_stored": True}
+        # Prepare to save the calculated images to the intermediate Zarr store.
+        array = array.to_zarr(intermediate, component="data", **method)
+        # Compute the Array and store the values, using a progress bar.
+        progress(array.persist())
+
+    print("\nTransferring the images to the output file.")
+    store = zarr.DirectoryStore(intermediate)
+    with h5py.File(output_file, write_mode) as f:
+        zarr.copy_all(zarr.open(store), f, **Bitshuffle())
+
+    # Delete the Zarr store.
+    store.clear()
+
+
 def multiple_images_cli(args):
     """
     Utility for making multiple images from event-mode data.
@@ -126,6 +174,8 @@ def multiple_images_cli(args):
     number of exposures of equal duration, providing a chronological stack of images.
     """
     output_file = check_output_file(args.output_file, args.stem, "images", args.force)
+    write_mode = "w" if args.force else "x"
+
     input_nexus = args.data_dir / f"{args.stem}.nxs"
     if not input_nexus.exists():
         print(
@@ -170,15 +220,7 @@ def multiple_images_cli(args):
 
         images = make_images(data, image_size, bins)
 
-        with ProgressBar(), h5py.File(output_file, "w" if args.force else "x") as f:
-            data_set = f.require_dataset(
-                "data",
-                shape=images.shape,
-                dtype=images.dtype,
-                chunks=images.chunksize,
-                **Bitshuffle(),
-            )
-            images.store(data_set)
+        save_multiple_images(images, output_file, write_mode)
 
     if input_nexus.exists():
         # Write output NeXus file if we have an input NeXus file.
@@ -186,7 +228,7 @@ def multiple_images_cli(args):
             output_file,
             input_nexus,
             nbins=num_images,
-            write_mode="w" if args.force else "x",
+            write_mode=write_mode,
         )
     else:
         output_nexus = None
@@ -204,11 +246,13 @@ def pump_probe_cli(args):
     response of the measurement to a pump signal.
     """
     output_file = check_output_file(args.output_file, args.stem, "images", args.force)
+    write_mode = "w" if args.force else "x"
+
     input_nexus = args.data_dir / f"{args.stem}.nxs"
     if input_nexus.exists():
         # Write output NeXus file if we have an input NeXus file.
         output_nexus = CopyTristanNexus.pump_probe_nexus(
-            output_file, input_nexus, write_mode="w" if args.force else "x"
+            output_file, input_nexus, write_mode=write_mode
         )
     else:
         output_nexus = None
@@ -253,15 +297,7 @@ def pump_probe_cli(args):
 
         images = make_images(data, image_size, bins)
 
-        with ProgressBar(), h5py.File(output_file, "w" if args.force else "x") as f:
-            data_set = f.require_dataset(
-                "data",
-                shape=images.shape,
-                dtype=images.dtype,
-                chunks=images.chunksize,
-                **Bitshuffle(),
-            )
-            images.store(data_set)
+        save_multiple_images(images, output_file, write_mode)
 
     print(f"Images written to\n\t{output_nexus or output_file}")
 
