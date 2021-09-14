@@ -106,19 +106,20 @@ def single_image_cli(args):
     raw_files, _ = data_files(args.data_dir, args.stem)
 
     keys = (event_location_key, event_time_key) + cue_keys
-    with latrd_data(raw_files, keys=keys) as data:
-        print("Binning events into a single image.")
-        image = make_images(data, image_size, find_start_end(data))
+    # with latrd_data(raw_files, keys=keys) as data:
+    data = latrd_data(raw_files, keys=keys)
+    print("Binning events into a single image.")
+    image = make_images(data, image_size, find_start_end(data))
 
-        with ProgressBar(), h5py.File(output_file, write_mode) as f:
-            data_set = f.require_dataset(
-                "data",
-                shape=image.shape,
-                dtype=image.dtype,
-                chunks=image.chunksize,
-                **Bitshuffle(),
-            )
-            image.store(data_set)
+    with ProgressBar(), h5py.File(output_file, write_mode) as f:
+        data_set = f.require_dataset(
+            "data",
+            shape=image.shape,
+            dtype=image.dtype,
+            chunks=image.chunksize,
+            **Bitshuffle(),
+        )
+        image.store(data_set)
 
     print(f"Images written to\n\t{output_nexus or output_file}")
 
@@ -200,39 +201,41 @@ def multiple_images_cli(args):
 
     raw_files, _ = data_files(args.data_dir, args.stem)
 
-    with latrd_data(raw_files, keys=cue_keys) as data:
-        start, end = find_start_end(data, distributed=True)
-        exposure_time, exposure_cycles, num_images = exposure(
-            start, end, args.exposure_time, args.num_images
-        )
+    # with latrd_data(raw_files, keys=cue_keys) as data:
+    data = latrd_data(raw_files, keys=cue_keys)
+    start, end = find_start_end(data, distributed=True)
+    exposure_time, exposure_cycles, num_images = exposure(
+        start, end, args.exposure_time, args.num_images
+    )
 
+    print(
+        f"Binning events into {num_images} images with an exposure time of "
+        f"{exposure_time:~.3g}."
+    )
+
+    if args.align_trigger:
+        trigger_type = triggers.get(args.align_trigger)
         print(
-            f"Binning events into {num_images} images with an exposure time of "
-            f"{exposure_time:~.3g}."
+            f"Image start and end times will be chosen such that the first "
+            f"'{cues[trigger_type]}' is aligned with an image boundary."
         )
+        # Note we are assuming that the first trigger time is after shutter open.
+        trigger_time = first_cue_time(data, trigger_type)
+        if trigger_time is None:
+            sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
+        trigger_time = trigger_time.compute().astype(int)
+        bins_pre = np.arange(
+            trigger_time - exposure_cycles, start, -exposure_cycles, dtype=np.uint64
+        )[::-1]
+        bins_post = np.arange(trigger_time, end, exposure_cycles, dtype=np.uint64)
+        bins = np.concatenate((bins_pre, bins_post))
+    else:
+        bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
 
-        if args.align_trigger:
-            trigger_type = triggers.get(args.align_trigger)
-            print(
-                f"Image start and end times will be chosen such that the first "
-                f"'{cues[trigger_type]}' is aligned with an image boundary."
-            )
-            # Note we are assuming that the first trigger time is after shutter open.
-            trigger_time = first_cue_time(data, trigger_type)
-            if trigger_time is None:
-                sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
-            trigger_time = trigger_time.compute().astype(int)
-            bins_pre = np.arange(
-                trigger_time - exposure_cycles, start, -exposure_cycles, dtype=np.uint64
-            )[::-1]
-            bins_post = np.arange(trigger_time, end, exposure_cycles, dtype=np.uint64)
-            bins = np.concatenate((bins_pre, bins_post))
-        else:
-            bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
-
-    with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
-        images = make_images(data, image_size, bins)
-        save_multiple_images(images, output_file, write_mode)
+    # with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
+    data = latrd_data(raw_files, keys=(event_location_key, event_time_key))
+    images = make_images(data, image_size, bins)
+    save_multiple_images(images, output_file, write_mode)
 
     if input_nexus.exists():
         # Write output NeXus file if we have an input NeXus file.
@@ -281,22 +284,22 @@ def pump_probe_cli(args):
     with latrd_data(raw_files, keys=cue_keys) as data:
         trigger_type = triggers.get(args.trigger_type)
 
-        trigger_times = cue_times(data, trigger_type).compute().astype(int)
-        trigger_times = np.sort(np.unique(trigger_times))
-        end = np.diff(trigger_times).min()
+    trigger_times = cue_times(data, trigger_type).compute().astype(int)
+    trigger_times = np.sort(np.unique(trigger_times))
+    end = np.diff(trigger_times).min()
 
-        if not np.any(trigger_times):
-            sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
+    if not np.any(trigger_times):
+        sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
 
-        exposure_time, exposure_cycles, num_images = exposure(
-            0, end, args.exposure_time, args.num_images
-        )
+    exposure_time, exposure_cycles, num_images = exposure(
+        0, end, args.exposure_time, args.num_images
+    )
 
-        print(
-            f"Binning events into {num_images} images with an exposure time of "
-            f"{exposure_time:~.3g} according to the time elapsed since the mose recent "
-            f"'{cues[trigger_type]}' signal."
-        )
+    print(
+        f"Binning events into {num_images} images with an exposure time of "
+        f"{exposure_time:~.3g} according to the time elapsed since the mose recent "
+        f"'{cues[trigger_type]}' signal."
+    )
 
     with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
         # Measure the event time as time elapsed since the most recent trigger signal.
@@ -306,10 +309,10 @@ def pump_probe_cli(args):
             da.digitize(data[event_time_key], trigger_times) - 1
         ]
 
-        bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
+    bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
 
-        images = make_images(data, image_size, bins)
-        save_multiple_images(images, output_file, write_mode)
+    images = make_images(data, image_size, bins)
+    save_multiple_images(images, output_file, write_mode)
 
     print(f"Images written to\n\t{output_nexus or output_file}")
 

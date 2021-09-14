@@ -26,10 +26,11 @@ def main(args=None):
 
     raw_files, _ = data_files(args.data_dir, args.stem)
 
-    with latrd_data(raw_files, keys=cue_keys) as data:
-        relevant = (data[cue_id_key] > 0) & (data[cue_id_key] != reserved)
-        cue_ids = data[cue_id_key][relevant].compute()
-        cue_times = data[cue_time_key][relevant].compute()
+    # with latrd_data(raw_files, keys=cue_keys) as data:
+    data = latrd_data(raw_files, keys=cue_keys)
+    relevant = (data[cue_id_key] > 0) & (data[cue_id_key] != reserved)
+    cue_ids = data[cue_id_key][relevant].compute()
+    cue_times = data[cue_time_key][relevant].compute()
 
     unique_cues = np.sort(np.unique(cue_ids))
 
