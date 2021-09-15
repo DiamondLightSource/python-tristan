@@ -187,7 +187,6 @@ def multiple_images_cli(args):
     """
     write_mode = "w" if args.force else "x"
     output_file = check_output_file(args.output_file, args.stem, "images", args.force)
-    write_mode = "w" if args.force else "x"
 
     input_nexus = args.data_dir / f"{args.stem}.nxs"
     if not input_nexus.exists():
@@ -259,7 +258,6 @@ def pump_probe_cli(args):
     """
     write_mode = "w" if args.force else "x"
     output_file = check_output_file(args.output_file, args.stem, "images", args.force)
-    write_mode = "w" if args.force else "x"
 
     input_nexus = args.data_dir / f"{args.stem}.nxs"
     if input_nexus.exists():
