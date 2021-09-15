@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Dict, Iterable, Optional, Tuple, Union
 
 import h5py
-from pint import Quantity
-from dask import array as da, config
-import numpy as np
+from dask import array as da
+from dask import config
 from numpy.typing import ArrayLike
+from pint import Quantity
 
 from . import clock_frequency
 
