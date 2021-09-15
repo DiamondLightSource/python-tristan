@@ -16,6 +16,7 @@ from dask.distributed import Client, progress
 from dask.system import CPU_COUNT
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
+from numcodecs.blosc import BITSHUFFLE, Blosc
 
 from .. import clock_frequency
 from ..binning import find_start_end, make_images
@@ -43,6 +44,10 @@ from . import (
     input_parser,
     version_parser,
 )
+
+# A LZ4 compressor with a bitshuffle filter with an 8kB block size, akin to
+# hdf5plugin.Bitshuffle with default parameters.
+bitshuffle_lz = {"compressor": Blosc(cname="lz4", shuffle=BITSHUFFLE, blocksize=64_000)}
 
 triggers = {
     "TTL-rising": ttl_rising,
@@ -165,7 +170,7 @@ def save_multiple_images(
     # return the Array object so we can compute it with a progress bar.
     method = {"overwrite": True, "compute": False, "return_stored": True}
     # Prepare to save the calculated images to the intermediate Zarr store.
-    array = array.to_zarr(intermediate, component="data", **method)
+    array = array.to_zarr(intermediate, component="data", **method, **bitshuffle_lz)
     # Compute the Array and store the values, using a progress bar.
     progress(array.persist())
 
