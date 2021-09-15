@@ -90,6 +90,8 @@ def single_image_cli(args):
     )
     input_nexus = args.data_dir / f"{args.stem}.nxs"
     if input_nexus.exists():
+        output_nexus_path = args.output_file.parent / (output_file.stem + ".nxs")
+        check_output_file(output_nexus_path, args.force)
         # Write output NeXus file if we have an input NeXus file.
         output_nexus = CopyTristanNexus.single_image_nexus(
             output_file, input_nexus, write_mode=write_mode
@@ -189,7 +191,10 @@ def multiple_images_cli(args):
     output_file = check_output_file(args.output_file, args.stem, "images", args.force)
 
     input_nexus = args.data_dir / f"{args.stem}.nxs"
-    if not input_nexus.exists():
+    if input_nexus.exists():
+        output_nexus_path = args.output_file.parent / (output_file.stem + ".nxs")
+        check_output_file(output_nexus_path, args.force)
+    else:
         print(
             "Could not find a NeXus file containing experiment metadata.\n"
             "Resorting to writing raw image data without accompanying metadata."
@@ -261,6 +266,8 @@ def pump_probe_cli(args):
 
     input_nexus = args.data_dir / f"{args.stem}.nxs"
     if input_nexus.exists():
+        output_nexus_path = args.output_file.parent / (output_file.stem + ".nxs")
+        check_output_file(output_nexus_path, args.force)
         # Write output NeXus file if we have an input NeXus file.
         output_nexus = CopyTristanNexus.pump_probe_nexus(
             output_file, input_nexus, write_mode=write_mode
