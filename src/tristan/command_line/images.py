@@ -149,7 +149,7 @@ def save_multiple_images(
         write_mode:  HDF5 file opening mode.  See :class:`h5py.File`.
     """
     # Set a more generous connection timeout than the default 30s.
-    dask.config.set(
+    with dask.config.set(
         {
             "distributed.comm.timeouts.connect": "60s",
             "distributed.comm.timeouts.tcp": "60s",
@@ -157,25 +157,24 @@ def save_multiple_images(
             "distributed.scheduler.idle-timeout": "600s",
             "distributed.scheduler.locks.lease-timeout": "60s",
         }
-    )
+    ):
+        intermediate = str(output_file.parent / f"{output_file.stem}.zarr")
 
-    intermediate = str(output_file.parent / f"{output_file.stem}.zarr")
+        # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
+        # return the Array object so we can compute it with a progress bar.
+        method = {"overwrite": True, "compute": False, "return_stored": True}
+        # Prepare to save the calculated images to the intermediate Zarr store.
+        array = array.to_zarr(intermediate, component="data", **method)
+        # Compute the Array and store the values, using a progress bar.
+        progress(array.persist())
 
-    # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
-    # return the Array object so we can compute it with a progress bar.
-    method = {"overwrite": True, "compute": False, "return_stored": True}
-    # Prepare to save the calculated images to the intermediate Zarr store.
-    array = array.to_zarr(intermediate, component="data", **method)
-    # Compute the Array and store the values, using a progress bar.
-    progress(array.persist())
+        print("\nTransferring the images to the output file.")
+        store = zarr.DirectoryStore(intermediate)
+        with h5py.File(output_file, write_mode) as f:
+            zarr.copy_all(zarr.open(store), f, **Bitshuffle())
 
-    print("\nTransferring the images to the output file.")
-    store = zarr.DirectoryStore(intermediate)
-    with h5py.File(output_file, write_mode) as f:
-        zarr.copy_all(zarr.open(store), f, **Bitshuffle())
-
-    # Delete the Zarr store.
-    store.clear()
+        # Delete the Zarr store.
+        store.clear()
 
 
 def multiple_images_cli(args):
@@ -310,6 +309,10 @@ def pump_probe_cli(args):
         save_multiple_images(images, output_file, write_mode)
 
     print(f"Images written to\n\t{output_nexus or output_file}")
+
+
+def multiple_sequences_cli(args):
+    pass
 
 
 parser = argparse.ArgumentParser(description=__doc__, parents=[version_parser])
