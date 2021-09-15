@@ -122,7 +122,7 @@ def single_image_cli(args):
             )
             image.store(data_set)
 
-    print(f"Images written to\n\t{output_nexus or output_file}")
+    print(f"Image written to\n\t{output_nexus or output_file}")
 
 
 def save_multiple_images(
