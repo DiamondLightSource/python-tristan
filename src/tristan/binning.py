@@ -77,6 +77,9 @@ def make_images(
     valid_events = (bins[0] <= event_times) & (event_times < bins[-1])
     event_times = event_times[valid_events].compute_chunk_sizes()
     event_locations = event_locations[valid_events].compute_chunk_sizes()
+    # We need to ensure that the chunk layout of the event location array matches
+    # that of the event time array, so that we can perform matching blockwise iterations
+    event_locations = event_locations.rechunk(event_times.chunks)
     event_locations = pixel_index(event_locations, image_size)
 
     num_images = len(bins) - 1
