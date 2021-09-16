@@ -209,8 +209,15 @@ def save_multiple_image_sequences(
     arrays = zarr.open(store)
 
     for i, output_file in enumerate(output_files):
+        n_sequences = len(output_files)
+        print(
+            f"Transferring file {i+1:{len(str(n_sequences))}d} of " f"{n_sequences}.",
+            end="\r",
+        )
         with h5py.File(output_file, write_mode) as f:
             zarr.copy_all(arrays[i], f, **Bitshuffle())
+
+    print()
 
     # Delete the Zarr store.
     store.clear()
@@ -543,10 +550,10 @@ parser_multiple_sequences = subparsers.add_parser(
     description="Bin events into several sequences of images, each corresponding to "
     "a different pump-probe delay time interval.\n\n"
     "With LATRD data from a pump-probe experiment, where the pump signal has a fairly "
-    "constant repeat rate, separate the recorded events into groups corresponding to "
-    "the time elapsed since the most recent pump trigger signal.  Bin each group "
-    "into a sequence of chronological images.  Each sequence is saved to a separate "
-    "output file, numbered from shortest pump-probe delay to longest.",
+    "constant repeat rate, the recorded events are separated into groups corresponding "
+    "to the time elapsed since the most recent pump trigger signal.  Each group is "
+    "binned into a sequence of chronological images.  Each sequence is saved to a "
+    "separate output file, numbered from the shortest pump-probe delay to the longest.",
     parents=[
         version_parser,
         input_parser,

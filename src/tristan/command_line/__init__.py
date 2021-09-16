@@ -123,12 +123,10 @@ def check_multiple_output_files(
             for i in range(quantity)
         ]
 
-        exists = list(filter(Path.exists, out_files))
+        exists = "\n\t".join(map(str, filter(Path.exists, out_files)))
         if not force and exists:
             sys.exit(
-                f"The following output files already exist:\n\t"
-                + "\n\t".join(map(str, exists))
-                + "\n"
+                f"The following output files already exist:\n\t{exists}\n"
                 "Use '-f' to override, "
                 "or specify a different output file path with '-o'."
             )
@@ -282,7 +280,7 @@ image_output_parser.add_argument(
     "--output-file",
     help="File name or location for output image file, defaults to the working "
     "directory.  If only a directory location is given, the pattern of the raw data "
-    "files will be used.  For multiple-sweep binning, a sequence number will be "
+    "files will be used.  For multiple-sequence output, a sequence number will be "
     "appended to your choice of output file name.",
 )
 image_output_parser.add_argument(
