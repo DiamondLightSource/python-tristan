@@ -127,7 +127,8 @@ def check_multiple_output_files(
         if not force and exists:
             sys.exit(
                 f"The following output files already exist:\n\t"
-                "\n\t".join(map(str, exists)) + "\n"
+                + "\n\t".join(map(str, exists))
+                + "\n"
                 "Use '-f' to override, "
                 "or specify a different output file path with '-o'."
             )
