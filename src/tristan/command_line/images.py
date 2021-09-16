@@ -409,6 +409,32 @@ def multiple_sequences_cli(args):
         f"pump marked by a '{cues[trigger_type]}' signal. "
     )
 
+    n_dig = len(str(num_images))
+    out_file_pattern = (
+        out_file_pattern.parent / f"{out_file_pattern.stem}_{'#' * n_dig}.h5"
+    )
+
+    if input_nexus.exists():
+        # Write output NeXus files if we have an input NeXus file.
+        output_nexus_pattern = out_file_pattern.with_suffix(".nxs")
+        for output_file in output_files:
+            try:
+                CopyTristanNexus.multiple_images_nexus(
+                    output_file,
+                    input_nexus,
+                    nbins=num_images,
+                    write_mode=write_mode,
+                )
+            except FileExistsError:
+                sys.exit(
+                    f"One or more output files already exist, matching the pattern:\n\t"
+                    f"{output_nexus_pattern}\n"
+                    "Use '-f' to override, "
+                    "or specify a different output file path with '-o'."
+                )
+    else:
+        output_nexus_pattern = None
+
     trigger_times = da.from_array(trigger_times)
     with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
         # Find the time elapsed since the most recent trigger signal.
@@ -431,26 +457,7 @@ def multiple_sequences_cli(args):
             da.stack(image_sequence_stack), out_file_pattern, output_files, write_mode
         )
 
-    n_dig = len(str(num_images))
-    out_file_pattern = (
-        out_file_pattern.parent / f"{out_file_pattern.stem}_{'#' * n_dig}.h5"
-    )
-
-    if input_nexus.exists():
-        # Write output NeXus files if we have an input NeXus file.
-        for output_file in output_files:
-            CopyTristanNexus.multiple_images_nexus(
-                output_file,
-                input_nexus,
-                nbins=num_images,
-                write_mode=write_mode,
-            )
-
-        output_nexus = out_file_pattern.with_suffix(".nxs")
-    else:
-        output_nexus = None
-
-    print(f"Images written to\n\t{output_nexus or out_file_pattern}")
+    print(f"Images written to\n\t{output_nexus_pattern or out_file_pattern}")
 
 
 parser = argparse.ArgumentParser(description=__doc__, parents=[version_parser])
