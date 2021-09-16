@@ -403,9 +403,10 @@ def multiple_sequences_cli(args):
     bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
 
     print(
-        f"Binning events into {num_images} images with an exposure time of "
-        f"{exposure_time:~.3g} according to the time elapsed since the most recent "
-        f"'{cues[trigger_type]}' signal."  # TODO: mention number, etc., of intervals
+        f"Binning events into {num_intervals} sequences, each of {num_images} "
+        f"images with an exposure time of {exposure_time:~.3g}, corresponding to "
+        f"successive pump-probe delay intervals of {interval_time:~.3g}, with the "
+        f"pump marked by a '{cues[trigger_type]}' signal. "
     )
 
     trigger_times = da.from_array(trigger_times)
