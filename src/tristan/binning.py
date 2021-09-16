@@ -42,7 +42,7 @@ def find_start_end(data: Dict[str, da.Array], distributed: bool = False) -> (int
         print("Finding detector shutter open and close times.")
         progress([start_time.persist(), end_time.persist()])
     start_time, end_time = da.compute(start_time, end_time)
-    print("")
+    print()
 
     return start_time, end_time
 

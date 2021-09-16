@@ -390,7 +390,7 @@ def multiple_sequences_cli(args):
     )
     intervals = np.linspace(0, intervals_end, num_intervals + 1, dtype=np.uint64)
 
-    output_files, zarr_store = check_multiple_output_files(
+    output_files, out_file_pattern = check_multiple_output_files(
         num_intervals, args.output_file, args.stem, "images", args.force
     )
 
@@ -427,10 +427,29 @@ def multiple_sequences_cli(args):
             image_sequence_stack.append(make_images(interval_data, image_size, bins))
 
         save_multiple_image_sequences(
-            da.stack(image_sequence_stack), zarr_store, output_files, write_mode
+            da.stack(image_sequence_stack), out_file_pattern, output_files, write_mode
         )
 
-    ...  # TODO NeXus files
+    n_dig = len(str(num_images))
+    out_file_pattern = (
+        out_file_pattern.parent / f"{out_file_pattern.stem}_{'#' * n_dig}.h5"
+    )
+
+    if input_nexus.exists():
+        # Write output NeXus files if we have an input NeXus file.
+        for output_file in output_files:
+            CopyTristanNexus.multiple_images_nexus(
+                output_file,
+                input_nexus,
+                nbins=num_images,
+                write_mode=write_mode,
+            )
+
+        output_nexus = out_file_pattern.with_ext(".nxs")
+    else:
+        output_nexus = None
+
+    print(f"Images written to\n\t{output_nexus or out_file_pattern}")
 
 
 parser = argparse.ArgumentParser(description=__doc__, parents=[version_parser])
