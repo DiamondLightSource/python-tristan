@@ -348,5 +348,5 @@ group.add_argument(
     type=units_of_time,
 )
 group.add_argument(
-    "-c", "--sequence-count", help="Number of image sequences.", type=positive_int
+    "-x", "--num-sequences", help="Number of image sequences.", type=positive_int
 )
