@@ -25,15 +25,9 @@ from ..data import (
     cues,
     event_location_key,
     event_time_key,
-    fem_falling,
-    fem_rising,
     first_cue_time,
     latrd_data,
-    lvds_falling,
-    lvds_rising,
     seconds,
-    ttl_falling,
-    ttl_rising,
 )
 from . import (
     check_output_file,
@@ -41,17 +35,11 @@ from . import (
     exposure_parser,
     image_output_parser,
     input_parser,
+    interval_parser,
+    trigger_parser,
+    triggers,
     version_parser,
 )
-
-triggers = {
-    "TTL-rising": ttl_rising,
-    "TTL-falling": ttl_falling,
-    "LVDS-rising": lvds_rising,
-    "LVDS-falling": lvds_falling,
-    "FEM-rising": fem_rising,
-    "FEM-falling": fem_falling,
-}
 
 
 def determine_image_size(nexus_file: Path) -> Tuple[int, int]:
@@ -356,18 +344,38 @@ parser_pump_probe = subparsers.add_parser(
     aliases=["pp"],
     description="Bin events into images representing different pump-probe delays.\n\n"
     "With LATRD data from a pump-probe experiment, where the pump signal has a fairly "
-    "constant repeat rate, bin events into images spanning a range of pump-probe "
-    "delay times.",
-    parents=[version_parser, input_parser, image_output_parser, exposure_parser],
-)
-parser_pump_probe.add_argument(
-    "-t",
-    "--trigger-type",
-    help="The type of trigger signal used as the pump pulse marker.",
-    choices=triggers.keys(),
-    required=True,
+    "constant repeat rate, bin events into a stack of images spanning the range of "
+    "pump-probe delay times, from shortest to longest.",
+    parents=[
+        version_parser,
+        input_parser,
+        image_output_parser,
+        trigger_parser,
+        exposure_parser,
+    ],
 )
 parser_pump_probe.set_defaults(func=pump_probe_cli)
+
+parser_multiple_sequences = subparsers.add_parser(
+    "sequences",
+    aliases=["sweeps"],
+    description="Bin events into several sequences of images, each corresponding to "
+    "a different pump-probe delay time interval.\n\n"
+    "With LATRD data from a pump-probe experiment, where the pump signal has a fairly "
+    "constant repeat rate, separate the recorded events into groups corresponding to "
+    "the time elapsed since the most recent pump trigger signal.  Bin each group "
+    "into a sequence of chronological images.  Each sequence is saved to a separate "
+    "output file, numbered from shortest pump-probe delay to longest.",
+    parents=[
+        version_parser,
+        input_parser,
+        image_output_parser,
+        trigger_parser,
+        exposure_parser,
+        interval_parser,
+    ],
+)
+parser_multiple_sequences.set_defaults(func=multiple_sequences_cli)
 
 
 def main(args=None):

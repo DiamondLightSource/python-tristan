@@ -23,11 +23,29 @@ __all__ = (
     "exposure_parser",
 )
 
+from ..data import (
+    fem_falling,
+    fem_rising,
+    lvds_falling,
+    lvds_rising,
+    ttl_falling,
+    ttl_rising,
+)
 
 Quantity, Unit = ureg.Quantity, ureg.Unit
 
 # Regex for Tristan data file name stems.
 meta_file_name_regex = re.compile(r"(.*)_(?:meta|\d+)")
+
+
+triggers = {
+    "TTL-rising": ttl_rising,
+    "TTL-falling": ttl_falling,
+    "LVDS-rising": lvds_rising,
+    "LVDS-falling": lvds_falling,
+    "FEM-rising": fem_rising,
+    "FEM-falling": fem_falling,
+}
 
 
 def check_output_file(
@@ -233,6 +251,17 @@ image_output_parser.add_argument(
 )
 
 
+# A parser to specify a trigger signal type.
+trigger_parser = argparse.ArgumentParser(add_help=False)
+trigger_parser.add_argument(
+    "-t",
+    "--trigger-type",
+    help="The type of trigger signal used as the pump pulse marker.",
+    choices=triggers.keys(),
+    required=True,
+)
+
+
 def units_of_time(quantity: Union[Quantity, SupportsFloat, str]) -> Quantity:
     """
     Ensure a quantity of time, has compatible units, defaulting to seconds.
@@ -303,3 +332,21 @@ group.add_argument(
     type=units_of_time,
 )
 group.add_argument("-n", "--num-images", help="Number of images.", type=positive_int)
+
+
+# A parser for subdividing a regular comb of pump signals into quantised pump-probe
+# delay intervals.
+interval_parser = argparse.ArgumentParser(add_help=False)
+group = interval_parser.add_mutually_exclusive_group(required=True)
+group.add_argument(
+    "-i",
+    "--interval",
+    help="Duration of each pump-probe delay interval.  This will be used to calculate "
+    "the number of image sequences.  Specify a value with units like "
+    "'--exposure-time .5ms', '-e 500µs' or '-e 500us'.  Unspecified units default to "
+    "seconds.",
+    type=units_of_time,
+)
+group.add_argument(
+    "-c", "--sequence-count", help="Number of image sequences.", type=positive_int
+)
