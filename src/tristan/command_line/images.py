@@ -90,12 +90,18 @@ def single_image_cli(args):
     )
     input_nexus = args.data_dir / f"{args.stem}.nxs"
     if input_nexus.exists():
-        output_nexus_path = args.output_file.parent / (output_file.stem + ".nxs")
-        check_output_file(output_nexus_path, args.force)
-        # Write output NeXus file if we have an input NeXus file.
-        output_nexus = CopyTristanNexus.single_image_nexus(
-            output_file, input_nexus, write_mode=write_mode
-        )
+        try:
+            # Write output NeXus file if we have an input NeXus file.
+            output_nexus = CopyTristanNexus.single_image_nexus(
+                output_file, input_nexus, write_mode=write_mode
+            )
+        except FileExistsError:
+            sys.exit(
+                f"This output file already exists:\n\t"
+                f"{output_file.with_suffix('.nxs')}\n"
+                "Use '-f' to override, "
+                "or specify a different output file path with '-o'."
+            )
     else:
         output_nexus = None
         print(
@@ -191,10 +197,7 @@ def multiple_images_cli(args):
     output_file = check_output_file(args.output_file, args.stem, "images", args.force)
 
     input_nexus = args.data_dir / f"{args.stem}.nxs"
-    if input_nexus.exists():
-        output_nexus_path = args.output_file.parent / (output_file.stem + ".nxs")
-        check_output_file(output_nexus_path, args.force)
-    else:
+    if not input_nexus.exists():
         print(
             "Could not find a NeXus file containing experiment metadata.\n"
             "Resorting to writing raw image data without accompanying metadata."
@@ -239,13 +242,21 @@ def multiple_images_cli(args):
         save_multiple_images(images, output_file, write_mode)
 
     if input_nexus.exists():
-        # Write output NeXus file if we have an input NeXus file.
-        output_nexus = CopyTristanNexus.multiple_images_nexus(
-            output_file,
-            input_nexus,
-            nbins=num_images,
-            write_mode=write_mode,
-        )
+        try:
+            # Write output NeXus file if we have an input NeXus file.
+            output_nexus = CopyTristanNexus.multiple_images_nexus(
+                output_file,
+                input_nexus,
+                nbins=num_images,
+                write_mode=write_mode,
+            )
+        except FileExistsError:
+            sys.exit(
+                f"This output file already exists:\n\t"
+                f"{output_file.with_suffix('.nxs')}\n"
+                "Use '-f' to override, "
+                "or specify a different output file path with '-o'."
+            )
     else:
         output_nexus = None
 
@@ -266,12 +277,18 @@ def pump_probe_cli(args):
 
     input_nexus = args.data_dir / f"{args.stem}.nxs"
     if input_nexus.exists():
-        output_nexus_path = args.output_file.parent / (output_file.stem + ".nxs")
-        check_output_file(output_nexus_path, args.force)
-        # Write output NeXus file if we have an input NeXus file.
-        output_nexus = CopyTristanNexus.pump_probe_nexus(
-            output_file, input_nexus, write_mode=write_mode
-        )
+        try:
+            # Write output NeXus file if we have an input NeXus file.
+            output_nexus = CopyTristanNexus.pump_probe_nexus(
+                output_file, input_nexus, write_mode=write_mode
+            )
+        except FileExistsError:
+            sys.exit(
+                f"This output file already exists:\n\t"
+                f"{output_file.with_suffix('.nxs')}\n"
+                "Use '-f' to override, "
+                "or specify a different output file path with '-o'."
+            )
     else:
         output_nexus = None
         print(
