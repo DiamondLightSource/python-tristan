@@ -263,35 +263,39 @@ def pump_probe_cli(args):
 
     raw_files, _ = data_files(args.data_dir, args.stem)
 
+    trigger_type = triggers.get(args.trigger_type)
+
+    print("Finding trigger signal times.")
     with latrd_data(raw_files, keys=cue_keys) as data:
-        trigger_type = triggers.get(args.trigger_type)
+        trigger_times = cue_times(data, trigger_type)
+        progress(trigger_times.persist())
+        trigger_times = trigger_times.compute().astype(int)
 
-        trigger_times = cue_times(data, trigger_type).compute().astype(int)
-        trigger_times = np.sort(np.unique(trigger_times))
-        end = np.diff(trigger_times).min()
+    print()  # Dask distributed progress bar does not end with a newline, so insert one.
 
-        if not np.any(trigger_times):
-            sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
+    trigger_times = np.sort(trigger_times)
 
-        exposure_time, exposure_cycles, num_images = exposure(
-            0, end, args.exposure_time, args.num_images
-        )
+    if not trigger_times.any():
+        sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
 
-        print(
-            f"Binning events into {num_images} images with an exposure time of "
-            f"{exposure_time:~.3g} according to the time elapsed since the mose recent "
-            f"'{cues[trigger_type]}' signal."
-        )
+    end = np.diff(trigger_times).min()
 
+    exposure_time, _, num_images = exposure(0, end, args.exposure_time, args.num_images)
+    bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
+
+    print(
+        f"Binning events into {num_images} images with an exposure time of "
+        f"{exposure_time:~.3g} according to the time elapsed since the most recent "
+        f"'{cues[trigger_type]}' signal."
+    )
+
+    trigger_times = da.from_array(trigger_times)
     with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
         # Measure the event time as time elapsed since the most recent trigger signal.
-        trigger_times = da.from_array(trigger_times)
         data[event_time_key] = data[event_time_key].astype(np.int64)
         data[event_time_key] -= trigger_times[
             da.digitize(data[event_time_key], trigger_times) - 1
         ]
-
-        bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
 
         images = make_images(data, image_size, bins)
         save_multiple_images(images, output_file, write_mode)
