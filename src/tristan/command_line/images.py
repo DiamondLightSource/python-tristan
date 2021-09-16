@@ -30,6 +30,7 @@ from ..data import (
     seconds,
 )
 from . import (
+    check_multiple_output_files,
     check_output_file,
     data_files,
     exposure_parser,
@@ -146,7 +147,7 @@ def save_multiple_images(
             "distributed.scheduler.locks.lease-timeout": "60s",
         }
     ):
-        intermediate = str(output_file.parent / f"{output_file.stem}.zarr")
+        intermediate = str(output_file.with_suffix(".zarr"))
 
         # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
         # return the Array object so we can compute it with a progress bar.
@@ -156,18 +157,23 @@ def save_multiple_images(
         # Compute the Array and store the values, using a progress bar.
         progress(array.persist())
 
-        print("\nTransferring the images to the output file.")
-        store = zarr.DirectoryStore(intermediate)
-        with h5py.File(output_file, write_mode) as f:
-            zarr.copy_all(zarr.open(store), f, **Bitshuffle())
+    print("\nTransferring the images to the output file.")
+    store = zarr.DirectoryStore(intermediate)
+    with h5py.File(output_file, write_mode) as f:
+        zarr.copy_all(zarr.open(store), f, **Bitshuffle())
 
-        # Delete the Zarr store.
-        store.clear()
+    # Delete the Zarr store.
+    store.clear()
 
 
 def save_multiple_image_sequences(
-    array: da.Array, output_files: Iterable[Path], write_mode: str = "x"
+    array: da.Array,
+    intermediate_store: Path,
+    output_files: Iterable[Path],
+    write_mode: str = "x",
 ) -> None:
+    intermediate_store = intermediate_store.with_suffix(".zarr")
+
     # Set a more generous connection timeout than the default 30s.
     with dask.config.set(
         {
@@ -178,16 +184,28 @@ def save_multiple_image_sequences(
             "distributed.scheduler.locks.lease-timeout": "60s",
         }
     ):
-        intermediate = "test.zarr"
-
         # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
         # return the Array object so we can compute it with a progress bar.
         method = {"overwrite": True, "compute": False, "return_stored": True}
         # Prepare to save the calculated images to the intermediate Zarr store.
-        array = array.to_zarr(intermediate, **method)
+        array = [
+            sub_array.to_zarr(intermediate_store, component=f"{i:d}/data", **method)
+            for i, sub_array in enumerate(array)
+        ]
         # Compute the Array and store the values, using a progress bar.
-        progress(array.persist())
+        progress([sub_array.persist() for sub_array in array])
         print()
+
+    print("\nTransferring the images to the output files.")
+    store = zarr.DirectoryStore(str(intermediate_store))
+    arrays = zarr.open(store)
+
+    for i, output_file in enumerate(output_files):
+        with h5py.File(output_file, write_mode) as f:
+            zarr.copy_all(arrays[i], f, **Bitshuffle())
+
+    # Delete the Zarr store.
+    store.clear()
 
 
 def multiple_images_cli(args):
@@ -372,7 +390,9 @@ def multiple_sequences_cli(args):
     )
     intervals = np.linspace(0, intervals_end, num_intervals + 1, dtype=np.uint64)
 
-    # TODO: check all the output files.
+    output_files, zarr_store = check_multiple_output_files(
+        num_intervals, args.output_file, args.stem, "images", args.force
+    )
 
     with latrd_data(raw_files, keys=cue_keys) as data:
         start, end = find_start_end(data, distributed=True)
@@ -406,7 +426,9 @@ def multiple_sequences_cli(args):
             }
             image_sequence_stack.append(make_images(interval_data, image_size, bins))
 
-        save_multiple_image_sequences(da.stack(image_sequence_stack), None, write_mode)
+        save_multiple_image_sequences(
+            da.stack(image_sequence_stack), zarr_store, output_files, write_mode
+        )
 
     ...  # TODO NeXus files
 

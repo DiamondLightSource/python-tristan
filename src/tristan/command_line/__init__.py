@@ -6,7 +6,7 @@ import re
 import sys
 from itertools import filterfalse
 from pathlib import Path
-from typing import List, Optional, SupportsFloat, SupportsInt, Union
+from typing import List, Optional, SupportsFloat, SupportsInt, Tuple, Union
 
 import h5py
 import numpy as np
@@ -58,14 +58,14 @@ def check_output_file(
     Find and check the output file path.
 
     Find the output file path, given either a specified output file name or a file
-    name stem and suffix.  Exit if the output file already exists, unless instructed
-    to over-write.
+    name stem and suffix.  Exit if any output file(s) already exist, unless instructed
+    to overwrite.
 
     Args:
         out_file:  A suggested output file path.
         stem:  A file name stem to use if out_file is not provided.
         suffix:  A suffix to append to stem when constructing the output file name.
-        force:  Choose to over-write any existing file of the same name.
+        force:  Choose to overwrite any existing files.
 
     Returns:
         The output file path.
@@ -73,7 +73,6 @@ def check_output_file(
     Raises:
         SystemExit:  if the output file exists and force is not true.
     """
-
     if out_file or stem:
         out_file = Path(out_file or f"{stem}_{suffix}.h5").expanduser().resolve()
 
@@ -85,6 +84,55 @@ def check_output_file(
             )
 
         return out_file
+
+
+def check_multiple_output_files(
+    quantity: int,
+    out_file: Optional[Union[Path, str]] = None,
+    stem: Optional[str] = None,
+    suffix: str = "output",
+    force: bool = False,
+) -> Optional[Tuple[List[Path], Path]]:
+    """
+    Find and check file paths for output of multiple image sequences.
+
+    Find the output file paths, given either a specified output file name pattern or
+    a file name stem and suffix.  Exit if the output file already exists,
+    unless instructed to overwrite.
+
+    Args:
+        quantity:  THe number of output files to be generated.
+        out_file:  A suggested output file path.
+        stem:  A file name stem to use if out_file is not provided.
+        suffix:  A suffix to append to stem when constructing the output file name.
+        force:  Choose to overwrite any existing file of the same name.
+
+    Returns:
+        The output file paths.
+
+    Raises:
+        SystemExit:  if any output file exists and force is not true.
+    """
+    if out_file or stem:
+        n_dig = len(str(quantity))
+        out_file_pattern = (
+            Path(out_file or f"{stem}_{suffix}.h5").expanduser().resolve()
+        )
+        out_files = [
+            out_file_pattern.parent / (out_file_pattern.stem + f"_{i + 1:0{n_dig}d}.h5")
+            for i in range(quantity)
+        ]
+
+        exists = list(filter(Path.exists, out_files))
+        if not force and exists:
+            sys.exit(
+                f"The following output files already exist:\n\t"
+                "\n\t".join(map(str, exists)) + "\n"
+                "Use '-f' to override, "
+                "or specify a different output file path with '-o'."
+            )
+
+        return out_files, out_file_pattern
 
 
 def data_files(data_dir: Path, stem: str, n_dig: int = 6) -> (List[Path], Path):
@@ -233,12 +281,13 @@ image_output_parser.add_argument(
     "--output-file",
     help="File name or location for output image file, defaults to the working "
     "directory.  If only a directory location is given, the pattern of the raw data "
-    "files will be used.",
+    "files will be used.  For multiple-sweep binning, a sequence number will be "
+    "appended to your choice of output file name.",
 )
 image_output_parser.add_argument(
     "-f",
     "--force",
-    help="Force the output image file to over-write any existing file with the same "
+    help="Force the output image file to overwrite any existing file with the same "
     "name.",
     action="store_true",
 )
