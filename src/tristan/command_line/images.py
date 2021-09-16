@@ -3,7 +3,7 @@
 import argparse
 import sys
 from pathlib import Path
-from typing import Tuple
+from typing import Iterable, Tuple
 
 import dask
 import h5py
@@ -165,6 +165,31 @@ def save_multiple_images(
         store.clear()
 
 
+def save_multiple_image_sequences(
+    array: da.Array, output_files: Iterable[Path], write_mode: str = "x"
+) -> None:
+    # Set a more generous connection timeout than the default 30s.
+    with dask.config.set(
+        {
+            "distributed.comm.timeouts.connect": "60s",
+            "distributed.comm.timeouts.tcp": "60s",
+            "distributed.deploy.lost-worker-timeout": "60s",
+            "distributed.scheduler.idle-timeout": "600s",
+            "distributed.scheduler.locks.lease-timeout": "60s",
+        }
+    ):
+        intermediate = "test.zarr"
+
+        # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
+        # return the Array object so we can compute it with a progress bar.
+        method = {"overwrite": True, "compute": False, "return_stored": True}
+        # Prepare to save the calculated images to the intermediate Zarr store.
+        array = array.to_zarr(intermediate, **method)
+        # Compute the Array and store the values, using a progress bar.
+        progress(array.persist())
+        print()
+
+
 def multiple_images_cli(args):
     """
     Utility for making multiple images from event-mode data.
@@ -279,7 +304,6 @@ def pump_probe_cli(args):
         sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
 
     end = np.diff(trigger_times).min()
-
     exposure_time, _, num_images = exposure(0, end, args.exposure_time, args.num_images)
     bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
 
@@ -304,7 +328,87 @@ def pump_probe_cli(args):
 
 
 def multiple_sequences_cli(args):
-    pass
+    """
+    Utility for making multiple image sequences from a pump-probe data collection.
+
+    The time between one pump trigger signal and the next is subdivided into a number
+    of intervals of equal duration, quantising the time elapsed since the most recent
+    trigger pulse.  Events are labelled according to which interval they fall in and,
+    for each interval in turn, all the events so labelled are aggregated, providing a
+    stack of image sequences that captures the evolution of the response of the
+    measurement to a pump signal.
+    """
+    write_mode = "w" if args.force else "x"
+
+    input_nexus = args.data_dir / f"{args.stem}.nxs"
+    if not input_nexus.exists():
+        print(
+            "Could not find a NeXus file containing experiment metadata.\n"
+            "Resorting to writing raw image data without accompanying metadata."
+        )
+
+    image_size = args.image_size or determine_image_size(input_nexus)
+
+    raw_files, _ = data_files(args.data_dir, args.stem)
+
+    trigger_type = triggers.get(args.trigger_type)
+
+    print("Finding trigger signal times.")
+    with latrd_data(raw_files, keys=cue_keys) as data:
+        trigger_times = cue_times(data, trigger_type)
+        progress(trigger_times.persist())
+        trigger_times = trigger_times.compute().astype(int)
+
+    print()  # Dask distributed progress bar does not end with a newline, so insert one.
+
+    trigger_times = np.sort(trigger_times)
+
+    if not trigger_times.any():
+        sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
+
+    intervals_end = np.diff(trigger_times).min()
+    interval_time, _, num_intervals = exposure(
+        0, intervals_end, args.interval, args.num_sequences
+    )
+    intervals = np.linspace(0, intervals_end, num_intervals + 1, dtype=np.uint64)
+
+    # TODO: check all the output files.
+
+    with latrd_data(raw_files, keys=cue_keys) as data:
+        start, end = find_start_end(data, distributed=True)
+
+    exposure_time, exposure_cycles, num_images = exposure(
+        start, end, args.exposure_time, args.num_images
+    )
+    bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
+
+    print(
+        f"Binning events into {num_images} images with an exposure time of "
+        f"{exposure_time:~.3g} according to the time elapsed since the most recent "
+        f"'{cues[trigger_type]}' signal."  # TODO: mention number, etc., of intervals
+    )
+
+    trigger_times = da.from_array(trigger_times)
+    with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
+        # Find the time elapsed since the most recent trigger signal.
+        pump_probe_time = data[event_time_key].astype(np.int64)
+        pump_probe_time -= trigger_times[
+            da.digitize(pump_probe_time, trigger_times) - 1
+        ]
+        sequence = da.digitize(pump_probe_time, intervals) - 1
+
+        image_sequence_stack = []
+        for i in range(num_intervals):
+            interval_selection = sequence == i
+            interval_data = {
+                event_time_key: data[event_time_key][interval_selection],
+                event_location_key: data[event_location_key][interval_selection],
+            }
+            image_sequence_stack.append(make_images(interval_data, image_size, bins))
+
+        save_multiple_image_sequences(da.stack(image_sequence_stack), None, write_mode)
+
+    ...  # TODO NeXus files
 
 
 parser = argparse.ArgumentParser(description=__doc__, parents=[version_parser])
