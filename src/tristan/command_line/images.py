@@ -446,7 +446,7 @@ def multiple_sequences_cli(args):
                 write_mode=write_mode,
             )
 
-        output_nexus = out_file_pattern.with_ext(".nxs")
+        output_nexus = out_file_pattern.with_suffix(".nxs")
     else:
         output_nexus = None
 
