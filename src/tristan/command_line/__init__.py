@@ -6,7 +6,7 @@ import re
 import sys
 from itertools import filterfalse
 from pathlib import Path
-from typing import List, Optional, SupportsFloat, SupportsInt, Union
+from typing import List, Optional, SupportsFloat, SupportsInt, Tuple, Union
 
 import h5py
 import numpy as np
@@ -23,11 +23,29 @@ __all__ = (
     "exposure_parser",
 )
 
+from ..data import (
+    fem_falling,
+    fem_rising,
+    lvds_falling,
+    lvds_rising,
+    ttl_falling,
+    ttl_rising,
+)
 
 Quantity, Unit = ureg.Quantity, ureg.Unit
 
 # Regex for Tristan data file name stems.
 meta_file_name_regex = re.compile(r"(.*)_(?:meta|\d+)")
+
+
+triggers = {
+    "TTL-rising": ttl_rising,
+    "TTL-falling": ttl_falling,
+    "LVDS-rising": lvds_rising,
+    "LVDS-falling": lvds_falling,
+    "FEM-rising": fem_rising,
+    "FEM-falling": fem_falling,
+}
 
 
 def check_output_file(
@@ -40,14 +58,14 @@ def check_output_file(
     Find and check the output file path.
 
     Find the output file path, given either a specified output file name or a file
-    name stem and suffix.  Exit if the output file already exists, unless instructed
-    to over-write.
+    name stem and suffix.  Exit if any output file(s) already exist, unless instructed
+    to overwrite.
 
     Args:
         out_file:  A suggested output file path.
         stem:  A file name stem to use if out_file is not provided.
         suffix:  A suffix to append to stem when constructing the output file name.
-        force:  Choose to over-write any existing file of the same name.
+        force:  Choose to overwrite any existing files.
 
     Returns:
         The output file path.
@@ -55,7 +73,6 @@ def check_output_file(
     Raises:
         SystemExit:  if the output file exists and force is not true.
     """
-
     if out_file or stem:
         out_file = Path(out_file or f"{stem}_{suffix}.h5").expanduser().resolve()
 
@@ -67,6 +84,56 @@ def check_output_file(
             )
 
         return out_file
+
+
+def check_multiple_output_files(
+    quantity: int,
+    out_file: Optional[Union[Path, str]] = None,
+    stem: Optional[str] = None,
+    suffix: str = "output",
+    force: bool = False,
+) -> Optional[Tuple[List[Path], Path]]:
+    """
+    Find and check file paths for output of multiple image sequences.
+
+    Find the output file paths, given either a specified output file name pattern or
+    a file name stem and suffix.  Exit if the output file already exists,
+    unless instructed to overwrite.
+
+    Args:
+        quantity:  THe number of output files to be generated.
+        out_file:  A suggested output file path.
+        stem:  A file name stem to use if out_file is not provided.
+        suffix:  A suffix to append to stem when constructing the output file name.
+        force:  Choose to overwrite any existing file of the same name.
+
+    Returns:
+        The output file paths.
+
+    Raises:
+        SystemExit:  if any output file exists and force is not true.
+    """
+    if out_file or stem:
+        n_dig = len(str(quantity))
+        out_file_pattern = (
+            Path(out_file or f"{stem}_{suffix}.h5").expanduser().resolve()
+        )
+        out_files = [
+            out_file_pattern.parent / (out_file_pattern.stem + f"_{i + 1:0{n_dig}d}.h5")
+            for i in range(quantity)
+        ]
+
+        exists = list(filter(Path.exists, out_files))
+        if not force and exists:
+            sys.exit(
+                f"The following output files already exist:\n\t"
+                + "\n\t".join(map(str, exists))
+                + "\n"
+                "Use '-f' to override, "
+                "or specify a different output file path with '-o'."
+            )
+
+        return out_files, out_file_pattern
 
 
 def data_files(data_dir: Path, stem: str, n_dig: int = 6) -> (List[Path], Path):
@@ -215,12 +282,13 @@ image_output_parser.add_argument(
     "--output-file",
     help="File name or location for output image file, defaults to the working "
     "directory.  If only a directory location is given, the pattern of the raw data "
-    "files will be used.",
+    "files will be used.  For multiple-sweep binning, a sequence number will be "
+    "appended to your choice of output file name.",
 )
 image_output_parser.add_argument(
     "-f",
     "--force",
-    help="Force the output image file to over-write any existing file with the same "
+    help="Force the output image file to overwrite any existing file with the same "
     "name.",
     action="store_true",
 )
@@ -230,6 +298,17 @@ image_output_parser.add_argument(
     help="Dimensions of the detector in pixels, separated by a comma, as 'x,y', i.e. "
     "'fast,slow'.",
     type=image_size,
+)
+
+
+# A parser to specify a trigger signal type.
+trigger_parser = argparse.ArgumentParser(add_help=False)
+trigger_parser.add_argument(
+    "-t",
+    "--trigger-type",
+    help="The type of trigger signal used as the pump pulse marker.",
+    choices=triggers.keys(),
+    required=True,
 )
 
 
@@ -303,3 +382,21 @@ group.add_argument(
     type=units_of_time,
 )
 group.add_argument("-n", "--num-images", help="Number of images.", type=positive_int)
+
+
+# A parser for subdividing a regular comb of pump signals into quantised pump-probe
+# delay intervals.
+interval_parser = argparse.ArgumentParser(add_help=False)
+group = interval_parser.add_mutually_exclusive_group(required=True)
+group.add_argument(
+    "-i",
+    "--interval",
+    help="Duration of each pump-probe delay interval.  This will be used to calculate "
+    "the number of image sequences.  Specify a value with units like "
+    "'--exposure-time .5ms', '-e 500µs' or '-e 500us'.  Unspecified units default to "
+    "seconds.",
+    type=units_of_time,
+)
+group.add_argument(
+    "-x", "--num-sequences", help="Number of image sequences.", type=positive_int
+)

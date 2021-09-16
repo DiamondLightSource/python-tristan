@@ -39,10 +39,10 @@ def find_start_end(data: Dict[str, da.Array], distributed: bool = False) -> (int
 
     # If we are using the distributed scheduler (for multiple images), show progress.
     if distributed:
-        print("\nFinding detector shutter open and close times.")
+        print("Finding detector shutter open and close times.")
         progress([start_time.persist(), end_time.persist()])
     start_time, end_time = da.compute(start_time, end_time)
-    print("")
+    print()
 
     return start_time, end_time
 
