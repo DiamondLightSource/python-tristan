@@ -15,12 +15,16 @@ import pint.errors
 from .. import __version__, ureg
 
 __all__ = (
+    "triggers",
     "check_output_file",
+    "check_multiple_output_files",
     "data_files",
     "version_parser",
     "input_parser",
     "image_output_parser",
+    "trigger_parser",
     "exposure_parser",
+    "interval_parser",
 )
 
 from ..data import (
