@@ -440,10 +440,10 @@ def multiple_sequences_cli(args):
         f"pump marked by a '{cues[trigger_type]}' signal. "
     )
 
+    out_file_stem = out_file_pattern.stem
+
     n_dig = len(str(num_images))
-    out_file_pattern = (
-        out_file_pattern.parent / f"{out_file_pattern.stem}_{'#' * n_dig}.h5"
-    )
+    out_file_pattern = out_file_pattern.parent / f"{out_file_stem}_{'#' * n_dig}.h5"
 
     if input_nexus.exists():
         # Write output NeXus files if we have an input NeXus file.
@@ -485,7 +485,7 @@ def multiple_sequences_cli(args):
             image_sequence_stack.append(make_images(interval_data, image_size, bins))
 
         save_multiple_image_sequences(
-            da.stack(image_sequence_stack), out_file_pattern, output_files, write_mode
+            da.stack(image_sequence_stack), out_file_stem, output_files, write_mode
         )
 
     print(f"Images written to\n\t{output_nexus_pattern or out_file_pattern}")
