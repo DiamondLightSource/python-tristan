@@ -208,7 +208,7 @@ def save_multiple_image_sequences(
         progress([sub_array.persist() for sub_array in array])
         print()
 
-    print("\nTransferring the images to the output files.")
+    print("Transferring the images to the output files.")
     store = zarr.DirectoryStore(str(intermediate_store))
     arrays = zarr.open(store)
 
@@ -254,11 +254,6 @@ def multiple_images_cli(args):
             start, end, args.exposure_time, args.num_images
         )
 
-        print(
-            f"Binning events into {num_images} images with an exposure time of "
-            f"{exposure_time:~.3g}."
-        )
-
         if args.align_trigger:
             trigger_type = triggers.get(args.align_trigger)
             print(
@@ -277,6 +272,11 @@ def multiple_images_cli(args):
             bins = np.concatenate((bins_pre, bins_post))
         else:
             bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
+
+    print(
+        f"Binning events into {num_images} images with an exposure time of "
+        f"{exposure_time:~.3g}."
+    )
 
     with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
         images = make_images(valid_events(data, start, end), image_size, bins)
@@ -438,10 +438,11 @@ def multiple_sequences_cli(args):
     bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
 
     print(
-        f"Binning events into {num_intervals} sequences, each of {num_images} "
-        f"images with an exposure time of {exposure_time:~.3g}, corresponding to "
-        f"successive pump-probe delay intervals of {interval_time:~.3g}, with the "
-        f"pump marked by a '{cues[trigger_type]}' signal. "
+        f"Using '{cues[trigger_type]}' as the pump signal,\n"
+        f"binning events into {num_intervals} sequences, corresponding to "
+        f"successive pump-probe delay intervals of {interval_time:~.3g}.\n"
+        f"Each sequence consists of {num_images} images with an exposure time of "
+        f"{exposure_time:~.3g}."
     )
 
     out_file_stem = out_file_pattern.stem
