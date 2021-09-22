@@ -3,7 +3,7 @@
 import argparse
 import sys
 from pathlib import Path
-from typing import Iterable, Tuple
+from typing import Iterable, Tuple, Union
 
 import dask
 import h5py
@@ -11,6 +11,7 @@ import numpy as np
 import pint
 import zarr
 from dask import array as da
+from dask import delayed
 from dask.diagnostics import ProgressBar
 from dask.distributed import Client, progress
 from dask.system import CPU_COUNT
@@ -179,11 +180,11 @@ def save_multiple_images(
 
 def save_multiple_image_sequences(
     array: da.Array,
-    intermediate_store: Path,
+    intermediate_store: Union[Path, str],
     output_files: Iterable[Path],
     write_mode: str = "x",
 ) -> None:
-    intermediate_store = intermediate_store.with_suffix(".zarr")
+    intermediate_store = Path(intermediate_store).with_suffix(".zarr")
 
     # Set a more generous connection timeout than the default 30s.
     with dask.config.set(
@@ -211,14 +212,14 @@ def save_multiple_image_sequences(
     store = zarr.DirectoryStore(str(intermediate_store))
     arrays = zarr.open(store)
 
-    for i, output_file in enumerate(output_files):
-        n_sequences = len(output_files)
-        print(
-            f"Transferring file {i+1:{len(str(n_sequences))}d} of " f"{n_sequences}.",
-            end="\r",
-        )
+    @delayed
+    def sequence_to_disk(i, output_file):
         with h5py.File(output_file, write_mode) as f:
-            zarr.copy_all(arrays[i], f, **Bitshuffle())
+            return zarr.copy_all(arrays[i], f, **Bitshuffle())
+
+    transfer = [sequence_to_disk(i, o).persist() for i, o in enumerate(output_files)]
+    progress(transfer)
+    da.compute(transfer)
 
     print()
 
