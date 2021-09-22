@@ -10,6 +10,7 @@ from dask.distributed import progress
 from numpy.typing import ArrayLike
 
 from .data import (
+    event_keys,
     event_location_key,
     event_time_key,
     first_cue_time,
@@ -18,8 +19,10 @@ from .data import (
     shutter_open,
 )
 
+Data = Dict[str, da.Array]
 
-def find_start_end(data: Dict[str, da.Array], distributed: bool = False) -> (int, int):
+
+def find_start_end(data: Data, distributed: bool = False) -> (int, int):
     """
     Find the shutter open and shutter close timestamps.
 
@@ -40,16 +43,37 @@ def find_start_end(data: Dict[str, da.Array], distributed: bool = False) -> (int
     # If we are using the distributed scheduler (for multiple images), show progress.
     if distributed:
         print("Finding detector shutter open and close times.")
-        progress([start_time.persist(), end_time.persist()])
+        progress(start_time.persist(), end_time.persist())
     start_time, end_time = da.compute(start_time, end_time)
     print()
 
     return start_time, end_time
 
 
-def make_images(
-    data: Dict[str, da.Array], image_size: Tuple[int, int], bins: ArrayLike
-) -> da.Array:
+def valid_events(data: Data, start: int, end: int) -> Data:
+    """
+    Return those events that have a timestamp in the specified range.
+
+    Args:
+        data:   An LATRD data dictionary, containing an 'event_time_offset' item
+                and optional 'event_id' and 'event_energy' items.
+        start:  The start time of the accepted range, in clock cycles.
+        end:    The end time of the accepted range, in clock cycles.
+
+    Returns:
+        A dictionary containing only the valid events.
+    """
+    valid = (start <= data[event_time_key]) & (data[event_time_key] < end)
+
+    for key in event_keys:
+        value = data.get(key)
+        if value is not None:
+            data[key] = value[valid].compute_chunk_sizes()
+
+    return data
+
+
+def make_images(data: Data, image_size: Tuple[int, int], bins: ArrayLike) -> da.Array:
     """
     Bin LATRD events data into images of event counts.
 
@@ -71,15 +95,9 @@ def make_images(
         A dask array representing the calculations required to obtain the
         resulting image.
     """
-    event_times = data[event_time_key]
-    event_locations = data[event_location_key]
-
-    valid_events = (bins[0] <= event_times) & (event_times < bins[-1])
-    event_times = event_times[valid_events].compute_chunk_sizes()
-    event_locations = event_locations[valid_events].compute_chunk_sizes()
     # We need to ensure that the chunk layout of the event location array matches
     # that of the event time array, so that we can perform matching blockwise iterations
-    event_locations = event_locations.rechunk(event_times.chunks)
+    event_locations = data[event_location_key].rechunk(data[event_time_key].chunks)
     event_locations = pixel_index(event_locations, image_size)
 
     num_images = len(bins) - 1
@@ -89,7 +107,7 @@ def make_images(
         # would require allocating enough memory for the entire image stack.
 
         # Find the index of the image to which each event belongs.
-        image_indices = da.digitize(event_times, bins) - 1
+        image_indices = da.digitize(data[event_time_key], bins) - 1
 
         (images_in_block,) = da.compute(map(np.unique, image_indices.blocks))
 

@@ -18,7 +18,7 @@ from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
 
 from .. import clock_frequency
-from ..binning import find_start_end, make_images
+from ..binning import find_start_end, make_images, valid_events
 from ..data import (
     aggregate_chunks,
     cue_keys,
@@ -103,10 +103,12 @@ def single_image_cli(args):
 
     raw_files, _ = data_files(args.data_dir, args.stem)
 
-    keys = (event_location_key, event_time_key) + cue_keys
-    with latrd_data(raw_files, keys=keys) as data:
-        print("Binning events into a single image.")
-        image = make_images(data, image_size, find_start_end(data))
+    with latrd_data(raw_files, keys=cue_keys) as data:
+        start, end = find_start_end(data)
+
+    print("Binning events into a single image.")
+    with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
+        image = make_images(valid_events(data, start, end), image_size, (start, end))
 
         with ProgressBar(), h5py.File(output_file, write_mode) as f:
             data_set = f.require_dataset(
@@ -276,7 +278,7 @@ def multiple_images_cli(args):
             bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
 
     with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
-        images = make_images(data, image_size, bins)
+        images = make_images(valid_events(data, start, end), image_size, bins)
         save_multiple_images(images, output_file, write_mode)
 
     if input_nexus.exists():
@@ -371,7 +373,7 @@ def pump_probe_cli(args):
             da.digitize(data[event_time_key], trigger_times) - 1
         ]
 
-        images = make_images(data, image_size, bins)
+        images = make_images(valid_events(data, 0, end), image_size, bins)
         save_multiple_images(images, output_file, write_mode)
 
     print(f"Images written to\n\t{output_nexus or output_file}")
@@ -469,6 +471,8 @@ def multiple_sequences_cli(args):
 
     trigger_times = da.from_array(trigger_times)
     with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
+        data = valid_events(data, start, end)
+
         # Find the time elapsed since the most recent trigger signal.
         pump_probe_time = data[event_time_key].astype(np.int64)
         pump_probe_time -= trigger_times[
