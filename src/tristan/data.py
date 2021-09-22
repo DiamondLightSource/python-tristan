@@ -139,7 +139,7 @@ def latrd_data(
             data_sets = [f[key] for f in files]
 
             sizes = (d.size for d in data_sets)
-            hdf5_chunk_size = data_sets[0].chunks[0]
+            hdf5_chunk_size = (data_sets[0].chunks or (data_sets[0].size,))[0]
             chunks = aggregate_chunks(
                 sizes, data_sets[0].dtype.itemsize, hdf5_chunk_size
             )
