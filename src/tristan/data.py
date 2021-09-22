@@ -79,6 +79,35 @@ event_keys = event_location_key, event_time_key, event_energy_key
 nx_size_key = "entry/instrument/detector/module/data_size"
 
 
+def aggregate_chunks(
+    existing_chunks: Iterable[int], item_size: int, subdivision: int = 1
+):
+    target_size_bytes = int(Quantity(config.get("array.chunk-size")).m_as("bytes"))
+
+    # The optimal number of data per Dask chunk.
+    target_size = target_size_bytes // item_size
+
+    # Try to aggregate the input data into the fewest possible Dask chunks.
+    new_chunks = []
+    for chunk in existing_chunks:
+        # If this input data set will fit into the current chunk, add it.
+        if new_chunks and new_chunks[-1] + chunk <= target_size:
+            new_chunks[-1] += chunk
+        # If the current chunk is full (or the chunks list is empty), add this
+        # data set to the next chunk.
+        elif chunk <= target_size:
+            new_chunks.append(chunk)
+        # If this data set is larger than the max Dask chunk size, split it
+        # along the HDF5 data set chunk boundaries and put the pieces in
+        # separate Dask chunks.
+        else:
+            n_whole_chunks, remainder = divmod(chunk, target_size)
+            dask_chunk_size = target_size // subdivision * subdivision
+            new_chunks += [dask_chunk_size] * n_whole_chunks + [remainder]
+
+    return new_chunks
+
+
 @contextmanager
 def latrd_data(
     raw_file_paths: RawFiles, keys: Iterable[str] = cue_keys + event_keys
@@ -105,32 +134,15 @@ def latrd_data(
             for path in raw_file_paths
         ]
 
-        target_size_bytes = int(Quantity(config.get("array.chunk-size")).m_as("bytes"))
-
         data = {}
         for key in keys:
             data_sets = [f[key] for f in files]
 
-            # The optimal number of data per Dask chunk.
-            target_size = target_size_bytes // data_sets[0].dtype.itemsize
-
-            # Try to aggregate the input data into the fewest possible Dask chunks.
-            chunks = []
-            for d in data_sets:
-                # If this input data set will fit into the current chunk, add it.
-                if chunks and chunks[-1] + d.size <= target_size:
-                    chunks[-1] += d.size
-                # If the current chunk is full (or the chunks list is empty), add this
-                # data set to the next chunk.
-                elif d.size <= target_size:
-                    chunks.append(d.size)
-                # If this data set is larger than the max Dask chunk size, split it
-                # along the HDF5 data set chunk boundaries and put the pieces in
-                # separate Dask chunks.
-                else:
-                    n_whole_chunks, remainder = divmod(d.size, target_size)
-                    dask_chunk_size = target_size // d.chunks[0] * d.chunks[0]
-                    chunks += [dask_chunk_size] * n_whole_chunks + [remainder]
+            sizes = (d.size for d in data_sets)
+            hdf5_chunk_size = data_sets[0].chunks[0]
+            chunks = aggregate_chunks(
+                sizes, data_sets[0].dtype.itemsize, hdf5_chunk_size
+            )
 
             data[key] = da.concatenate(data_sets).rechunk(chunks)
 

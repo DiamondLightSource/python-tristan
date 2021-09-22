@@ -20,6 +20,7 @@ from nexgen.nxs_copy import CopyTristanNexus
 from .. import clock_frequency
 from ..binning import find_start_end, make_images
 from ..data import (
+    aggregate_chunks,
     cue_keys,
     cue_times,
     cues,
@@ -478,11 +479,19 @@ def multiple_sequences_cli(args):
         image_sequence_stack = []
         for i in range(num_intervals):
             interval_selection = sequence == i
-            interval_data = {
-                event_time_key: data[event_time_key][interval_selection],
-                event_location_key: data[event_location_key][interval_selection],
+
+            event_times = data[event_time_key][interval_selection]
+            event_locs = data[event_location_key][interval_selection]
+            interval = {
+                event_time_key: event_times.compute_chunk_sizes(),
+                event_location_key: event_locs.compute_chunk_sizes(),
             }
-            image_sequence_stack.append(make_images(interval_data, image_size, bins))
+
+            size = max(data[event_time_key].itemsize, data[event_location_key].itemsize)
+            chunks = aggregate_chunks(*interval[event_time_key].chunks, size)
+            interval[event_time_key] = interval[event_time_key].rechunk(chunks)
+
+            image_sequence_stack.append(make_images(interval, image_size, bins))
 
         save_multiple_image_sequences(
             da.stack(image_sequence_stack), out_file_stem, output_files, write_mode
