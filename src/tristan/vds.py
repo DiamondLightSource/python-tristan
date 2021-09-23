@@ -96,7 +96,7 @@ def virtual_sources(files: List[Path], meta_file: h5py.File) -> VirtualSourceInf
     num_cues_per_file = []
 
     with ExitStack() as stack:
-        raw_files = [stack.enter_context(h5py.File(path, "r")) for path in files]
+        raw_files = [stack.enter_context(h5py.File(path)) for path in files]
 
         dtypes = {key: raw_files[0][key].dtype for key in event_keys + cue_keys}
 

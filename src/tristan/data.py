@@ -130,8 +130,7 @@ def latrd_data(
     """
     with ExitStack() as stack:
         files = [
-            stack.enter_context(h5py.File(path, "r", swmr=True))
-            for path in raw_file_paths
+            stack.enter_context(h5py.File(path, swmr=True)) for path in raw_file_paths
         ]
 
         data = {}
@@ -139,9 +138,9 @@ def latrd_data(
             data_sets = [f[key] for f in files]
 
             sizes = (d.size for d in data_sets)
-            hdf5_chunk_size = (data_sets[0].chunks or (data_sets[0].size,))[0]
+            (hdf5_chunk_size,) = data_sets[0].chunks
             chunks = aggregate_chunks(
-                sizes, data_sets[0].dtype.itemsize, hdf5_chunk_size
+                sizes, data_sets[0].dtype.itemsize, hdf5_chunk_size or 1
             )
 
             data[key] = da.concatenate(data_sets).rechunk(chunks)
