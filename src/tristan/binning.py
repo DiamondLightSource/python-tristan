@@ -115,22 +115,10 @@ def make_images(data: Data, image_size: Tuple[int, int], bins: ArrayLike) -> da.
         # Find the index of the image to which each event belongs.
         image_indices = da.digitize(data[event_time_key], bins) - 1
 
-        images_in_block = [
-            block.persist() for block in map(np.unique, image_indices.blocks)
-        ]
-        print(progress(images_in_block) or "")
-        images_in_block = da.compute(*images_in_block)
-
         # Construct a stack of images using dask.array.bincount.
         images = []
         for i in range(num_images):
-            # When searching for events with a given image index, we already know we
-            # can exclude some blocks and thereby save some computation time.
-            contains_index = [i in indices for indices in images_in_block]
-
-            image_events = event_locations.blocks[contains_index][
-                image_indices.blocks[contains_index] == i
-            ]
+            image_events = event_locations[image_indices == i]
             images.append(da.bincount(image_events, minlength=mul(*image_size)))
 
         images = da.stack(images)
