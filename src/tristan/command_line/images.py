@@ -105,7 +105,7 @@ def single_image_cli(args):
     raw_files, _ = data_files(args.data_dir, args.stem)
 
     with latrd_data(raw_files, keys=cue_keys) as data:
-        start, end = find_start_end(data)
+        start, end = find_start_end(data, show_progress=True)
 
     print("Binning events into a single image.")
     with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
@@ -152,11 +152,13 @@ def save_multiple_images(
     # Set a more generous connection timeout than the default 30s.
     with dask.config.set(
         {
+            "distributed.comm.retry.delay.max": "60s",
             "distributed.comm.timeouts.connect": "60s",
             "distributed.comm.timeouts.tcp": "60s",
             "distributed.deploy.lost-worker-timeout": "60s",
             "distributed.scheduler.idle-timeout": "600s",
             "distributed.scheduler.locks.lease-timeout": "60s",
+            "distributed.worker.memory.recent-to-old-time": "60s",
         }
     ):
         intermediate = str(output_file.with_suffix(".zarr"))
@@ -167,7 +169,7 @@ def save_multiple_images(
         # Prepare to save the calculated images to the intermediate Zarr store.
         array = array.to_zarr(intermediate, component="data", **method)
         # Compute the Array and store the values, using a progress bar.
-        progress(array.persist())
+        print(progress(array.persist()) or "")
 
     print("\nTransferring the images to the output file.")
     store = zarr.DirectoryStore(intermediate)
@@ -189,11 +191,13 @@ def save_multiple_image_sequences(
     # Set a more generous connection timeout than the default 30s.
     with dask.config.set(
         {
+            "distributed.comm.retry.delay.max": "60s",
             "distributed.comm.timeouts.connect": "60s",
             "distributed.comm.timeouts.tcp": "60s",
             "distributed.deploy.lost-worker-timeout": "60s",
             "distributed.scheduler.idle-timeout": "600s",
             "distributed.scheduler.locks.lease-timeout": "60s",
+            "distributed.worker.memory.recent-to-old-time": "60s",
         }
     ):
         # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
@@ -205,8 +209,7 @@ def save_multiple_image_sequences(
             for i, sub_array in enumerate(array)
         ]
         # Compute the Array and store the values, using a progress bar.
-        progress([sub_array.persist() for sub_array in array])
-        print()
+        print(progress([sub_array.persist() for sub_array in array]) or "")
 
     print("Transferring the images to the output files.")
     store = zarr.DirectoryStore(str(intermediate_store))
@@ -218,10 +221,8 @@ def save_multiple_image_sequences(
             return zarr.copy_all(arrays[i], f, **Bitshuffle())
 
     transfer = [sequence_to_disk(i, o).persist() for i, o in enumerate(output_files)]
-    progress(transfer)
+    print(progress(transfer) or "")
     da.compute(transfer)
-
-    print()
 
     # Delete the Zarr store.
     store.clear()
@@ -249,7 +250,7 @@ def multiple_images_cli(args):
     raw_files, _ = data_files(args.data_dir, args.stem)
 
     with latrd_data(raw_files, keys=cue_keys) as data:
-        start, end = find_start_end(data, distributed=True)
+        start, end = find_start_end(data, show_progress=True)
         exposure_time, exposure_cycles, num_images = exposure(
             start, end, args.exposure_time, args.num_images
         )
@@ -346,10 +347,8 @@ def pump_probe_cli(args):
     print("Finding trigger signal times.")
     with latrd_data(raw_files, keys=cue_keys) as data:
         trigger_times = cue_times(data, trigger_type)
-        progress(trigger_times.persist())
+        print(progress(trigger_times.persist()) or "")
         trigger_times = trigger_times.compute().astype(int)
-
-    print()  # Dask distributed progress bar does not end with a newline, so insert one.
 
     trigger_times = np.sort(trigger_times)
 
@@ -409,10 +408,8 @@ def multiple_sequences_cli(args):
     print("Finding trigger signal times.")
     with latrd_data(raw_files, keys=cue_keys) as data:
         trigger_times = cue_times(data, trigger_type)
-        progress(trigger_times.persist())
+        print(progress(trigger_times.persist()) or "")
         trigger_times = trigger_times.compute().astype(int)
-
-    print()  # Dask distributed progress bar does not end with a newline, so insert one.
 
     trigger_times = np.sort(trigger_times)
 
@@ -430,7 +427,7 @@ def multiple_sequences_cli(args):
     )
 
     with latrd_data(raw_files, keys=cue_keys) as data:
-        start, end = find_start_end(data, distributed=True)
+        start, end = find_start_end(data, show_progress=True)
 
     exposure_time, exposure_cycles, num_images = exposure(
         start, end, args.exposure_time, args.num_images

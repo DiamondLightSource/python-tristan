@@ -163,7 +163,7 @@ def first_cue_time(data: Dict[str, da.Array], message: int) -> Optional[da.Array
         The timestamp, measured in clock cycles from the global synchronisation signal.
         If the message doesn't exist in the data set, this returns None.
     """
-    index = da.argmax(data[cue_id_key] == message)
+    index = da.argmax(data[cue_id_key] == message).compute()
     if index or data[cue_id_key][0] == message:
         return data[cue_time_key][index]
 
@@ -185,7 +185,8 @@ def cue_times(data: Dict[str, da.Array], message: int) -> da.Array:
         The timestamps, measured in clock cycles from the global synchronisation
         signal, de-duplicated.
     """
-    index = da.flatnonzero(data[cue_id_key] == message)
+    index = data[cue_id_key] == message
+    da.Array.__bool__
     return da.unique(data[cue_time_key][index])
 
 

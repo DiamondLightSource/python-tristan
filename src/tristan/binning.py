@@ -6,14 +6,16 @@ from typing import Dict, Tuple
 
 import numpy as np
 from dask import array as da
+from dask.diagnostics import ProgressBar
 from dask.distributed import progress
 from numpy.typing import ArrayLike
 
 from .data import (
+    cue_id_key,
+    cue_time_key,
     event_keys,
     event_location_key,
     event_time_key,
-    first_cue_time,
     pixel_index,
     shutter_close,
     shutter_open,
@@ -22,32 +24,36 @@ from .data import (
 Data = Dict[str, da.Array]
 
 
-def find_start_end(data: Data, distributed: bool = False) -> (int, int):
+def find_start_end(data: Data, show_progress: bool = False) -> (int, int):
     """
     Find the shutter open and shutter close timestamps.
 
     Args:
-        data:  A LATRD data dictionary (a dictionary with data set names as keys
-               and Dask arrays as values).  Must contain one entry for cue id
-               messages and one for cue timestamps.  The two arrays are assumed
-               to have the same length.
-        distributed:  Whether the computation uses the Dask distributed scheduler,
-                      in which case a progress bar will be displayed.
+        data:           A LATRD data dictionary (a dictionary with data set names as
+                        keys and Dask arrays as values).  Must contain one entry for
+                        cue id messages and one for cue timestamps.  The two arrays
+                        are assumed to have the same length.
+        show_progress:  Whether to show a progress bar.
 
     Returns:
         The shutter open and shutter close timestamps, in clock cycles.
     """
-    start_time = first_cue_time(data, shutter_open)
-    end_time = first_cue_time(data, shutter_close)
+    if show_progress:
+        print("Finding detector shutter open and close times.")
+
+    start_index = da.argmax(data[cue_id_key] == shutter_open).persist()
+    end_index = da.argmax(data[cue_id_key] == shutter_close).persist()
 
     # If we are using the distributed scheduler (for multiple images), show progress.
-    if distributed:
-        print("Finding detector shutter open and close times.")
-        progress(start_time.persist(), end_time.persist())
-    start_time, end_time = da.compute(start_time, end_time)
-    print()
+    if show_progress:
+        try:
+            print(progress(start_index, end_index) or "")
+            start_index, end_index = da.compute(start_index, end_index)
+        except ValueError:  # No client found when using the default scheduler.
+            with ProgressBar():
+                start_index, end_index = da.compute(start_index, end_index)
 
-    return start_time, end_time
+    return da.compute(data[cue_time_key][start_index], data[cue_time_key][end_index])
 
 
 def valid_events(data: Data, start: int, end: int) -> Data:
@@ -109,7 +115,11 @@ def make_images(data: Data, image_size: Tuple[int, int], bins: ArrayLike) -> da.
         # Find the index of the image to which each event belongs.
         image_indices = da.digitize(data[event_time_key], bins) - 1
 
-        (images_in_block,) = da.compute(map(np.unique, image_indices.blocks))
+        images_in_block = [
+            block.persist() for block in map(np.unique, image_indices.blocks)
+        ]
+        print(progress(images_in_block) or "")
+        images_in_block = da.compute(*images_in_block)
 
         # Construct a stack of images using dask.array.bincount.
         images = []
