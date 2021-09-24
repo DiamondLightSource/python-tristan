@@ -420,8 +420,8 @@ def multiple_sequences_cli(args):
         f"Using '{cues[trigger_type]}' as the pump signal,\n"
         f"binning events into {num_intervals} sequences, corresponding to "
         f"successive pump-probe delay intervals of {interval_time:~.3g}.\n"
-        f"Each sequence consists of {num_images} images with an exposure time of "
-        f"{exposure_time:~.3g}."
+        f"Each sequence consists of {num_images} images with an effective exposure "
+        f"time of {exposure_time / num_intervals:~.3g}."
     )
 
     out_file_stem = out_file_pattern.stem
