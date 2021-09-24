@@ -41,13 +41,13 @@ def find_start_end(data: Data, show_progress: bool = False) -> (int, int):
     if show_progress:
         print("Finding detector shutter open and close times.")
 
-    start_index = da.argmax(data[cue_id_key] == shutter_open).persist()
-    end_index = da.argmax(data[cue_id_key] == shutter_close).persist()
+    start_index = da.argmax(data[cue_id_key] == shutter_open)
+    end_index = da.argmax(data[cue_id_key] == shutter_close)
 
     # If we are using the distributed scheduler (for multiple images), show progress.
     if show_progress:
         try:
-            print(progress(start_index, end_index) or "")
+            print(progress(start_index.persist(), end_index.persist()) or "")
             start_index, end_index = da.compute(start_index, end_index)
         except ValueError:  # No client found when using the default scheduler.
             with ProgressBar():
