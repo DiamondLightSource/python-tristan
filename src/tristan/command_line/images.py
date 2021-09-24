@@ -149,26 +149,16 @@ def save_multiple_images(
         output_file:  Path to the output HDF5 file.
         write_mode:  HDF5 file opening mode.  See :class:`h5py.File`.
     """
-    # Set a more generous connection timeout than the default 30s.
-    with dask.config.set(
-        {
-            "distributed.comm.retry.delay.max": "60s",
-            "distributed.comm.timeouts.connect": "60s",
-            "distributed.comm.timeouts.tcp": "60s",
-            "distributed.deploy.lost-worker-timeout": "60s",
-            "distributed.scheduler.idle-timeout": "600s",
-            "distributed.scheduler.locks.lease-timeout": "60s",
-            "distributed.worker.memory.recent-to-old-time": "60s",
-        }
-    ):
-        intermediate = str(output_file.with_suffix(".zarr"))
+    intermediate = str(output_file.with_suffix(".zarr"))
 
-        # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
-        # return the Array object so we can compute it with a progress bar.
-        method = {"overwrite": True, "compute": False, "return_stored": True}
-        # Prepare to save the calculated images to the intermediate Zarr store.
-        array = array.to_zarr(intermediate, component="data", **method)
-        # Compute the Array and store the values, using a progress bar.
+    # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
+    # return the Array object so we can compute it with a progress bar.
+    method = {"overwrite": True, "compute": False, "return_stored": True}
+    # Prepare to save the calculated images to the intermediate Zarr store.
+    array = array.to_zarr(intermediate, component="data", **method)
+    # Use threads, rather than processes.
+    with Client(processes=False, threads_per_worker=int(0.9 * CPU_COUNT) or 1):
+        # Compute the array and store the values, using a progress bar.
         print(progress(array.persist()) or "")
 
     print("\nTransferring the images to the output file.")
@@ -187,27 +177,16 @@ def save_multiple_image_sequences(
     write_mode: str = "x",
 ) -> None:
     intermediate_store = Path(intermediate_store).with_suffix(".zarr")
-
-    # Set a more generous connection timeout than the default 30s.
-    with dask.config.set(
-        {
-            "distributed.comm.retry.delay.max": "60s",
-            "distributed.comm.timeouts.connect": "60s",
-            "distributed.comm.timeouts.tcp": "60s",
-            "distributed.deploy.lost-worker-timeout": "60s",
-            "distributed.scheduler.idle-timeout": "600s",
-            "distributed.scheduler.locks.lease-timeout": "60s",
-            "distributed.worker.memory.recent-to-old-time": "60s",
-        }
-    ):
-        # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
-        # return the Array object so we can compute it with a progress bar.
-        method = {"overwrite": True, "compute": False, "return_stored": True}
-        # Prepare to save the calculated images to the intermediate Zarr store.
-        array = [
-            sub_array.to_zarr(intermediate_store, component=f"{i:d}/data", **method)
-            for i, sub_array in enumerate(array)
-        ]
+    # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
+    # return the Array object so we can compute it with a progress bar.
+    method = {"overwrite": True, "compute": False, "return_stored": True}
+    # Prepare to save the calculated images to the intermediate Zarr store.
+    array = [
+        sub_array.to_zarr(intermediate_store, component=f"{i:d}/data", **method)
+        for i, sub_array in enumerate(array)
+    ]
+    # Use threads, rather than processes.
+    with Client(processes=False, threads_per_worker=int(0.9 * CPU_COUNT) or 1):
         # Compute the Array and store the values, using a progress bar.
         print(progress([sub_array.persist() for sub_array in array]) or "")
 
@@ -221,8 +200,10 @@ def save_multiple_image_sequences(
             return zarr.copy_all(arrays[i], f, **Bitshuffle())
 
     transfer = [sequence_to_disk(i, o).persist() for i, o in enumerate(output_files)]
-    print(progress(transfer) or "")
-    da.compute(transfer)
+    # Copy from Zarr to HDF5 in multiple processes.
+    with Client():
+        print(progress(transfer) or "")
+        da.compute(transfer)
 
     # Delete the Zarr store.
     store.clear()
@@ -347,8 +328,8 @@ def pump_probe_cli(args):
     print("Finding trigger signal times.")
     with latrd_data(raw_files, keys=cue_keys) as data:
         trigger_times = cue_times(data, trigger_type)
-        print(progress(trigger_times.persist()) or "")
-        trigger_times = trigger_times.compute().astype(int)
+        with ProgressBar():
+            trigger_times = trigger_times.compute().astype(int)
 
     trigger_times = np.sort(trigger_times)
 
@@ -406,10 +387,11 @@ def multiple_sequences_cli(args):
     trigger_type = triggers.get(args.trigger_type)
 
     print("Finding trigger signal times.")
+
     with latrd_data(raw_files, keys=cue_keys) as data:
         trigger_times = cue_times(data, trigger_type)
-        print(progress(trigger_times.persist()) or "")
-        trigger_times = trigger_times.compute().astype(int)
+        with ProgressBar():
+            trigger_times = trigger_times.compute().astype(int)
 
     trigger_times = np.sort(trigger_times)
 
@@ -581,10 +563,16 @@ parser_multiple_sequences.set_defaults(func=multiple_sequences_cli)
 def main(args=None):
     """Perform the image binning with a user-specified sub-command."""
     args = parser.parse_args(args)
-    if args.func == single_image_cli:
-        #  Use the default scheduler.
+    # Set more generous Dask timeouts, to better accommodate network file systems.
+    with dask.config.set(
+        {
+            "distributed.comm.retry.delay.max": "60s",
+            "distributed.comm.timeouts.connect": "60s",
+            "distributed.comm.timeouts.tcp": "60s",
+            "distributed.deploy.lost-worker-timeout": "60s",
+            "distributed.scheduler.idle-timeout": "600s",
+            "distributed.scheduler.locks.lease-timeout": "60s",
+            "distributed.worker.memory.recent-to-old-time": "60s",
+        }
+    ):
         args.func(args)
-    else:  # Multi-image binning requires the Dask distributed scheduler.
-        # Use threads, rather than processes.
-        with Client(processes=False, threads_per_worker=int(0.9 * CPU_COUNT) or 1):
-            args.func(args)
