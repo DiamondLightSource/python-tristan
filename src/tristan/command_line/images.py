@@ -199,9 +199,10 @@ def save_multiple_image_sequences(
         with h5py.File(output_file, write_mode) as f:
             return zarr.copy_all(arrays[i], f, **Bitshuffle())
 
-    transfer = [sequence_to_disk(i, o).persist() for i, o in enumerate(output_files)]
     # Copy from Zarr to HDF5 in multiple processes.
+    transfer = [sequence_to_disk(i, o) for i, o in enumerate(output_files)]
     with Client():
+        transfer = [sequence.persist() for sequence in transfer]
         print(progress(transfer) or "")
         da.compute(transfer)
 
