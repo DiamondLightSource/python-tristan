@@ -425,7 +425,7 @@ def multiple_sequences_cli(args):
 
     out_file_stem = out_file_pattern.stem
 
-    n_dig = len(str(num_images))
+    n_dig = len(str(num_intervals))
     out_file_pattern = out_file_pattern.parent / f"{out_file_stem}_{'#' * n_dig}.h5"
 
     if input_nexus.exists():
