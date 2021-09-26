@@ -201,9 +201,7 @@ def save_multiple_image_sequences(
 
     # Copy from Zarr to HDF5 in multiple processes.
     transfer = [sequence_to_disk(i, o) for i, o in enumerate(output_files)]
-    with Client():
-        transfer = [sequence.persist() for sequence in transfer]
-        print(progress(transfer) or "")
+    with ProgressBar():
         da.compute(transfer)
 
     # Delete the Zarr store.
