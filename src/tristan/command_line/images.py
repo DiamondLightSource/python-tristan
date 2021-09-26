@@ -153,7 +153,7 @@ def save_multiple_images(
 
     # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
     # return the Array object so we can compute it with a progress bar.
-    method = {"overwrite": True, "compute": False, "return_stored": True}
+    method = {"overwrite": True, "compute": False}
     # Prepare to save the calculated images to the intermediate Zarr store.
     array = array.to_zarr(intermediate, component="data", **method)
     # Use threads, rather than processes.
@@ -179,7 +179,7 @@ def save_multiple_image_sequences(
     intermediate_store = Path(intermediate_store).with_suffix(".zarr")
     # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
     # return the Array object so we can compute it with a progress bar.
-    method = {"overwrite": True, "compute": False, "return_stored": True}
+    method = {"overwrite": True, "compute": False}
     # Prepare to save the calculated images to the intermediate Zarr store.
     array = [
         sub_array.to_zarr(intermediate_store, component=f"{i:d}/data", **method)
