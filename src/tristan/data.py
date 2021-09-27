@@ -6,8 +6,10 @@ from pathlib import Path
 from typing import Dict, Iterable, Optional, Tuple, Union
 
 import h5py
+import zarr
 from dask import array as da
 from dask import config
+from hdf5plugin import Bitshuffle
 from numpy.typing import ArrayLike
 from pint import Quantity
 
@@ -19,7 +21,6 @@ RawFiles = Iterable[Union[str, Path]]
 # Regex for the names of data sets, in the time slice metadata file, representing the
 # distribution of time slices across raw data files for each module.
 ts_key_regex = re.compile(r"ts_qty_module\d{2}")
-
 
 # Translations of the basic cue_id messages.
 padding = 0
@@ -77,6 +78,25 @@ cue_keys = cue_id_key, cue_time_key
 event_keys = event_location_key, event_time_key, event_energy_key
 
 nx_size_key = "entry/instrument/detector/module/data_size"
+
+
+HierarchicalData = Union[zarr.Group, zarr.Array, h5py.Group, h5py.Dataset]
+
+
+def copy_all(source: HierarchicalData, target: h5py.Group) -> (int, int, int):
+    """
+    Copy a data hierarchy on disk to an HDF5 group, compressing with bitshuffle/LZ4.
+
+    Args:
+        source:  Source data structure.
+        target:  Target HDF5 group.
+
+    Returns:
+        Number of items copied.
+        Number of items skipped.
+        Number of bytes of data that were actually copied.
+    """
+    return zarr.copy_all(source, target, **Bitshuffle())
 
 
 def aggregate_chunks(
@@ -186,7 +206,6 @@ def cue_times(data: Dict[str, da.Array], message: int) -> da.Array:
         signal, de-duplicated.
     """
     index = data[cue_id_key] == message
-    da.Array.__bool__
     return da.unique(data[cue_time_key][index])
 
 

@@ -2,6 +2,7 @@
 
 import argparse
 import sys
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Iterable, Tuple, Union
 
@@ -22,6 +23,7 @@ from .. import clock_frequency
 from ..binning import find_start_end, make_images, valid_events
 from ..data import (
     aggregate_chunks,
+    copy_all,
     cue_keys,
     cue_times,
     cues,
@@ -202,17 +204,12 @@ def save_multiple_image_sequences(
         print(progress(array.persist()) or "")
 
     print("Transferring the images to the output files.")
-    arrays = zarr.open(store)
-
-    @delayed
-    def sequence_to_disk(i, output_file):
-        with h5py.File(output_file, write_mode) as f:
-            return zarr.copy_all(arrays[i], f, **Bitshuffle())
-
     # Copy from Zarr to HDF5 in multiple processes.
-    transfer = [sequence_to_disk(i, o) for i, o in enumerate(output_files)]
-    with ProgressBar():
-        da.compute(transfer)
+    with ExitStack() as stack:
+        files = (stack.enter_context(h5py.File(f, write_mode)) for f in output_files)
+        transfer = map(delayed(copy_all), zarr.open(store).values(), files)
+        with ProgressBar():
+            da.compute(transfer)
 
     # Delete the Zarr store.
     store.clear()
