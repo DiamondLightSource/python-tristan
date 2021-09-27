@@ -151,11 +151,10 @@ def save_multiple_images(
     """
     intermediate = str(output_file.with_suffix(".zarr"))
 
-    # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
-    # return the Array object so we can compute it with a progress bar.
-    method = {"overwrite": True, "compute": False}
     # Prepare to save the calculated images to the intermediate Zarr store.
-    array = array.to_zarr(intermediate, component="data", **method)
+    # Overwrite any pre-existing Zarr arrays.  Don't compute immediately but return
+    # the Delayed object so we can compute it with a progress bar.
+    array = array.to_zarr(intermediate, component="data", overwrite=True, compute=False)
     # Use threads, rather than processes.
     with Client(processes=False, threads_per_worker=int(0.9 * CPU_COUNT) or 1):
         # Compute the array and store the values, using a progress bar.
@@ -177,21 +176,32 @@ def save_multiple_image_sequences(
     write_mode: str = "x",
 ) -> None:
     intermediate_store = Path(intermediate_store).with_suffix(".zarr")
-    # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
-    # return the Array object so we can compute it with a progress bar.
-    method = {"overwrite": True, "compute": False}
-    # Prepare to save the calculated images to the intermediate Zarr store.
-    array = [
-        sub_array.to_zarr(intermediate_store, component=f"{i:d}/data", **method)
-        for i, sub_array in enumerate(array)
+    store = zarr.DirectoryStore(str(intermediate_store))
+
+    # Overwrite any pre-existing Zarr storage.
+    targets = [
+        zarr.create(
+            store=store,
+            path=f"{i}/data",
+            shape=array.shape[1:],
+            chunks=array.chunksize[1:],
+            dtype=array.dtype,
+            overwrite=True,
+        )
+        for i in range(array.shape[0])
     ]
+
+    # Prepare to save the calculated images to the intermediate Zarr store.  Don't
+    # compute immediately but return the Delayed object so we can compute it with a
+    # progress bar.
+    array = da.store(list(array), targets, lock=False, compute=False)
+
     # Use threads, rather than processes.
     with Client(processes=False, threads_per_worker=int(0.9 * CPU_COUNT) or 1):
         # Compute the Array and store the values, using a progress bar.
-        print(progress([sub_array.persist() for sub_array in array]) or "")
+        print(progress(array.persist()) or "")
 
     print("Transferring the images to the output files.")
-    store = zarr.DirectoryStore(str(intermediate_store))
     arrays = zarr.open(store)
 
     @delayed
