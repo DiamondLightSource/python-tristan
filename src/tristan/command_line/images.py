@@ -189,7 +189,7 @@ def save_multiple_image_sequences(
         print(progress(array.persist()) or "")
 
     print("Transferring the images to the output files.")
-    # Copy from Zarr to HDF5 in multiple processes.
+    # Multi-threaded copy from Zarr to HDF5.
     array = da.from_zarr(store)
     with ExitStack() as stack:
         files = (stack.enter_context(h5py.File(f, write_mode)) for f in output_files)
