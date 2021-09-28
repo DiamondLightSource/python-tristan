@@ -184,7 +184,7 @@ def save_multiple_image_sequences(
     array = array.to_zarr(store, overwrite=True, compute=False)
 
     # Use threads, rather than processes.
-    with Client(processes=False, threads_per_worker=int(0.9 * CPU_COUNT) or 1):
+    with Client(processes=False):
         # Compute the Array and store the values, using a progress bar.
         print(progress(array.persist()) or "")
 
