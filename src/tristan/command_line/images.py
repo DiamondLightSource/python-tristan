@@ -181,7 +181,7 @@ def save_multiple_image_sequences(
     # Prepare to save the calculated images to the intermediate Zarr store.  Don't
     # compute immediately but return the Delayed object so we can compute it with a
     # progress bar.
-    array = array.to_zarr(store, overwrite=True, compute=False)
+    array = array.to_zarr(store, overwrite=write_mode == "w", compute=False)
 
     # Use threads, rather than processes.
     with Client(processes=False):
