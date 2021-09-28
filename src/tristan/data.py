@@ -9,7 +9,6 @@ import h5py
 import zarr
 from dask import array as da
 from dask import config
-from hdf5plugin import Bitshuffle
 from numpy.typing import ArrayLike
 from pint import Quantity
 
@@ -81,22 +80,6 @@ nx_size_key = "entry/instrument/detector/module/data_size"
 
 
 HierarchicalData = Union[zarr.Group, zarr.Array, h5py.Group, h5py.Dataset]
-
-
-def copy_all(source: HierarchicalData, target: h5py.Group) -> (int, int, int):
-    """
-    Copy a data hierarchy on disk to an HDF5 group, compressing with bitshuffle/LZ4.
-
-    Args:
-        source:  Source data structure.
-        target:  Target HDF5 group.
-
-    Returns:
-        Number of items copied.
-        Number of items skipped.
-        Number of bytes of data that were actually copied.
-    """
-    return zarr.copy_all(source, target, **Bitshuffle())
 
 
 def aggregate_chunks(

@@ -12,7 +12,6 @@ import numpy as np
 import pint
 import zarr
 from dask import array as da
-from dask import delayed
 from dask.diagnostics import ProgressBar
 from dask.distributed import Client, progress
 from dask.system import CPU_COUNT
@@ -23,7 +22,6 @@ from .. import clock_frequency
 from ..binning import find_start_end, make_images, valid_events
 from ..data import (
     aggregate_chunks,
-    copy_all,
     cue_keys,
     cue_times,
     cues,
@@ -180,23 +178,10 @@ def save_multiple_image_sequences(
     intermediate_store = Path(intermediate_store).with_suffix(".zarr")
     store = zarr.DirectoryStore(str(intermediate_store))
 
-    # Overwrite any pre-existing Zarr storage.
-    targets = [
-        zarr.create(
-            store=store,
-            path=f"{i}/data",
-            shape=array.shape[1:],
-            chunks=array.chunksize[1:],
-            dtype=array.dtype,
-            overwrite=True,
-        )
-        for i in range(array.shape[0])
-    ]
-
     # Prepare to save the calculated images to the intermediate Zarr store.  Don't
     # compute immediately but return the Delayed object so we can compute it with a
     # progress bar.
-    array = da.store(list(array), targets, lock=False, compute=False)
+    array = array.to_zarr(store, overwrite=True, compute=False)
 
     # Use threads, rather than processes.
     with Client(processes=False, threads_per_worker=int(0.9 * CPU_COUNT) or 1):
@@ -205,11 +190,21 @@ def save_multiple_image_sequences(
 
     print("Transferring the images to the output files.")
     # Copy from Zarr to HDF5 in multiple processes.
+    array = da.from_zarr(store)
     with ExitStack() as stack:
         files = (stack.enter_context(h5py.File(f, write_mode)) for f in output_files)
-        transfer = map(delayed(copy_all), zarr.open(store).values(), files)
+        dsets = [
+            f.require_dataset(
+                "data",
+                shape=array.shape[1:],
+                dtype=array.dtype,
+                chunks=array.chunksize[1:],
+                **Bitshuffle(),
+            )
+            for f in files
+        ]
         with ProgressBar():
-            da.compute(transfer)
+            da.store(list(array), dsets)
 
     # Delete the Zarr store.
     store.clear()
