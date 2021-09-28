@@ -181,30 +181,33 @@ def save_multiple_image_sequences(
     # Prepare to save the calculated images to the intermediate Zarr store.  Don't
     # compute immediately but return the Delayed object so we can compute it with a
     # progress bar.
-    array = array.to_zarr(store, overwrite=write_mode == "w", compute=False)
+    intermediate = [
+        a.to_zarr(store, component=i, overwrite=write_mode == "w", compute=False)
+        for i, a in enumerate(array)
+    ]
 
     # Use threads, rather than processes.
     with Client(processes=False):
         # Compute the Array and store the values, using a progress bar.
-        print(progress(array.persist()) or "")
+        print(progress(dask.persist(intermediate)) or "")
 
     print("Transferring the images to the output files.")
     # Multi-threaded copy from Zarr to HDF5.
-    array = da.from_zarr(store)
+    arrays = [da.from_zarr(array) for array in zarr.open(store).values()]
     with ExitStack() as stack:
         files = (stack.enter_context(h5py.File(f, write_mode)) for f in output_files)
         dsets = [
             f.require_dataset(
                 "data",
-                shape=array.shape[1:],
-                dtype=array.dtype,
-                chunks=array.chunksize[1:],
+                shape=arrays[0].shape,
+                dtype=arrays[0].dtype,
+                chunks=arrays[0].chunksize,
                 **Bitshuffle(),
             )
             for f in files
         ]
         with ProgressBar():
-            da.store(list(array), dsets)
+            da.store(arrays, dsets)
 
     # Delete the Zarr store.
     store.clear()
