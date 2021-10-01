@@ -93,19 +93,19 @@ def aggregate_chunks(
     # Try to aggregate the input data into the fewest possible Dask chunks.
     new_chunks = []
     for chunk in existing_chunks:
-        # If this input data set will fit into the current chunk, add it.
         if new_chunks and new_chunks[-1] + chunk <= target_size:
+            # If this input data set will fit into the current Dask chunk, add it.
             new_chunks[-1] += chunk
-        # If the current chunk is full (or the chunks list is empty), add this
-        # data set to the next chunk.
         elif chunk <= target_size:
+            # If the current chunk is full (or the chunks list is empty), add this
+            # data set to the next chunk, if it fits within the target Dask chunk size.
             new_chunks.append(chunk)
-        # If this data set is larger than the max Dask chunk size, split it
-        # along the HDF5 data set chunk boundaries and put the pieces in
-        # separate Dask chunks.
         else:
-            n_whole_chunks, remainder = divmod(chunk, target_size)
+            # If this data set is larger than the max Dask chunk size, split it
+            # along the HDF5 data set chunk boundaries and put the pieces in
+            # separate Dask chunks.
             dask_chunk_size = target_size // subdivision * subdivision
+            n_whole_chunks, remainder = divmod(chunk, dask_chunk_size)
             new_chunks += [dask_chunk_size] * n_whole_chunks + [remainder]
 
     return new_chunks
