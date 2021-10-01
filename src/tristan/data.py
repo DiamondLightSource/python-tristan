@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Dict, Iterable, Optional, Tuple, Union
 
 import h5py
-import zarr
 from dask import array as da
 from dask import config
 from numpy.typing import ArrayLike
@@ -77,9 +76,6 @@ cue_keys = cue_id_key, cue_time_key
 event_keys = event_location_key, event_time_key, event_energy_key
 
 nx_size_key = "entry/instrument/detector/module/data_size"
-
-
-HierarchicalData = Union[zarr.Group, zarr.Array, h5py.Group, h5py.Dataset]
 
 
 def aggregate_chunks(
