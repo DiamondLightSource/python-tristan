@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, Iterable, Optional, Tuple, Union
 
 import h5py
+import numpy as np
 from dask import array as da
 from dask import config
 from numpy.typing import ArrayLike
@@ -21,21 +22,21 @@ RawFiles = Iterable[Union[str, Path]]
 ts_key_regex = re.compile(r"ts_qty_module\d{2}")
 
 # Translations of the basic cue_id messages.
-padding = 0
-sync = 0x800
-shutter_open = 0x840
-shutter_close = 0x880
-fem_falling = 0x8C1
-fem_rising = 0x8E1
-ttl_falling = 0x8C9
-ttl_rising = 0x8E9
-lvds_falling = 0x8CA
-lvds_rising = 0x8EA
-tzero_falling = 0x8CB
-tzero_rising = 0x8EB
-sync_falling = 0x8CC
-sync_rising = 0x8EC
-reserved = 0xF00
+padding = np.uint16(0)
+sync = np.uint16(0x800)
+shutter_open = np.uint16(0x840)
+shutter_close = np.uint16(0x880)
+fem_falling = np.uint16(0x8C1)
+fem_rising = np.uint16(0x8E1)
+ttl_falling = np.uint16(0x8C9)
+ttl_rising = np.uint16(0x8E9)
+lvds_falling = np.uint16(0x8CA)
+lvds_rising = np.uint16(0x8EA)
+tzero_falling = np.uint16(0x8CB)
+tzero_rising = np.uint16(0x8EB)
+sync_falling = np.uint16(0x8CC)
+sync_rising = np.uint16(0x8EC)
+reserved = np.uint16(0xF00)
 cues = {
     padding: "Padding",
     sync: "Extended time stamp, global synchronisation",
@@ -51,8 +52,8 @@ cues = {
     tzero_rising: "Clock trigger TZERO input, rising edge",
     sync_falling: "Clock trigger SYNC input, falling edge",
     sync_rising: "Clock trigger SYNC input, rising edge",
-    0xBC6: "Error: messages out of sync",
-    0xBCA: "Error: messages out of sync",
+    np.uint16(0xBC6): "Error: messages out of sync",
+    np.uint16(0xBCA): "Error: messages out of sync",
     reserved: "Reserved",
     **{
         basic + n: f"{name} time stamp, sensor module {n}"
@@ -61,7 +62,7 @@ cues = {
             (shutter_open, "Shutter open"),
             (shutter_close, "Shutter close"),
         )
-        for n in range(1, 64)
+        for n in np.arange(1, 64, dtype=np.uint16)
     },
 }
 
@@ -229,7 +230,7 @@ def pixel_index(location: ArrayLike, image_size: Tuple[int, int]) -> ArrayLike:
     Returns:
         Index in the flattened image array of the pixel where the event occurred.
     """
-    x, y = divmod(location, 0x2000)
+    x, y = divmod(location, np.uint32(0x2000))
     # The following is equivalent to, but a little simpler than,
     # return da.ravel_multi_index((y, x), image_size)
     return x + y * image_size[1]
