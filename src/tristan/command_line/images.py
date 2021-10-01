@@ -467,13 +467,11 @@ def multiple_sequences_cli(args):
 
         image_sequence_stack = []
         for i in range(num_intervals):
-            interval_selection = sequence == i
+            interval_selection = da.flatnonzero(sequence == i).compute_chunk_sizes()
 
-            event_times = data[event_time_key][interval_selection]
-            event_locs = data[event_location_key][interval_selection]
             interval = {
-                event_time_key: event_times.compute_chunk_sizes(),
-                event_location_key: event_locs.compute_chunk_sizes(),
+                event_time_key: data[event_time_key][interval_selection],
+                event_location_key: data[event_location_key][interval_selection],
             }
 
             size = max(data[event_time_key].itemsize, data[event_location_key].itemsize)
