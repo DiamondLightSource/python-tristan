@@ -406,7 +406,7 @@ def multiple_sequences_cli(args):
     interval_time, _, num_intervals = exposure(
         0, intervals_end, args.interval, args.num_sequences
     )
-    intervals = np.linspace(0, intervals_end, num_intervals + 1, dtype=np.uint64)
+    interval_bins = np.arange(num_intervals + 1, dtype=np.uint64)
 
     output_files, out_file_pattern = check_multiple_output_files(
         num_intervals, args.output_file, args.stem, "images", args.force
@@ -463,15 +463,17 @@ def multiple_sequences_cli(args):
         pump_probe_time -= trigger_times[
             da.digitize(pump_probe_time, trigger_times) - 1
         ]
-        sequence = da.digitize(pump_probe_time, intervals) - 1
+        sequence = da.digitize(pump_probe_time, interval_bins) - 1
+
+        intervals = sequence == da.arange(num_intervals, chunks=(1,))[:, np.newaxis]
 
         image_sequence_stack = []
-        for i in range(num_intervals):
-            interval_selection = da.flatnonzero(sequence == i).compute_chunk_sizes()
+        for selection in intervals:
+            selection = da.flatnonzero(selection).compute_chunk_sizes()
 
             interval = {
-                event_time_key: data[event_time_key][interval_selection],
-                event_location_key: data[event_location_key][interval_selection],
+                event_time_key: data[event_time_key][selection],
+                event_location_key: data[event_location_key][selection],
             }
 
             size = max(data[event_time_key].itemsize, data[event_location_key].itemsize)
