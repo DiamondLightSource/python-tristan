@@ -53,7 +53,7 @@ def find_start_end(data: Data, show_progress: bool = False) -> Tuple[int, int]:
             with ProgressBar():
                 start_index, end_index = da.compute(start_index, end_index)
 
-    start_end = data[cue_time_key][np.array([start_index, end_index])]
+    start_end = data[cue_time_key][[start_index, end_index]]
 
     return tuple(start_end.compute())
 
