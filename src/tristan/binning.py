@@ -24,7 +24,7 @@ from .data import (
 Data = Dict[str, da.Array]
 
 
-def find_start_end(data: Data, show_progress: bool = False) -> (int, int):
+def find_start_end(data: Data, show_progress: bool = False) -> Tuple[int, int]:
     """
     Find the shutter open and shutter close timestamps.
 
@@ -53,7 +53,9 @@ def find_start_end(data: Data, show_progress: bool = False) -> (int, int):
             with ProgressBar():
                 start_index, end_index = da.compute(start_index, end_index)
 
-    return da.compute(data[cue_time_key][start_index], data[cue_time_key][end_index])
+    start_end = data[cue_time_key][np.array([start_index, end_index])]
+
+    return tuple(start_end.compute())
 
 
 def valid_events(data: Data, start: int, end: int) -> Data:
