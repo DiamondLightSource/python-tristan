@@ -330,32 +330,32 @@ def pump_probe_cli(args):
     trigger_type = triggers.get(args.trigger_type)
 
     print("Finding trigger signal times.")
-    with latrd_data(raw_files, keys=cue_keys) as data:
+    with latrd_data(
+        raw_files, keys=(event_location_key, event_time_key, *cue_keys)
+    ) as data:
         trigger_times = cue_times(data, trigger_type)
         with ProgressBar():
-            trigger_times = trigger_times.compute().astype(int)
+            trigger_times = trigger_times.astype(int).compute_chunk_sizes()
 
-    trigger_times = np.sort(trigger_times)
+        if not trigger_times.size:
+            sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
 
-    if not trigger_times.any():
-        sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
+        end = da.diff(trigger_times).min().compute()
+        exposure_time, _, num_images = exposure(
+            0, end, args.exposure_time, args.num_images
+        )
+        bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
 
-    end = np.diff(trigger_times).min()
-    exposure_time, _, num_images = exposure(0, end, args.exposure_time, args.num_images)
-    bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
+        print(
+            f"Binning events into {num_images} images with an exposure time of "
+            f"{exposure_time:~.3g} according to the time elapsed since the most recent "
+            f"'{cues[trigger_type]}' signal."
+        )
 
-    print(
-        f"Binning events into {num_images} images with an exposure time of "
-        f"{exposure_time:~.3g} according to the time elapsed since the most recent "
-        f"'{cues[trigger_type]}' signal."
-    )
-
-    trigger_times = da.from_array(trigger_times)
-    with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
         # Measure the event time as time elapsed since the most recent trigger signal.
         data[event_time_key] = data[event_time_key].astype(np.int64)
         data[event_time_key] -= trigger_times[
-            da.digitize(data[event_time_key], trigger_times) - 1
+            da.searchsorted(trigger_times, data[event_time_key], "right") - 1
         ]
 
         images = make_images(valid_events(data, 0, end), image_size, bins)
@@ -392,76 +392,75 @@ def multiple_sequences_cli(args):
 
     print("Finding trigger signal times.")
 
-    with latrd_data(raw_files, keys=cue_keys) as data:
+    with latrd_data(
+        raw_files, keys=(event_location_key, event_time_key, *cue_keys)
+    ) as data:
         trigger_times = cue_times(data, trigger_type)
         with ProgressBar():
-            trigger_times = trigger_times.compute().astype(int)
+            trigger_times = trigger_times.astype(int).compute_chunk_sizes()
 
-    trigger_times = np.sort(trigger_times)
+        if not trigger_times.size:
+            sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
 
-    if not trigger_times.any():
-        sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
+        intervals_end = da.diff(trigger_times).min().compute()
 
-    intervals_end = np.diff(trigger_times).min()
-    interval_time, _, num_intervals = exposure(
-        0, intervals_end, args.interval, args.num_sequences
-    )
-    interval_bins = np.arange(num_intervals + 1, dtype=np.uint64)
+        interval_time, _, num_intervals = exposure(
+            0, intervals_end, args.interval, args.num_sequences
+        )
+        interval_bins = np.arange(num_intervals + 1, dtype=np.uint64)
 
-    output_files, out_file_pattern = check_multiple_output_files(
-        num_intervals, args.output_file, args.stem, "images", args.force
-    )
+        output_files, out_file_pattern = check_multiple_output_files(
+            num_intervals, args.output_file, args.stem, "images", args.force
+        )
 
-    with latrd_data(raw_files, keys=cue_keys) as data:
         start, end = find_start_end(data, show_progress=True)
 
-    exposure_time, exposure_cycles, num_images = exposure(
-        start, end, args.exposure_time, args.num_images
-    )
-    bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
+        exposure_time, exposure_cycles, num_images = exposure(
+            start, end, args.exposure_time, args.num_images
+        )
+        bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
 
-    print(
-        f"Using '{cues[trigger_type]}' as the pump signal,\n"
-        f"binning events into {num_intervals} sequences, corresponding to "
-        f"successive pump-probe delay intervals of {interval_time:~.3g}.\n"
-        f"Each sequence consists of {num_images} images with an effective exposure "
-        f"time of {exposure_time / num_intervals:~.3g}."
-    )
+        print(
+            f"Using '{cues[trigger_type]}' as the pump signal,\n"
+            f"binning events into {num_intervals} sequences, corresponding to "
+            f"successive pump-probe delay intervals of {interval_time:~.3g}.\n"
+            f"Each sequence consists of {num_images} images with an effective exposure "
+            f"time of {exposure_time / num_intervals:~.3g}."
+        )
 
-    out_file_stem = out_file_pattern.stem
+        out_file_stem = out_file_pattern.stem
 
-    n_dig = len(str(num_intervals))
-    out_file_pattern = out_file_pattern.parent / f"{out_file_stem}_{'#' * n_dig}.h5"
+        n_dig = len(str(num_intervals))
+        out_file_pattern = out_file_pattern.parent / f"{out_file_stem}_{'#' * n_dig}.h5"
 
-    if input_nexus.exists():
-        # Write output NeXus files if we have an input NeXus file.
-        output_nexus_pattern = out_file_pattern.with_suffix(".nxs")
-        for output_file in output_files:
-            try:
-                CopyTristanNexus.multiple_images_nexus(
-                    output_file,
-                    input_nexus,
-                    nbins=num_images,
-                    write_mode=write_mode,
-                )
-            except FileExistsError:
-                sys.exit(
-                    f"One or more output files already exist, matching the pattern:\n\t"
-                    f"{output_nexus_pattern}\n"
-                    "Use '-f' to override, "
-                    "or specify a different output file path with '-o'."
-                )
-    else:
-        output_nexus_pattern = None
+        if input_nexus.exists():
+            # Write output NeXus files if we have an input NeXus file.
+            output_nexus_pattern = out_file_pattern.with_suffix(".nxs")
+            for output_file in output_files:
+                try:
+                    CopyTristanNexus.multiple_images_nexus(
+                        output_file,
+                        input_nexus,
+                        nbins=num_images,
+                        write_mode=write_mode,
+                    )
+                except FileExistsError:
+                    sys.exit(
+                        f"One or more output files already exist, "
+                        f"matching the pattern:\n\t"
+                        f"{output_nexus_pattern}\n"
+                        "Use '-f' to override, "
+                        "or specify a different output file path with '-o'."
+                    )
+        else:
+            output_nexus_pattern = None
 
-    trigger_times = da.from_array(trigger_times)
-    with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
         data = valid_events(data, start, end)
 
         # Find the time elapsed since the most recent trigger signal.
         pump_probe_time = data[event_time_key].astype(np.int64)
         pump_probe_time -= trigger_times[
-            da.digitize(pump_probe_time, trigger_times) - 1
+            da.searchsorted(trigger_times, pump_probe_time, "right") - 1
         ]
         sequence = da.digitize(pump_probe_time, interval_bins) - 1
 
