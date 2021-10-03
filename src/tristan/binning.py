@@ -72,11 +72,15 @@ def valid_events(data: Data, start: int, end: int) -> Data:
         A dictionary containing only the valid events.
     """
     valid = (start <= data[event_time_key]) & (data[event_time_key] < end)
+    valid = da.flatnonzero(valid).compute_chunk_sizes()
 
     for key in event_keys:
         value = data.get(key)
         if value is not None:
-            data[key] = value[valid].compute_chunk_sizes()
+            # Matching the chunk layout of the event time data can improve performance.
+            if data.get(event_time_key) is not None:
+                data[key] = data[key].rechunk(data[event_time_key].chunks)
+            data[key] = value[valid]
 
     return data
 
