@@ -464,13 +464,14 @@ def multiple_sequences_cli(args):
         ]
         sequence = da.digitize(pump_probe_time, interval_bins) - 1
 
-        intervals = sequence == da.arange(num_intervals, chunks=(1,))[:, np.newaxis]
-
         image_sequence_stack = []
-        for iv in intervals:
+        for i in range(num_intervals):
+            interval = sequence == i
             interval_data = {
-                event_time_key: blockwise_selection(data[event_time_key], iv),
-                event_location_key: blockwise_selection(data[event_location_key], iv),
+                event_time_key: blockwise_selection(data[event_time_key], interval),
+                event_location_key: blockwise_selection(
+                    data[event_location_key], interval
+                ),
             }
 
             image_sequence_stack.append(make_images(interval_data, image_size, bins))
