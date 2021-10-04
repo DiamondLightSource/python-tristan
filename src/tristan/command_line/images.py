@@ -407,7 +407,9 @@ def multiple_sequences_cli(args):
         interval_time, _, num_intervals = exposure(
             0, intervals_end, args.interval, args.num_sequences
         )
-        interval_bins = np.arange(num_intervals + 1, dtype=np.uint64)
+        interval_bins = np.linspace(
+            0, intervals_end, num_intervals + 1, dtype=np.uint64
+        )
 
         output_files, out_file_pattern = check_multiple_output_files(
             num_intervals, args.output_file, args.stem, "images", args.force
