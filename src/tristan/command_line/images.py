@@ -468,11 +468,21 @@ def multiple_sequences_cli(args):
 
         image_sequence_stack = []
         for selection in intervals:
-            selection = da.flatnonzero(selection).compute_chunk_sizes()
+            selection = da.map_blocks(np.flatnonzero, selection).compute_chunk_sizes()
 
             interval = {
-                event_time_key: data[event_time_key][selection],
-                event_location_key: data[event_location_key][selection],
+                event_time_key: da.map_blocks(
+                    lambda b, a: a[b],
+                    selection,
+                    data[event_time_key],
+                    dtype=data[event_time_key].dtype,
+                ),
+                event_location_key: da.map_blocks(
+                    lambda b, a: a[b],
+                    selection,
+                    data[event_location_key],
+                    dtype=data[event_location_key].dtype,
+                ),
             }
 
             size = max(data[event_time_key].itemsize, data[event_location_key].itemsize)
