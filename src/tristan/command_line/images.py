@@ -14,7 +14,6 @@ import zarr
 from dask import array as da
 from dask.diagnostics import ProgressBar
 from dask.distributed import Client, progress
-from dask.system import CPU_COUNT
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
 
@@ -156,7 +155,7 @@ def save_multiple_images(
     # the Delayed object so we can compute it with a progress bar.
     array = array.to_zarr(intermediate, component="data", overwrite=True, compute=False)
     # Use threads, rather than processes.
-    with Client(processes=False, threads_per_worker=int(0.9 * CPU_COUNT) or 1):
+    with Client(processes=False):
         # Compute the array and store the values, using a progress bar.
         print(progress(array.persist()) or "")
 
