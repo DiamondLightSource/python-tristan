@@ -17,10 +17,9 @@ from dask.distributed import Client, progress
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
 
-from .. import clock_frequency
+from .. import blockwise_selection, clock_frequency
 from ..binning import find_start_end, make_images, valid_events
 from ..data import (
-    aggregate_chunks,
     cue_keys,
     cue_times,
     cues,
@@ -468,29 +467,13 @@ def multiple_sequences_cli(args):
         intervals = sequence == da.arange(num_intervals, chunks=(1,))[:, np.newaxis]
 
         image_sequence_stack = []
-        for selection in intervals:
-            selection = da.map_blocks(np.flatnonzero, selection).compute_chunk_sizes()
-
-            interval = {
-                event_time_key: da.map_blocks(
-                    lambda b, a: a[b],
-                    selection,
-                    data[event_time_key],
-                    dtype=data[event_time_key].dtype,
-                ),
-                event_location_key: da.map_blocks(
-                    lambda b, a: a[b],
-                    selection,
-                    data[event_location_key],
-                    dtype=data[event_location_key].dtype,
-                ),
+        for iv in intervals:
+            interval_data = {
+                event_time_key: blockwise_selection(data[event_time_key], iv),
+                event_location_key: blockwise_selection(data[event_location_key], iv),
             }
 
-            size = max(data[event_time_key].itemsize, data[event_location_key].itemsize)
-            chunks = aggregate_chunks(*interval[event_time_key].chunks, size)
-            interval[event_time_key] = interval[event_time_key].rechunk(chunks)
-
-            image_sequence_stack.append(make_images(interval, image_size, bins))
+            image_sequence_stack.append(make_images(interval_data, image_size, bins))
 
         save_multiple_image_sequences(
             da.stack(image_sequence_stack), out_file_stem, output_files, write_mode

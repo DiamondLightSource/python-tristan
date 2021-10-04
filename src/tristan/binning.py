@@ -10,6 +10,7 @@ from dask.diagnostics import ProgressBar
 from dask.distributed import progress
 from numpy.typing import ArrayLike
 
+from . import blockwise_selection
 from .data import (
     cue_id_key,
     cue_time_key,
@@ -72,14 +73,12 @@ def valid_events(data: Data, start: int, end: int) -> Data:
         A dictionary containing only the valid events.
     """
     valid = (start <= data[event_time_key]) & (data[event_time_key] < end)
-    valid = da.map_blocks(np.flatnonzero, valid).compute_chunk_sizes()
 
     for key in event_keys:
         value = data.get(key)
         if value is not None:
             value = value.rechunk(data[event_time_key].chunks)
-            dtype = value.dtype
-            data[key] = da.map_blocks(lambda b, a: a[b], valid, value, dtype=dtype)
+            data[key] = blockwise_selection(value, valid)
 
     return data
 
