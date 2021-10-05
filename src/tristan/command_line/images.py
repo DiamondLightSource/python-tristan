@@ -168,7 +168,7 @@ def save_multiple_images(
 
 
 def save_multiple_image_sequences(
-    array: da.Array,
+    array: Iterable[da.Array],
     intermediate_store: Union[Path, str],
     output_files: Iterable[Path],
     write_mode: str = "x",
@@ -477,7 +477,7 @@ def multiple_sequences_cli(args):
             image_sequence_stack.append(make_images(interval_data, image_size, bins))
 
         save_multiple_image_sequences(
-            da.stack(image_sequence_stack), out_file_stem, output_files, write_mode
+            image_sequence_stack, out_file_stem, output_files, write_mode
         )
 
     print(f"Images written to\n\t{output_nexus_pattern or out_file_pattern}")
