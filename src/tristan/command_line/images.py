@@ -565,7 +565,7 @@ def main(args=None):
     with dask.config.set(
         {
             "distributed.comm.retry.delay.max": "60s",
-            "distributed.comm.timeouts.connect": "60s",
+            "distributed.comm.timeouts.connect": "300s",
             "distributed.comm.timeouts.tcp": "60s",
             "distributed.deploy.lost-worker-timeout": "60s",
             "distributed.scheduler.idle-timeout": "600s",
