@@ -79,33 +79,37 @@ event_keys = event_location_key, event_time_key, event_energy_key
 nx_size_key = "entry/instrument/detector/module/data_size"
 
 
-def aggregate_chunks(
-    existing_chunks: Iterable[int], item_size: int, subdivision: int = 1
-):
+def aggregate_chunks(array: da.Array) -> da.Array:
+    """
+    Concatenate adjacent small chunks in a one-dimensional Dask array.
+
+    Reduce the total number of chunks in a one-dimensional Dask array by joining
+    adjacent chunks that are smaller than the optimal chunk size, as determined by
+    the Dask config 'array.chunk-size'.
+
+    Args:
+        array:  A one-dimensional Dask array.
+
+    Returns:
+        The input array, rechunked to minimise the number of chunks.
+    """
     target_size_bytes = int(Quantity(config.get("array.chunk-size")).m_as("bytes"))
 
     # The optimal number of data per Dask chunk.
-    target_size = target_size_bytes // item_size
+    target_size = target_size_bytes // array.itemsize
 
     # Try to aggregate the input data into the fewest possible Dask chunks.
     new_chunks = []
-    for chunk in existing_chunks:
+    for chunk in array.chunks[0]:
         if new_chunks and new_chunks[-1] + chunk <= target_size:
             # If this input data set will fit into the current Dask chunk, add it.
             new_chunks[-1] += chunk
-        elif chunk <= target_size:
-            # If the current chunk is full (or the chunks list is empty), add this
-            # data set to the next chunk, if it fits within the target Dask chunk size.
-            new_chunks.append(chunk)
         else:
-            # If this data set is larger than the max Dask chunk size, split it
-            # along the HDF5 data set chunk boundaries and put the pieces in
-            # separate Dask chunks.
-            dask_chunk_size = target_size // subdivision * subdivision
-            n_whole_chunks, remainder = divmod(chunk, dask_chunk_size)
-            new_chunks += [dask_chunk_size] * n_whole_chunks + [remainder]
+            # If the current chunk is full (or the chunks list is empty), add this
+            # data set to the next chunk.
+            new_chunks.append(chunk)
 
-    return new_chunks
+    return array.rechunk(new_chunks)
 
 
 @contextmanager
@@ -133,17 +137,9 @@ def latrd_data(
             stack.enter_context(h5py.File(path, swmr=True)) for path in raw_file_paths
         ]
 
-        data = {}
-        for key in keys:
-            data_sets = [f[key] for f in files]
+        data = {k: da.concatenate([da.from_array(f[k]) for f in files]) for k in keys}
 
-            sizes = (d.size for d in data_sets)
-            (hdf5_chunks,) = data_sets[0].chunks or (1,)
-            chunks = aggregate_chunks(sizes, data_sets[0].dtype.itemsize, hdf5_chunks)
-
-            data[key] = da.concatenate(data_sets).rechunk(chunks)
-
-        yield data
+        yield {key: aggregate_chunks(data_set) for key, data_set in data.items()}
 
 
 def first_cue_time(data: Dict[str, da.Array], message: int) -> Optional[da.Array]:
