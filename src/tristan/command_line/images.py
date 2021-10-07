@@ -158,7 +158,7 @@ def save_multiple_images(
         # Compute the array and store the values, using a progress bar.
         print(progress(array.persist()) or "")
 
-    print("\nTransferring the images to the output file.")
+    print("Transferring the images to the output file.")
     store = zarr.DirectoryStore(intermediate)
     with h5py.File(output_file, write_mode) as f:
         zarr.copy_all(zarr.open(store), f, **Bitshuffle())
