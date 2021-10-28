@@ -1,4 +1,4 @@
-dask==2021.9.1
+dask==2021.10.0
 distributed==2021.9.1
 h5py==3.4.0
 hdf5plugin==3.1.1
