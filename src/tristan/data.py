@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, Iterable, Optional, Tuple, Union
 
 import h5py
+import numpy as np
 from dask import array as da
 from dask import config
 from numpy.typing import ArrayLike
@@ -20,23 +21,22 @@ RawFiles = Iterable[Union[str, Path]]
 # distribution of time slices across raw data files for each module.
 ts_key_regex = re.compile(r"ts_qty_module\d{2}")
 
-
 # Translations of the basic cue_id messages.
-padding = 0
-sync = 0x800
-shutter_open = 0x840
-shutter_close = 0x880
-fem_falling = 0x8C1
-fem_rising = 0x8E1
-ttl_falling = 0x8C9
-ttl_rising = 0x8E9
-lvds_falling = 0x8CA
-lvds_rising = 0x8EA
-tzero_falling = 0x8CB
-tzero_rising = 0x8EB
-sync_falling = 0x8CC
-sync_rising = 0x8EC
-reserved = 0xF00
+padding = np.uint16(0)
+sync = np.uint16(0x800)
+shutter_open = np.uint16(0x840)
+shutter_close = np.uint16(0x880)
+fem_falling = np.uint16(0x8C1)
+fem_rising = np.uint16(0x8E1)
+ttl_falling = np.uint16(0x8C9)
+ttl_rising = np.uint16(0x8E9)
+lvds_falling = np.uint16(0x8CA)
+lvds_rising = np.uint16(0x8EA)
+tzero_falling = np.uint16(0x8CB)
+tzero_rising = np.uint16(0x8EB)
+sync_falling = np.uint16(0x8CC)
+sync_rising = np.uint16(0x8EC)
+reserved = np.uint16(0xF00)
 cues = {
     padding: "Padding",
     sync: "Extended time stamp, global synchronisation",
@@ -52,8 +52,8 @@ cues = {
     tzero_rising: "Clock trigger TZERO input, rising edge",
     sync_falling: "Clock trigger SYNC input, falling edge",
     sync_rising: "Clock trigger SYNC input, rising edge",
-    0xBC6: "Error: messages out of sync",
-    0xBCA: "Error: messages out of sync",
+    np.uint16(0xBC6): "Error: messages out of sync",
+    np.uint16(0xBCA): "Error: messages out of sync",
     reserved: "Reserved",
     **{
         basic + n: f"{name} time stamp, sensor module {n}"
@@ -62,7 +62,7 @@ cues = {
             (shutter_open, "Shutter open"),
             (shutter_close, "Shutter close"),
         )
-        for n in range(1, 64)
+        for n in np.arange(1, 64, dtype=np.uint16)
     },
 }
 
@@ -79,33 +79,37 @@ event_keys = event_location_key, event_time_key, event_energy_key
 nx_size_key = "entry/instrument/detector/module/data_size"
 
 
-def aggregate_chunks(
-    existing_chunks: Iterable[int], item_size: int, subdivision: int = 1
-):
+def aggregate_chunks(array: da.Array) -> da.Array:
+    """
+    Concatenate adjacent small chunks in a one-dimensional Dask array.
+
+    Reduce the total number of chunks in a one-dimensional Dask array by joining
+    adjacent chunks that are smaller than the optimal chunk size, as determined by
+    the Dask config 'array.chunk-size'.
+
+    Args:
+        array:  A one-dimensional Dask array.
+
+    Returns:
+        The input array, rechunked to minimise the number of chunks.
+    """
     target_size_bytes = int(Quantity(config.get("array.chunk-size")).m_as("bytes"))
 
     # The optimal number of data per Dask chunk.
-    target_size = target_size_bytes // item_size
+    target_size = target_size_bytes // array.itemsize
 
     # Try to aggregate the input data into the fewest possible Dask chunks.
     new_chunks = []
-    for chunk in existing_chunks:
-        # If this input data set will fit into the current chunk, add it.
+    for chunk in array.chunks[0]:
         if new_chunks and new_chunks[-1] + chunk <= target_size:
+            # If this input data set will fit into the current Dask chunk, add it.
             new_chunks[-1] += chunk
-        # If the current chunk is full (or the chunks list is empty), add this
-        # data set to the next chunk.
-        elif chunk <= target_size:
-            new_chunks.append(chunk)
-        # If this data set is larger than the max Dask chunk size, split it
-        # along the HDF5 data set chunk boundaries and put the pieces in
-        # separate Dask chunks.
         else:
-            n_whole_chunks, remainder = divmod(chunk, target_size)
-            dask_chunk_size = target_size // subdivision * subdivision
-            new_chunks += [dask_chunk_size] * n_whole_chunks + [remainder]
+            # If the current chunk is full (or the chunks list is empty), add this
+            # data set to the next chunk.
+            new_chunks.append(chunk)
 
-    return new_chunks
+    return array.rechunk(new_chunks)
 
 
 @contextmanager
@@ -133,19 +137,9 @@ def latrd_data(
             stack.enter_context(h5py.File(path, swmr=True)) for path in raw_file_paths
         ]
 
-        data = {}
-        for key in keys:
-            data_sets = [f[key] for f in files]
+        data = {k: da.concatenate([da.from_array(f[k]) for f in files]) for k in keys}
 
-            sizes = (d.size for d in data_sets)
-            (hdf5_chunk_size,) = data_sets[0].chunks
-            chunks = aggregate_chunks(
-                sizes, data_sets[0].dtype.itemsize, hdf5_chunk_size or 1
-            )
-
-            data[key] = da.concatenate(data_sets).rechunk(chunks)
-
-        yield data
+        yield {key: aggregate_chunks(data_set) for key, data_set in data.items()}
 
 
 def first_cue_time(data: Dict[str, da.Array], message: int) -> Optional[da.Array]:
@@ -163,7 +157,7 @@ def first_cue_time(data: Dict[str, da.Array], message: int) -> Optional[da.Array
         The timestamp, measured in clock cycles from the global synchronisation signal.
         If the message doesn't exist in the data set, this returns None.
     """
-    index = da.argmax(data[cue_id_key] == message)
+    index = da.argmax(data[cue_id_key] == message).compute()
     if index or data[cue_id_key][0] == message:
         return data[cue_time_key][index]
 
@@ -185,7 +179,7 @@ def cue_times(data: Dict[str, da.Array], message: int) -> da.Array:
         The timestamps, measured in clock cycles from the global synchronisation
         signal, de-duplicated.
     """
-    index = da.flatnonzero(data[cue_id_key] == message)
+    index = data[cue_id_key] == message
     return da.unique(data[cue_time_key][index])
 
 
@@ -232,7 +226,7 @@ def pixel_index(location: ArrayLike, image_size: Tuple[int, int]) -> ArrayLike:
     Returns:
         Index in the flattened image array of the pixel where the event occurred.
     """
-    x, y = divmod(location, 0x2000)
+    x, y = divmod(location, np.uint32(0x2000))
     # The following is equivalent to, but a little simpler than,
     # return da.ravel_multi_index((y, x), image_size)
     return x + y * image_size[1]

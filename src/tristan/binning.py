@@ -1,19 +1,27 @@
 """Tools for binning events to images."""
-
-
+from functools import partial
+from itertools import zip_longest
 from operator import mul
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
+import dask
 import numpy as np
 from dask import array as da
+from dask.array.reductions import _tree_reduce
+from dask.array.routines import array_safe
+from dask.array.utils import meta_from_array
+from dask.base import tokenize
+from dask.diagnostics import ProgressBar
 from dask.distributed import progress
 from numpy.typing import ArrayLike
 
+from . import blockwise_selection
 from .data import (
+    cue_id_key,
+    cue_time_key,
     event_keys,
     event_location_key,
     event_time_key,
-    first_cue_time,
     pixel_index,
     shutter_close,
     shutter_open,
@@ -22,32 +30,38 @@ from .data import (
 Data = Dict[str, da.Array]
 
 
-def find_start_end(data: Data, distributed: bool = False) -> (int, int):
+def find_start_end(data: Data, show_progress: bool = False) -> Tuple[int, int]:
     """
     Find the shutter open and shutter close timestamps.
 
     Args:
-        data:  A LATRD data dictionary (a dictionary with data set names as keys
-               and Dask arrays as values).  Must contain one entry for cue id
-               messages and one for cue timestamps.  The two arrays are assumed
-               to have the same length.
-        distributed:  Whether the computation uses the Dask distributed scheduler,
-                      in which case a progress bar will be displayed.
+        data:           A LATRD data dictionary (a dictionary with data set names as
+                        keys and Dask arrays as values).  Must contain one entry for
+                        cue id messages and one for cue timestamps.  The two arrays
+                        are assumed to have the same length.
+        show_progress:  Whether to show a progress bar.
 
     Returns:
         The shutter open and shutter close timestamps, in clock cycles.
     """
-    start_time = first_cue_time(data, shutter_open)
-    end_time = first_cue_time(data, shutter_close)
+    if show_progress:
+        print("Finding detector shutter open and close times.")
+
+    start_index = da.argmax(data[cue_id_key] == shutter_open)
+    end_index = da.argmax(data[cue_id_key] == shutter_close)
 
     # If we are using the distributed scheduler (for multiple images), show progress.
-    if distributed:
-        print("Finding detector shutter open and close times.")
-        progress(start_time.persist(), end_time.persist())
-    start_time, end_time = da.compute(start_time, end_time)
-    print()
+    if show_progress:
+        try:
+            print(progress(start_index.persist(), end_index.persist()) or "")
+            start_index, end_index = da.compute(start_index, end_index)
+        except ValueError:  # No client found when using the default scheduler.
+            with ProgressBar():
+                start_index, end_index = da.compute(start_index, end_index)
 
-    return start_time, end_time
+    start_end = data[cue_time_key][[start_index, end_index]]
+
+    return tuple(start_end.compute())
 
 
 def valid_events(data: Data, start: int, end: int) -> Data:
@@ -68,9 +82,80 @@ def valid_events(data: Data, start: int, end: int) -> Data:
     for key in event_keys:
         value = data.get(key)
         if value is not None:
-            data[key] = value[valid].compute_chunk_sizes()
+            value = value.rechunk(data[event_time_key].chunks)
+            data[key] = blockwise_selection(value, valid)
 
     return data
+
+
+def _bincount_block_to_image(
+    x: ArrayLike,
+    weights: Optional[ArrayLike] = None,
+    shape: Optional[Tuple[int, int]] = None,
+    dtype: Optional[type] = None,
+):
+    minlength = mul(*shape)
+    binned = np.bincount(x, weights=weights, minlength=minlength)
+    return binned[:minlength].reshape(shape).astype(dtype)
+
+
+def _bincount_to_image_agg(bincounts: da.Array, **kwargs):
+    if not isinstance(bincounts, list):
+        return bincounts
+
+    return np.sum(bincounts, axis=0)
+
+
+def bincount_to_image(
+    x: da.Array,
+    shape: Tuple[int, int],
+    weights: Optional[da.Array] = None,
+    split_every: Optional[int] = None,
+):
+    if x.ndim != 1:
+        raise ValueError("Input array must be one dimensional. Try using x.ravel()")
+    if weights is not None:
+        if weights.chunks != x.chunks:
+            raise ValueError("Chunks of input array x and weights must match.")
+
+    split_every = split_every or dask.config.get("split_every", 4)
+    grouped_chunks = zip_longest(*[iter(x.chunks[0])] * split_every)
+    grouped_chunks = map(partial(filter, lambda a: a is not None), grouped_chunks)
+    grouped_chunks = tuple(map(sum, grouped_chunks))
+    x.rechunk(grouped_chunks)
+
+    token = tokenize(x, weights, shape)
+    args = [x, "i"]
+    if weights is not None:
+        meta = array_safe(np.bincount([1], weights=[1]), like=meta_from_array(x))
+        meta = meta.astype(np.float32)
+        args.extend([weights, "i"])
+    else:
+        meta = array_safe(np.bincount([]), like=meta_from_array(x)).astype(np.uint32)
+
+    chunked_counts = da.blockwise(
+        partial(_bincount_block_to_image, shape=shape, dtype=meta.dtype),
+        "ij",
+        *args,
+        new_axes={"j": shape[1]},
+        dtype=meta.dtype,
+        token=token,
+        meta=meta
+    )
+    chunked_counts._chunks = ((shape[0],) * len(chunked_counts.chunks[0]), (shape[1],))
+
+    output = _tree_reduce(
+        chunked_counts,
+        aggregate=_bincount_to_image_agg,
+        axis=(0,),
+        keepdims=True,
+        dtype=meta.dtype,
+        split_every=split_every,
+        concatenate=False,
+    )
+    output._chunks = ((shape[0],), (shape[1],))
+    output._meta = meta
+    return output
 
 
 def make_images(data: Data, image_size: Tuple[int, int], bins: ArrayLike) -> da.Array:
@@ -109,22 +194,14 @@ def make_images(data: Data, image_size: Tuple[int, int], bins: ArrayLike) -> da.
         # Find the index of the image to which each event belongs.
         image_indices = da.digitize(data[event_time_key], bins) - 1
 
-        (images_in_block,) = da.compute(map(np.unique, image_indices.blocks))
-
         # Construct a stack of images using dask.array.bincount.
         images = []
         for i in range(num_images):
-            # When searching for events with a given image index, we already know we
-            # can exclude some blocks and thereby save some computation time.
-            contains_index = [i in indices for indices in images_in_block]
-
-            image_events = event_locations.blocks[contains_index][
-                image_indices.blocks[contains_index] == i
-            ]
-            images.append(da.bincount(image_events, minlength=mul(*image_size)))
+            image_events = blockwise_selection(event_locations, image_indices == i)
+            images.append(bincount_to_image(image_events, shape=image_size))
 
         images = da.stack(images)
     else:
-        images = da.bincount(event_locations, minlength=mul(*image_size))
+        images = bincount_to_image(event_locations, shape=image_size)[np.newaxis]
 
-    return images.astype(np.uint32).reshape(num_images, *image_size)
+    return images

@@ -2,6 +2,7 @@
 
 import argparse
 import sys
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Iterable, Tuple, Union
 
@@ -11,17 +12,14 @@ import numpy as np
 import pint
 import zarr
 from dask import array as da
-from dask import delayed
 from dask.diagnostics import ProgressBar
 from dask.distributed import Client, progress
-from dask.system import CPU_COUNT
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
 
-from .. import clock_frequency
+from .. import blockwise_selection, clock_frequency
 from ..binning import find_start_end, make_images, valid_events
 from ..data import (
-    aggregate_chunks,
     cue_keys,
     cue_times,
     cues,
@@ -105,7 +103,7 @@ def single_image_cli(args):
     raw_files, _ = data_files(args.data_dir, args.stem)
 
     with latrd_data(raw_files, keys=cue_keys) as data:
-        start, end = find_start_end(data)
+        start, end = find_start_end(data, show_progress=True)
 
     print("Binning events into a single image.")
     with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
@@ -149,27 +147,18 @@ def save_multiple_images(
         output_file:  Path to the output HDF5 file.
         write_mode:  HDF5 file opening mode.  See :class:`h5py.File`.
     """
-    # Set a more generous connection timeout than the default 30s.
-    with dask.config.set(
-        {
-            "distributed.comm.timeouts.connect": "60s",
-            "distributed.comm.timeouts.tcp": "60s",
-            "distributed.deploy.lost-worker-timeout": "60s",
-            "distributed.scheduler.idle-timeout": "600s",
-            "distributed.scheduler.locks.lease-timeout": "60s",
-        }
-    ):
-        intermediate = str(output_file.with_suffix(".zarr"))
+    intermediate = str(output_file.with_suffix(".zarr"))
 
-        # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
-        # return the Array object so we can compute it with a progress bar.
-        method = {"overwrite": True, "compute": False, "return_stored": True}
-        # Prepare to save the calculated images to the intermediate Zarr store.
-        array = array.to_zarr(intermediate, component="data", **method)
-        # Compute the Array and store the values, using a progress bar.
-        progress(array.persist())
+    # Prepare to save the calculated images to the intermediate Zarr store.
+    # Overwrite any pre-existing Zarr arrays.  Don't compute immediately but return
+    # the Delayed object so we can compute it with a progress bar.
+    array = array.to_zarr(intermediate, component="data", overwrite=True, compute=False)
+    # Use threads, rather than processes.
+    with Client(processes=False):
+        # Compute the array and store the values, using a progress bar.
+        print(progress(array.persist()) or "")
 
-    print("\nTransferring the images to the output file.")
+    print("Transferring the images to the output file.")
     store = zarr.DirectoryStore(intermediate)
     with h5py.File(output_file, write_mode) as f:
         zarr.copy_all(zarr.open(store), f, **Bitshuffle())
@@ -179,49 +168,44 @@ def save_multiple_images(
 
 
 def save_multiple_image_sequences(
-    array: da.Array,
+    array: Iterable[da.Array],
     intermediate_store: Union[Path, str],
     output_files: Iterable[Path],
     write_mode: str = "x",
 ) -> None:
     intermediate_store = Path(intermediate_store).with_suffix(".zarr")
+    store = zarr.DirectoryStore(str(intermediate_store))
 
-    # Set a more generous connection timeout than the default 30s.
-    with dask.config.set(
-        {
-            "distributed.comm.timeouts.connect": "60s",
-            "distributed.comm.timeouts.tcp": "60s",
-            "distributed.deploy.lost-worker-timeout": "60s",
-            "distributed.scheduler.idle-timeout": "600s",
-            "distributed.scheduler.locks.lease-timeout": "60s",
-        }
-    ):
-        # Overwrite any pre-existing Zarr storage.  Don't compute immediately but
-        # return the Array object so we can compute it with a progress bar.
-        method = {"overwrite": True, "compute": False, "return_stored": True}
-        # Prepare to save the calculated images to the intermediate Zarr store.
-        array = [
-            sub_array.to_zarr(intermediate_store, component=f"{i:d}/data", **method)
-            for i, sub_array in enumerate(array)
-        ]
+    # Prepare to save the calculated images to the intermediate Zarr store.  Don't
+    # compute immediately but return the Delayed object so we can compute it with a
+    # progress bar.
+    intermediate = [
+        a.to_zarr(store, component=i, overwrite=write_mode == "w", compute=False)
+        for i, a in enumerate(array)
+    ]
+
+    # Use threads, rather than processes.
+    with Client(processes=False):
         # Compute the Array and store the values, using a progress bar.
-        progress([sub_array.persist() for sub_array in array])
-        print()
+        print(progress(dask.persist(intermediate)) or "")
 
     print("Transferring the images to the output files.")
-    store = zarr.DirectoryStore(str(intermediate_store))
-    arrays = zarr.open(store)
-
-    @delayed
-    def sequence_to_disk(i, output_file):
-        with h5py.File(output_file, write_mode) as f:
-            return zarr.copy_all(arrays[i], f, **Bitshuffle())
-
-    transfer = [sequence_to_disk(i, o).persist() for i, o in enumerate(output_files)]
-    progress(transfer)
-    da.compute(transfer)
-
-    print()
+    # Multi-threaded copy from Zarr to HDF5.
+    arrays = [da.from_zarr(array) for array in zarr.open(store).values()]
+    with ExitStack() as stack:
+        files = (stack.enter_context(h5py.File(f, write_mode)) for f in output_files)
+        dsets = [
+            f.require_dataset(
+                "data",
+                shape=arrays[0].shape,
+                dtype=arrays[0].dtype,
+                chunks=arrays[0].chunksize,
+                **Bitshuffle(),
+            )
+            for f in files
+        ]
+        with ProgressBar():
+            da.store(arrays, dsets)
 
     # Delete the Zarr store.
     store.clear()
@@ -249,7 +233,7 @@ def multiple_images_cli(args):
     raw_files, _ = data_files(args.data_dir, args.stem)
 
     with latrd_data(raw_files, keys=cue_keys) as data:
-        start, end = find_start_end(data, distributed=True)
+        start, end = find_start_end(data, show_progress=True)
         exposure_time, exposure_cycles, num_images = exposure(
             start, end, args.exposure_time, args.num_images
         )
@@ -344,34 +328,32 @@ def pump_probe_cli(args):
     trigger_type = triggers.get(args.trigger_type)
 
     print("Finding trigger signal times.")
-    with latrd_data(raw_files, keys=cue_keys) as data:
+    with latrd_data(
+        raw_files, keys=(event_location_key, event_time_key, *cue_keys)
+    ) as data:
         trigger_times = cue_times(data, trigger_type)
-        progress(trigger_times.persist())
-        trigger_times = trigger_times.compute().astype(int)
+        with ProgressBar():
+            trigger_times = trigger_times.astype(int).compute_chunk_sizes()
 
-    print()  # Dask distributed progress bar does not end with a newline, so insert one.
+        if not trigger_times.size:
+            sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
 
-    trigger_times = np.sort(trigger_times)
+        end = da.diff(trigger_times).min().compute()
+        exposure_time, _, num_images = exposure(
+            0, end, args.exposure_time, args.num_images
+        )
+        bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
 
-    if not trigger_times.any():
-        sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
+        print(
+            f"Binning events into {num_images} images with an exposure time of "
+            f"{exposure_time:~.3g} according to the time elapsed since the most recent "
+            f"'{cues[trigger_type]}' signal."
+        )
 
-    end = np.diff(trigger_times).min()
-    exposure_time, _, num_images = exposure(0, end, args.exposure_time, args.num_images)
-    bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
-
-    print(
-        f"Binning events into {num_images} images with an exposure time of "
-        f"{exposure_time:~.3g} according to the time elapsed since the most recent "
-        f"'{cues[trigger_type]}' signal."
-    )
-
-    trigger_times = da.from_array(trigger_times)
-    with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
         # Measure the event time as time elapsed since the most recent trigger signal.
         data[event_time_key] = data[event_time_key].astype(np.int64)
         data[event_time_key] -= trigger_times[
-            da.digitize(data[event_time_key], trigger_times) - 1
+            da.searchsorted(trigger_times, data[event_time_key], "right") - 1
         ]
 
         images = make_images(valid_events(data, 0, end), image_size, bins)
@@ -407,100 +389,95 @@ def multiple_sequences_cli(args):
     trigger_type = triggers.get(args.trigger_type)
 
     print("Finding trigger signal times.")
-    with latrd_data(raw_files, keys=cue_keys) as data:
+
+    with latrd_data(
+        raw_files, keys=(event_location_key, event_time_key, *cue_keys)
+    ) as data:
         trigger_times = cue_times(data, trigger_type)
-        progress(trigger_times.persist())
-        trigger_times = trigger_times.compute().astype(int)
+        with ProgressBar():
+            trigger_times = trigger_times.astype(int).compute_chunk_sizes()
 
-    print()  # Dask distributed progress bar does not end with a newline, so insert one.
+        if not trigger_times.size:
+            sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
 
-    trigger_times = np.sort(trigger_times)
+        intervals_end = da.diff(trigger_times).min().compute()
 
-    if not trigger_times.any():
-        sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
+        interval_time, _, num_intervals = exposure(
+            0, intervals_end, args.interval, args.num_sequences
+        )
+        interval_bins = np.linspace(
+            0, intervals_end, num_intervals + 1, dtype=np.uint64
+        )
 
-    intervals_end = np.diff(trigger_times).min()
-    interval_time, _, num_intervals = exposure(
-        0, intervals_end, args.interval, args.num_sequences
-    )
-    intervals = np.linspace(0, intervals_end, num_intervals + 1, dtype=np.uint64)
+        output_files, out_file_pattern = check_multiple_output_files(
+            num_intervals, args.output_file, args.stem, "images", args.force
+        )
 
-    output_files, out_file_pattern = check_multiple_output_files(
-        num_intervals, args.output_file, args.stem, "images", args.force
-    )
+        start, end = find_start_end(data, show_progress=True)
 
-    with latrd_data(raw_files, keys=cue_keys) as data:
-        start, end = find_start_end(data, distributed=True)
+        exposure_time, exposure_cycles, num_images = exposure(
+            start, end, args.exposure_time, args.num_images
+        )
+        bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
 
-    exposure_time, exposure_cycles, num_images = exposure(
-        start, end, args.exposure_time, args.num_images
-    )
-    bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
+        print(
+            f"Using '{cues[trigger_type]}' as the pump signal,\n"
+            f"binning events into {num_intervals} sequences, corresponding to "
+            f"successive pump-probe delay intervals of {interval_time:~.3g}.\n"
+            f"Each sequence consists of {num_images} images with an effective exposure "
+            f"time of {exposure_time / num_intervals:~.3g}."
+        )
 
-    print(
-        f"Using '{cues[trigger_type]}' as the pump signal,\n"
-        f"binning events into {num_intervals} sequences, corresponding to "
-        f"successive pump-probe delay intervals of {interval_time:~.3g}.\n"
-        f"Each sequence consists of {num_images} images with an exposure time of "
-        f"{exposure_time:~.3g}."
-    )
+        out_file_stem = out_file_pattern.stem
 
-    out_file_stem = out_file_pattern.stem
+        n_dig = len(str(num_intervals))
+        out_file_pattern = out_file_pattern.parent / f"{out_file_stem}_{'#' * n_dig}.h5"
 
-    n_dig = len(str(num_images))
-    out_file_pattern = out_file_pattern.parent / f"{out_file_stem}_{'#' * n_dig}.h5"
+        if input_nexus.exists():
+            # Write output NeXus files if we have an input NeXus file.
+            output_nexus_pattern = out_file_pattern.with_suffix(".nxs")
+            for output_file in output_files:
+                try:
+                    CopyTristanNexus.multiple_images_nexus(
+                        output_file,
+                        input_nexus,
+                        nbins=num_images,
+                        write_mode=write_mode,
+                    )
+                except FileExistsError:
+                    sys.exit(
+                        f"One or more output files already exist, "
+                        f"matching the pattern:\n\t"
+                        f"{output_nexus_pattern}\n"
+                        "Use '-f' to override, "
+                        "or specify a different output file path with '-o'."
+                    )
+        else:
+            output_nexus_pattern = None
 
-    if input_nexus.exists():
-        # Write output NeXus files if we have an input NeXus file.
-        output_nexus_pattern = out_file_pattern.with_suffix(".nxs")
-        for output_file in output_files:
-            try:
-                CopyTristanNexus.multiple_images_nexus(
-                    output_file,
-                    input_nexus,
-                    nbins=num_images,
-                    write_mode=write_mode,
-                )
-            except FileExistsError:
-                sys.exit(
-                    f"One or more output files already exist, matching the pattern:\n\t"
-                    f"{output_nexus_pattern}\n"
-                    "Use '-f' to override, "
-                    "or specify a different output file path with '-o'."
-                )
-    else:
-        output_nexus_pattern = None
-
-    trigger_times = da.from_array(trigger_times)
-    with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
         data = valid_events(data, start, end)
 
         # Find the time elapsed since the most recent trigger signal.
         pump_probe_time = data[event_time_key].astype(np.int64)
         pump_probe_time -= trigger_times[
-            da.digitize(pump_probe_time, trigger_times) - 1
+            da.searchsorted(trigger_times, pump_probe_time, "right") - 1
         ]
-        sequence = da.digitize(pump_probe_time, intervals) - 1
+        sequence = da.digitize(pump_probe_time, interval_bins) - 1
 
         image_sequence_stack = []
         for i in range(num_intervals):
-            interval_selection = sequence == i
-
-            event_times = data[event_time_key][interval_selection]
-            event_locs = data[event_location_key][interval_selection]
-            interval = {
-                event_time_key: event_times.compute_chunk_sizes(),
-                event_location_key: event_locs.compute_chunk_sizes(),
+            interval = sequence == i
+            interval_data = {
+                event_time_key: blockwise_selection(data[event_time_key], interval),
+                event_location_key: blockwise_selection(
+                    data[event_location_key], interval
+                ),
             }
 
-            size = max(data[event_time_key].itemsize, data[event_location_key].itemsize)
-            chunks = aggregate_chunks(*interval[event_time_key].chunks, size)
-            interval[event_time_key] = interval[event_time_key].rechunk(chunks)
-
-            image_sequence_stack.append(make_images(interval, image_size, bins))
+            image_sequence_stack.append(make_images(interval_data, image_size, bins))
 
         save_multiple_image_sequences(
-            da.stack(image_sequence_stack), out_file_stem, output_files, write_mode
+            image_sequence_stack, out_file_stem, output_files, write_mode
         )
 
     print(f"Images written to\n\t{output_nexus_pattern or out_file_pattern}")
@@ -584,10 +561,16 @@ parser_multiple_sequences.set_defaults(func=multiple_sequences_cli)
 def main(args=None):
     """Perform the image binning with a user-specified sub-command."""
     args = parser.parse_args(args)
-    if args.func == single_image_cli:
-        #  Use the default scheduler.
+    # Set more generous Dask timeouts, to better accommodate network file systems.
+    with dask.config.set(
+        {
+            "distributed.comm.retry.delay.max": "60s",
+            "distributed.comm.timeouts.connect": "300s",
+            "distributed.comm.timeouts.tcp": "60s",
+            "distributed.deploy.lost-worker-timeout": "60s",
+            "distributed.scheduler.idle-timeout": "600s",
+            "distributed.scheduler.locks.lease-timeout": "60s",
+            "distributed.worker.memory.recent-to-old-time": "60s",
+        }
+    ):
         args.func(args)
-    else:  # Multi-image binning requires the Dask distributed scheduler.
-        # Use threads, rather than processes.
-        with Client(processes=False, threads_per_worker=int(0.9 * CPU_COUNT) or 1):
-            args.func(args)
