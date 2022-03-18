@@ -60,7 +60,7 @@ Found {deduplicated.size} de-duplicated instances with
             n = cue_times_sel.size
             print(
                 f"\n{cue_description}:  Found {n} instances,\n"
-                f"\tall with the same timestamp."
+                f"\tall with the same time stamp."
             )
         else:
             print(f"\n{cue_description}:  Found 1 instance.")
