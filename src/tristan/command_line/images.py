@@ -561,16 +561,4 @@ parser_multiple_sequences.set_defaults(func=multiple_sequences_cli)
 def main(args=None):
     """Perform the image binning with a user-specified sub-command."""
     args = parser.parse_args(args)
-    # Set more generous Dask timeouts, to better accommodate network file systems.
-    with dask.config.set(
-        {
-            "distributed.comm.retry.delay.max": "60s",
-            "distributed.comm.timeouts.connect": "300s",
-            "distributed.comm.timeouts.tcp": "60s",
-            "distributed.deploy.lost-worker-timeout": "60s",
-            "distributed.scheduler.idle-timeout": "600s",
-            "distributed.scheduler.locks.lease-timeout": "60s",
-            "distributed.worker.memory.recent-to-old-time": "60s",
-        }
-    ):
-        args.func(args)
+    args.func(args)
