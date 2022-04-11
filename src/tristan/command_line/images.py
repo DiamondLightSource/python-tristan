@@ -308,7 +308,7 @@ def pump_probe_cli(args):
     if input_nexus.exists():
         try:
             # Write output NeXus file if we have an input NeXus file.
-            output_nexus = CopyTristanNexus.pump_probe_nexus(
+            output_nexus = CopyTristanNexus.single_image_nexus(
                 output_file, input_nexus, write_mode=write_mode
             )
         except FileExistsError:

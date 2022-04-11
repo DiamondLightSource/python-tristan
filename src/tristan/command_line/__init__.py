@@ -34,6 +34,8 @@ from ..data import (
     fem_rising,
     lvds_falling,
     lvds_rising,
+    sync_falling,
+    sync_rising,
     ttl_falling,
     ttl_rising,
 )
@@ -51,6 +53,8 @@ triggers = {
     "LVDS-falling": lvds_falling,
     "FEM-rising": fem_rising,
     "FEM-falling": fem_falling,
+    "SYNC-rising": sync_rising,
+    "SYNC-falling": sync_falling,
 }
 
 
