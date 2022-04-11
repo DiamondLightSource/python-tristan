@@ -1,5 +1,3 @@
-# coding: utf-8
-
 """
 Utilities for processing data from the Large Area Time-Resolved Detector
 
@@ -7,6 +5,8 @@ This module provides tools to interpret NeXus-like data in HDF5 format from the
 experimental Timepix-based event-mode detector, codenamed Tristan, at Diamond Light
 Source.
 """
+
+from __future__ import annotations
 
 __author__ = "Diamond Light Source - Scientific Software"
 __email__ = "scientificsoftware@diamond.ac.uk"
@@ -23,7 +23,7 @@ clock_frequency = ureg.Quantity(6.4e8, "Hz").to_compact()
 
 def blockwise_selection(array: da.Array, selection: da.Array) -> da.Array:
     """
-    Select from an array in a block-wise fashion, without computing chunks sizes.
+    Select from an array in a blockwise fashion, without computing chunk sizes.
 
     Slicing a dask.Array with an array of bools or indices returns an array with
     unknown chunk sizes, which causes problems for downstream Dask operations.  If

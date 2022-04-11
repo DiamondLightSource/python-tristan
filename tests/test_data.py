@@ -1,13 +1,15 @@
 """Tests of utilities for handling LATRD Tristan data."""
+from __future__ import annotations
+
+from dataclasses import fields
+
 import numpy as np
 import pint
 import pytest
 from dask import array as da
 
 from tristan.data import (
-    cue_id_key,
     cue_keys,
-    cue_time_key,
     cue_times,
     event_keys,
     first_cue_time,
@@ -28,18 +30,18 @@ def test_latrd_data_default_keys(dummy_data):
     values.
     """
     with latrd_data(sorted(dummy_data.iterdir())) as data:
-        assert set(data.keys()) == set(cue_keys + event_keys)
+        assert {field.name for field in fields(data)} == set(cue_keys + event_keys)
         # By using the same seed as when generating the test data,
         # we should be able to reproduce them.
         np.random.seed(0)
         for key in cue_keys + event_keys:
-            da.assert_eq(data[key][:10], np.random.randint(10, size=10))
+            da.assert_eq(getattr(data, key)[:10], np.random.randint(10, size=10))
 
 
 def test_latrd_data_specified_keys(dummy_data):
     """Test that the latrd_data context manager reads only the specified keys."""
     with latrd_data(sorted(dummy_data.iterdir()), cue_keys) as data:
-        assert set(data.keys()) == set(cue_keys)
+        assert {field.name for field in fields(data)} == set(cue_keys)
 
 
 def test_first_cue_time(dummy_data):
@@ -53,11 +55,11 @@ def test_first_cue_time(dummy_data):
         # distinguish these cases.
         # First, check that the timestamp is found correctly even if the first
         # instance of the desired cue message is the very first cue in the data.
-        first_cue_message = data[cue_id_key][0]
+        first_cue_message = data.cue_id_key[0]
         assert first_cue_time(data, first_cue_message).compute() == 7
         # Next, check that searching for a cue message that does not appear in the data
         # results in no returned timestamp.
-        assert random_range not in data[cue_id_key]
+        assert random_range not in data.cue_id
         assert first_cue_time(data, random_range) is None
 
 
@@ -67,8 +69,8 @@ def test_cue_times(dummy_data):
         # The cue_id '3' appears four times in the test data,
         # with one duplicate timestamp.
         message = 3
-        index = da.flatnonzero(data[cue_id_key] == message).compute()
-        assert np.all(data[cue_time_key][index] == (8, 8, 7, 9))
+        index = da.flatnonzero(data.cue_id == message).compute()
+        assert np.all(data.cue_timestamp_zero[index] == (8, 8, 7, 9))
         # Check that cue_times finds and de-duplicates these timestamps.
         assert np.all(cue_times(data, message).compute() == (7, 8, 9))
 

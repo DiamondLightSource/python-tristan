@@ -1,10 +1,13 @@
 """Aggregate the events from a LATRD Tristan data collection into one or more images."""
 
+from __future__ import annotations
+
 import argparse
 import sys
 from contextlib import ExitStack
+from functools import partial
 from pathlib import Path
-from typing import Iterable, Tuple, Union
+from typing import Iterable
 
 import dask
 import h5py
@@ -20,6 +23,7 @@ from nexgen.nxs_copy import CopyTristanNexus
 from .. import blockwise_selection, clock_frequency
 from ..binning import find_start_end, make_images, valid_events
 from ..data import (
+    LatrdData,
     cue_keys,
     cue_times,
     cues,
@@ -43,7 +47,7 @@ from . import (
 )
 
 
-def determine_image_size(nexus_file: Path) -> Tuple[int, int]:
+def determine_image_size(nexus_file: Path) -> tuple[int, int]:
     """Find the image size from metadata."""
     recommend = f"Please specify the detector dimensions in (x, y) with '--image-size'."
     try:
@@ -169,7 +173,7 @@ def save_multiple_images(
 
 def save_multiple_image_sequences(
     array: Iterable[da.Array],
-    intermediate_store: Union[Path, str],
+    intermediate_store: Path | str,
     output_files: Iterable[Path],
     write_mode: str = "x",
 ) -> None:
@@ -351,9 +355,9 @@ def pump_probe_cli(args):
         )
 
         # Measure the event time as time elapsed since the most recent trigger signal.
-        data[event_time_key] = data[event_time_key].astype(np.int64)
-        data[event_time_key] -= trigger_times[
-            da.searchsorted(trigger_times, data[event_time_key], "right") - 1
+        data.event_time_offset = data.event_time_offset.astype(np.int64)
+        data.event_time_offset -= trigger_times[
+            da.searchsorted(trigger_times, data.event_time_offset, "right") - 1
         ]
 
         images = make_images(valid_events(data, 0, end), image_size, bins)
@@ -458,7 +462,7 @@ def multiple_sequences_cli(args):
         data = valid_events(data, start, end)
 
         # Find the time elapsed since the most recent trigger signal.
-        pump_probe_time = data[event_time_key].astype(np.int64)
+        pump_probe_time = data.event_time_offset.astype(np.int64)
         pump_probe_time -= trigger_times[
             da.searchsorted(trigger_times, pump_probe_time, "right") - 1
         ]
@@ -466,13 +470,10 @@ def multiple_sequences_cli(args):
 
         image_sequence_stack = []
         for i in range(num_intervals):
-            interval = sequence == i
-            interval_data = {
-                event_time_key: blockwise_selection(data[event_time_key], interval),
-                event_location_key: blockwise_selection(
-                    data[event_location_key], interval
-                ),
-            }
+            select = partial(blockwise_selection, selection=sequence == i)
+            interval_data = LatrdData()
+            interval_data.event_time_offset = select(data.event_time_offset)
+            interval_data.event_id = select(data.event_id)
 
             image_sequence_stack.append(make_images(interval_data, image_size, bins))
 

@@ -1,8 +1,9 @@
 """Tools for binning events to images."""
+from __future__ import annotations
+
 from functools import partial
 from itertools import zip_longest
 from operator import mul
-from typing import Dict, Optional, Tuple
 
 import dask
 import numpy as np
@@ -16,29 +17,17 @@ from dask.distributed import progress
 from numpy.typing import ArrayLike
 
 from . import blockwise_selection
-from .data import (
-    cue_id_key,
-    cue_time_key,
-    event_keys,
-    event_location_key,
-    event_time_key,
-    pixel_index,
-    shutter_close,
-    shutter_open,
-)
-
-Data = Dict[str, da.Array]
+from .data import LatrdData, event_keys, pixel_index, shutter_close, shutter_open
 
 
-def find_start_end(data: Data, show_progress: bool = False) -> Tuple[int, int]:
+def find_start_end(data: LatrdData, show_progress: bool = False) -> tuple[int, int]:
     """
     Find the shutter open and shutter close timestamps.
 
     Args:
-        data:           A LATRD data dictionary (a dictionary with data set names as
-                        keys and Dask arrays as values).  Must contain one entry for
-                        cue id messages and one for cue timestamps.  The two arrays
-                        are assumed to have the same length.
+        data:           LATRD data.  Must contain one 'cue_id' field and one
+                        'cue_timestamp_zero' field.  The two arrays are assumed to have
+                        the same length.
         show_progress:  Whether to show a progress bar.
 
     Returns:
@@ -47,8 +36,8 @@ def find_start_end(data: Data, show_progress: bool = False) -> Tuple[int, int]:
     if show_progress:
         print("Finding detector shutter open and close times.")
 
-    start_index = da.argmax(data[cue_id_key] == shutter_open)
-    end_index = da.argmax(data[cue_id_key] == shutter_close)
+    start_index = da.argmax(data.cue_id == shutter_open)
+    end_index = da.argmax(data.cue_id == shutter_close)
 
     # If we are using the distributed scheduler (for multiple images), show progress.
     if show_progress:
@@ -59,40 +48,40 @@ def find_start_end(data: Data, show_progress: bool = False) -> Tuple[int, int]:
             with ProgressBar():
                 start_index, end_index = da.compute(start_index, end_index)
 
-    start_end = data[cue_time_key][[start_index, end_index]]
+    start_end = data.cue_timestamp_zero[[start_index, end_index]]
 
     return tuple(start_end.compute())
 
 
-def valid_events(data: Data, start: int, end: int) -> Data:
+def valid_events(data: LatrdData, start: int, end: int) -> LatrdData:
     """
     Return those events that have a timestamp in the specified range.
 
     Args:
-        data:   An LATRD data dictionary, containing an 'event_time_offset' item
-                and optional 'event_id' and 'event_energy' items.
+        data:   LATRD data, containing an 'event_time_offset' field and optional
+                'event_id' and 'event_energy' fields.
         start:  The start time of the accepted range, in clock cycles.
         end:    The end time of the accepted range, in clock cycles.
 
     Returns:
         A dictionary containing only the valid events.
     """
-    valid = (start <= data[event_time_key]) & (data[event_time_key] < end)
+    valid = (start <= data.event_time_offset) & (data.event_time_offset < end)
 
     for key in event_keys:
-        value = data.get(key)
+        value = data.getattr(key)
         if value is not None:
-            value = value.rechunk(data[event_time_key].chunks)
-            data[key] = blockwise_selection(value, valid)
+            value = value.rechunk(data.event_time_offset.chunks)
+            setattr(data, key, blockwise_selection(value, valid))
 
     return data
 
 
 def _bincount_block_to_image(
     x: ArrayLike,
-    weights: Optional[ArrayLike] = None,
-    shape: Optional[Tuple[int, int]] = None,
-    dtype: Optional[type] = None,
+    weights: ArrayLike | None = None,
+    shape: tuple[int, int] | None = None,
+    dtype: type | None = None,
 ):
     minlength = mul(*shape)
     binned = np.bincount(x, weights=weights, minlength=minlength)
@@ -108,9 +97,9 @@ def _bincount_to_image_agg(bincounts: da.Array, **kwargs):
 
 def bincount_to_image(
     x: da.Array,
-    shape: Tuple[int, int],
-    weights: Optional[da.Array] = None,
-    split_every: Optional[int] = None,
+    shape: tuple[int, int],
+    weights: da.Array | None = None,
+    split_every: int | None = None,
 ):
     if x.ndim != 1:
         raise ValueError("Input array must be one dimensional. Try using x.ravel()")
@@ -140,7 +129,7 @@ def bincount_to_image(
         new_axes={"j": shape[1]},
         dtype=meta.dtype,
         token=token,
-        meta=meta
+        meta=meta,
     )
     chunked_counts._chunks = ((shape[0],) * len(chunked_counts.chunks[0]), (shape[1],))
 
@@ -158,7 +147,9 @@ def bincount_to_image(
     return output
 
 
-def make_images(data: Data, image_size: Tuple[int, int], bins: ArrayLike) -> da.Array:
+def make_images(
+    data: LatrdData, image_size: tuple[int, int], bins: ArrayLike
+) -> da.Array:
     """
     Bin LATRD events data into images of event counts.
 
@@ -167,10 +158,9 @@ def make_images(data: Data, image_size: Tuple[int, int], bins: ArrayLike) -> da.
     of events recorded at each pixel.
 
     Args:
-        data:        A LATRD data dictionary (a dictionary with data set names as keys
-                     and Dask arrays as values).  Must contain one entry for event
-                     location messages and one for event timestamps.  The two arrays are
-                     assumed to have the same length.
+        data:        LATRD data.  Must have one 'event_id' field and one
+                     'event_time_offset' field.  The two arrays are assumed to have
+                     the same length.
         image_size:  The (y, x), i.e. (slow, fast) dimensions (number of pixels) of
                      the image.
         bins:        The time bin edges of the images (in clock cycles, to match the
@@ -182,7 +172,7 @@ def make_images(data: Data, image_size: Tuple[int, int], bins: ArrayLike) -> da.
     """
     # We need to ensure that the chunk layout of the event location array matches
     # that of the event time array, so that we can perform matching blockwise iterations
-    event_locations = data[event_location_key].rechunk(data[event_time_key].chunks)
+    event_locations = data.event_id.rechunk(data.event_time_offset.chunks)
     event_locations = pixel_index(event_locations, image_size)
 
     num_images = len(bins) - 1
@@ -192,7 +182,7 @@ def make_images(data: Data, image_size: Tuple[int, int], bins: ArrayLike) -> da.
         # would require allocating enough memory for the entire image stack.
 
         # Find the index of the image to which each event belongs.
-        image_indices = da.digitize(data[event_time_key], bins) - 1
+        image_indices = da.digitize(data.event_time_offset, bins) - 1
 
         # Construct a stack of images using dask.array.bincount.
         images = []

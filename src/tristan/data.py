@@ -1,9 +1,13 @@
 """Tools for extracting data on cues and events from Tristan data files."""
 
+from __future__ import annotations
+
 import re
 from contextlib import ExitStack, contextmanager
+from dataclasses import field, make_dataclass
+from itertools import zip_longest
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Tuple, Union
+from typing import Iterable, Optional
 
 import h5py
 import numpy as np
@@ -13,9 +17,6 @@ from numpy.typing import ArrayLike
 from pint import Quantity
 
 from . import clock_frequency
-
-# Type alias for collections of raw file paths.
-RawFiles = Iterable[Union[str, Path]]
 
 # Regex for the names of data sets, in the time slice metadata file, representing the
 # distribution of time slices across raw data files for each module.
@@ -79,6 +80,12 @@ event_keys = event_location_key, event_time_key, event_energy_key
 nx_size_key = "entry/instrument/detector/module/data_size"
 
 
+LatrdData = make_dataclass(
+    "LatrdData",
+    zip_longest(cue_keys + event_keys, (Optional[da.Array],), (field(default=None),)),
+)
+
+
 def aggregate_chunks(array: da.Array) -> da.Array:
     """
     Concatenate adjacent small chunks in a one-dimensional Dask array.
@@ -114,8 +121,8 @@ def aggregate_chunks(array: da.Array) -> da.Array:
 
 @contextmanager
 def latrd_data(
-    raw_file_paths: RawFiles, keys: Iterable[str] = cue_keys + event_keys
-) -> Dict[str, da.Array]:
+    raw_file_paths: Iterable[str | Path], keys: Iterable[str] = cue_keys + event_keys
+) -> LatrdData:
     """
     A context manager to read LATRD data sets from multiple files.
 
@@ -130,39 +137,41 @@ def latrd_data(
         keys:  The set of LATRD data keys to be read.
 
     Yields:
-        A dictionary of LATRD data keys and arrays of the corresponding data.
+        A LATRD dataclass.
     """
     with ExitStack() as stack:
         files = [
             stack.enter_context(h5py.File(path, swmr=True)) for path in raw_file_paths
         ]
 
-        data = {k: da.concatenate([da.from_array(f[k]) for f in files]) for k in keys}
+        data = {
+            k: aggregate_chunks(da.concatenate([da.from_array(f[k]) for f in files]))
+            for k in keys
+        }
 
-        yield {key: aggregate_chunks(data_set) for key, data_set in data.items()}
+        yield LatrdData(**data)
 
 
-def first_cue_time(data: Dict[str, da.Array], message: int) -> Optional[da.Array]:
+def first_cue_time(data: LatrdData, message: int) -> da.Array | None:
     """
     Find the timestamp of the first instance of a cue message in a Tristan data set.
 
     Args:
-        data:     A LATRD data dictionary (a dictionary with data set names as keys
-                  and Dask arrays as values).  Must contain one entry for cue id
-                  messages and one for cue timestamps.  The two arrays are assumed
-                  to have the same length.
+        data:     LATRD data.  Must contain one 'cue_id'field and one
+                  'cue_timestamp_zero' field.  The two arrays are assumed to have the
+                  same length.
         message:  The message code, as defined in the Tristan standard.
 
     Returns:
         The timestamp, measured in clock cycles from the global synchronisation signal.
         If the message doesn't exist in the data set, this returns None.
     """
-    index = da.argmax(data[cue_id_key] == message).compute()
-    if index or data[cue_id_key][0] == message:
-        return data[cue_time_key][index]
+    index = da.argmax(data.cue_id == message).compute()
+    if index or data.cue_id[0] == message:
+        return data.cue_timestamp_zero[index]
 
 
-def cue_times(data: Dict[str, da.Array], message: int) -> da.Array:
+def cue_times(data: LatrdData, message: int) -> da.Array:
     """
     Find the timestamps of all instances of a cue message in a Tristan data set.
 
@@ -179,8 +188,8 @@ def cue_times(data: Dict[str, da.Array], message: int) -> da.Array:
         The timestamps, measured in clock cycles from the global synchronisation
         signal, de-duplicated.
     """
-    index = data[cue_id_key] == message
-    return da.unique(data[cue_time_key][index])
+    index = data.cue_id == message
+    return da.unique(data.cue_timestamp_zero[index])
 
 
 def seconds(timestamp: int, reference: int = 0) -> Quantity:
@@ -202,7 +211,7 @@ def seconds(timestamp: int, reference: int = 0) -> Quantity:
     return ((timestamp - reference) / clock_frequency).to_base_units().to_compact()
 
 
-def pixel_index(location: ArrayLike, image_size: Tuple[int, int]) -> ArrayLike:
+def pixel_index(location: ArrayLike, image_size: tuple[int, int]) -> ArrayLike:
     """
     Extract pixel coordinate information from an event location (event_id) message.
 
