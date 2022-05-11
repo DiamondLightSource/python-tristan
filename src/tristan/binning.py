@@ -1,17 +1,10 @@
 """Tools for binning events to images."""
 from __future__ import annotations
 
-from functools import partial
-from itertools import zip_longest
 from operator import mul
 
-import dask
 import numpy as np
 from dask import array as da
-from dask.array.reductions import _tree_reduce
-from dask.array.routines import array_safe
-from dask.array.utils import meta_from_array
-from dask.base import tokenize
 from dask.diagnostics import ProgressBar
 from dask.distributed import progress
 from numpy.typing import ArrayLike
@@ -77,76 +70,6 @@ def valid_events(data: LatrdData, start: int, end: int) -> LatrdData:
     return data
 
 
-def _bincount_block_to_image(
-    x: ArrayLike,
-    weights: ArrayLike | None = None,
-    shape: tuple[int, int] | None = None,
-    dtype: type | None = None,
-):
-    minlength = mul(*shape)
-    binned = np.bincount(x, weights=weights, minlength=minlength)
-    return binned[:minlength].reshape(shape).astype(dtype)
-
-
-def _bincount_to_image_agg(bincounts: da.Array, **kwargs):
-    if not isinstance(bincounts, list):
-        return bincounts
-
-    return np.sum(bincounts, axis=0)
-
-
-def bincount_to_image(
-    x: da.Array,
-    shape: tuple[int, int],
-    weights: da.Array | None = None,
-    split_every: int | None = None,
-):
-    if x.ndim != 1:
-        raise ValueError("Input array must be one dimensional. Try using x.ravel()")
-    if weights is not None:
-        if weights.chunks != x.chunks:
-            raise ValueError("Chunks of input array x and weights must match.")
-
-    split_every = split_every or dask.config.get("split_every", 4)
-    grouped_chunks = zip_longest(*[iter(x.chunks[0])] * split_every)
-    grouped_chunks = map(partial(filter, lambda a: a is not None), grouped_chunks)
-    grouped_chunks = tuple(map(sum, grouped_chunks))
-    x.rechunk(grouped_chunks)
-
-    token = tokenize(x, weights, shape)
-    args = [x, "i"]
-    if weights is not None:
-        meta = array_safe(np.bincount([1], weights=[1]), like=meta_from_array(x))
-        meta = meta.astype(np.float32)
-        args.extend([weights, "i"])
-    else:
-        meta = array_safe(np.bincount([]), like=meta_from_array(x)).astype(np.uint32)
-
-    chunked_counts = da.blockwise(
-        partial(_bincount_block_to_image, shape=shape, dtype=meta.dtype),
-        "ij",
-        *args,
-        new_axes={"j": shape[1]},
-        dtype=meta.dtype,
-        token=token,
-        meta=meta,
-    )
-    chunked_counts._chunks = ((shape[0],) * len(chunked_counts.chunks[0]), (shape[1],))
-
-    output = _tree_reduce(
-        chunked_counts,
-        aggregate=_bincount_to_image_agg,
-        axis=(0,),
-        keepdims=True,
-        dtype=meta.dtype,
-        split_every=split_every,
-        concatenate=False,
-    )
-    output._chunks = ((shape[0],), (shape[1],))
-    output._meta = meta
-    return output
-
-
 def make_images(
     data: LatrdData, image_size: tuple[int, int], bins: ArrayLike
 ) -> da.Array:
@@ -188,10 +111,10 @@ def make_images(
         images = []
         for i in range(num_images):
             image_events = blockwise_selection(event_locations, image_indices == i)
-            images.append(bincount_to_image(image_events, shape=image_size))
+            images.append(da.bincount(image_events, minlength=mul(*image_size)))
 
         images = da.stack(images)
     else:
-        images = bincount_to_image(event_locations, shape=image_size)[np.newaxis]
+        images = da.bincount(event_locations, minlength=mul(*image_size))
 
-    return images
+    return images.astype(np.uint32).reshape(num_images, *image_size)
