@@ -62,7 +62,7 @@ def valid_events(data: LatrdData, start: int, end: int) -> LatrdData:
     valid = (start <= data.event_time_offset) & (data.event_time_offset < end)
 
     for key in event_keys:
-        value = data.getattr(key)
+        value = getattr(data, key)
         if value is not None:
             value = value.rechunk(data.event_time_offset.chunks)
             setattr(data, key, blockwise_selection(value, valid))
