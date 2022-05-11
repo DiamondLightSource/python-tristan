@@ -6,7 +6,6 @@ from operator import mul
 import numpy as np
 from dask import array as da
 from dask.diagnostics import ProgressBar
-from dask.distributed import progress
 from numpy.typing import ArrayLike
 
 from . import blockwise_selection
@@ -32,14 +31,12 @@ def find_start_end(data: LatrdData, show_progress: bool = False) -> tuple[int, i
     start_index = da.argmax(data.cue_id == shutter_open)
     end_index = da.argmax(data.cue_id == shutter_close)
 
-    # If we are using the distributed scheduler (for multiple images), show progress.
+    # Optionally, show progress.
     if show_progress:
-        try:
-            print(progress(start_index.persist(), end_index.persist()) or "")
+        with ProgressBar():
             start_index, end_index = da.compute(start_index, end_index)
-        except ValueError:  # No client found when using the default scheduler.
-            with ProgressBar():
-                start_index, end_index = da.compute(start_index, end_index)
+    else:
+        start_index, end_index = da.compute(start_index, end_index)
 
     start_end = data.cue_timestamp_zero[[start_index, end_index]]
 
