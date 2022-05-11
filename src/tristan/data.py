@@ -24,7 +24,7 @@ ts_key_regex = re.compile(r"ts_qty_module\d{2}")
 
 # Translations of the basic cue_id messages.
 padding = np.uint16(0)
-sync = np.uint16(0x800)
+extended_timestamp = np.uint16(0x800)
 shutter_open = np.uint16(0x840)
 shutter_close = np.uint16(0x880)
 fem_falling = np.uint16(0x8C1)
@@ -40,7 +40,7 @@ sync_rising = np.uint16(0x8EC)
 reserved = np.uint16(0xF00)
 cues = {
     padding: "Padding",
-    sync: "Extended time stamp, global synchronisation",
+    extended_timestamp: "Extended time stamp, global synchronisation",
     shutter_open: "Shutter open time stamp, global",
     shutter_close: "Shutter close time stamp, global",
     fem_falling: "FEM trigger, falling edge",
@@ -59,7 +59,7 @@ cues = {
     **{
         basic + n: f"{name} time stamp, sensor module {n}"
         for basic, name in (
-            (sync, "Extended"),
+            (extended_timestamp, "Extended"),
             (shutter_open, "Shutter open"),
             (shutter_close, "Shutter close"),
         )
