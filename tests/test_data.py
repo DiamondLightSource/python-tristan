@@ -1,7 +1,7 @@
 """Tests of utilities for handling LATRD Tristan data."""
 from __future__ import annotations
 
-from dataclasses import fields
+from dataclasses import asdict, fields
 
 import numpy as np
 import pint
@@ -41,7 +41,9 @@ def test_latrd_data_default_keys(dummy_data):
 def test_latrd_data_specified_keys(dummy_data):
     """Test that the latrd_data context manager reads only the specified keys."""
     with latrd_data(sorted(dummy_data.iterdir()), cue_keys) as data:
-        assert {field.name for field in fields(data)} == set(cue_keys)
+        data = asdict(data)
+        assert {k for k, v in data.items() if v is not None} == set(cue_keys)
+        assert {k for k, v in data.items() if v is None} == set(event_keys)
 
 
 def test_first_cue_time(dummy_data):
@@ -55,7 +57,7 @@ def test_first_cue_time(dummy_data):
         # distinguish these cases.
         # First, check that the timestamp is found correctly even if the first
         # instance of the desired cue message is the very first cue in the data.
-        first_cue_message = data.cue_id_key[0]
+        first_cue_message = data.cue_id[0]
         assert first_cue_time(data, first_cue_message).compute() == 7
         # Next, check that searching for a cue message that does not appear in the data
         # results in no returned timestamp.
