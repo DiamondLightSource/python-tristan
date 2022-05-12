@@ -263,7 +263,7 @@ def multiple_images_cli(args):
 
     print(
         f"Binning events into {num_images} images with an exposure time of "
-        f"{exposure_time:~.3g}."
+        f"{exposure_time:.3g~#P}."
     )
 
     with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
@@ -350,8 +350,8 @@ def pump_probe_cli(args):
 
         print(
             f"Binning events into {num_images} images with an exposure time of "
-            f"{exposure_time:~.3g} according to the time elapsed since the most recent "
-            f"'{cues[trigger_type]}' signal."
+            f"{exposure_time:.3g~#P} according to the time elapsed since the most "
+            f"recent '{cues[trigger_type]}' signal."
         )
 
         # Measure the event time as time elapsed since the most recent trigger signal.
@@ -427,9 +427,9 @@ def multiple_sequences_cli(args):
         print(
             f"Using '{cues[trigger_type]}' as the pump signal,\n"
             f"binning events into {num_intervals} sequences, corresponding to "
-            f"successive pump-probe delay intervals of {interval_time:~.3g}.\n"
+            f"successive pump-probe delay intervals of {interval_time:.3g~#P}.\n"
             f"Each sequence consists of {num_images} images with an effective exposure "
-            f"time of {exposure_time / num_intervals:~.3g}."
+            f"time of {exposure_time / num_intervals:.3g~#P}."
         )
 
         out_file_stem = out_file_pattern.stem

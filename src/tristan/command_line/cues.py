@@ -46,9 +46,9 @@ def main(args=None):
 {cue_description}:
 Found {cue_times_sel.size} instances.
 Found {deduplicated.size} de-duplicated instances with
-\tsmallest time difference: {min_diff} cycles ({seconds(min_diff):~.3g}),
-\tlargest time difference: {max_diff} cycles ({seconds(max_diff):~.3g}),
-\tmean time difference: {avg_diff:.2f} cycles ({seconds(avg_diff):~.3g})."""
+\tsmallest time difference: {min_diff} cycles ({seconds(min_diff):.3g~#P}),
+\tlargest time difference: {max_diff} cycles ({seconds(max_diff):.3g~#P}),
+\tmean time difference: {avg_diff:.2f} cycles ({seconds(avg_diff):.3g~#P})."""
             )
         elif cue_times_sel.size > 1:
             n = cue_times_sel.size
