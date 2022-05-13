@@ -25,6 +25,7 @@
   },
   "prCreation": "not-pending",
   "prHourlyLimit": 2,
+  "automerge": true,
   "pre-commit": {
     "groupName": "all pre-commit hooks",
     "groupSlug": "all-pre-commit",
