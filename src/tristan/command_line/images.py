@@ -17,6 +17,7 @@ import zarr
 from dask import array as da
 from dask.diagnostics import ProgressBar
 from dask.distributed import Client, progress
+from distributed import wait
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
 
@@ -160,7 +161,7 @@ def save_multiple_images(
     # Use threads, rather than processes.
     with Client(processes=False):
         # Compute the array and store the values, using a progress bar.
-        print(progress(array.persist()) or "")
+        print(wait(progress(array.persist())) or "")
 
     print("Transferring the images to the output file.")
     store = zarr.DirectoryStore(intermediate)
