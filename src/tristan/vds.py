@@ -1,19 +1,21 @@
+from __future__ import annotations
+
 """Tools for creating and manipulating an HDF5 VDS for Tristan data."""
 
 from contextlib import ExitStack
 from itertools import chain, compress, cycle, zip_longest
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Iterable
 
 import h5py
 import numpy as np
 
 from .data import cue_keys, event_keys, ts_key_regex
 
-Sources = Dict[str, Iterable[h5py.VirtualSource]]
-TimeSliceInfo = List[slice], np.ndarray, List[slice], List[slice]
-VirtualSourceInfo = Sources, Sources, List[int], Dict[str, type]
-Layouts = Dict[str, h5py.VirtualLayout]
+Sources = dict[str, Iterable[h5py.VirtualSource]]
+TimeSliceInfo = list[slice], np.ndarray, list[slice], list[slice]
+VirtualSourceInfo = Sources, Sources, list[int], dict[str, type]
+Layouts = dict[str, h5py.VirtualLayout]
 
 
 def time_slice_info(meta_file: h5py.File) -> TimeSliceInfo:
@@ -71,7 +73,7 @@ def time_slice_info(meta_file: h5py.File) -> TimeSliceInfo:
     return time_slices, num_events_per_ts
 
 
-def virtual_sources(files: List[Path], meta_file: h5py.File) -> VirtualSourceInfo:
+def virtual_sources(files: list[Path], meta_file: h5py.File) -> VirtualSourceInfo:
     """
     Create HDF5 virtual sources and collate ancillary information from raw data files.
 
@@ -124,7 +126,7 @@ def virtual_sources(files: List[Path], meta_file: h5py.File) -> VirtualSourceInf
     return event_sources, cue_sources, num_cues_per_file, dtypes
 
 
-def virtual_layouts(num_events: int, num_cues: int, dtypes: Dict[str, type]) -> Layouts:
+def virtual_layouts(num_events: int, num_cues: int, dtypes: dict[str, type]) -> Layouts:
     """Create a dictionary of data set names and corresponding HDF5 virtual layouts."""
     layouts = {}
     for key in event_keys:
@@ -135,9 +137,9 @@ def virtual_layouts(num_events: int, num_cues: int, dtypes: Dict[str, type]) -> 
 
 
 def virtual_data_set(
-    raw_files: List[Path],
+    raw_files: list[Path],
     meta_file: h5py.File,
-    time_slices: List[slice],
+    time_slices: list[slice],
     events_per_ts: Iterable[int],
 ) -> Layouts:
     """

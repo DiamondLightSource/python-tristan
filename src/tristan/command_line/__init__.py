@@ -1,12 +1,14 @@
 """General utilities for the command-line tools."""
 
+from __future__ import annotations
+
 import argparse
 import glob
 import re
 import sys
 from itertools import filterfalse
 from pathlib import Path
-from typing import List, Optional, SupportsFloat, SupportsInt, Tuple, Union
+from typing import SupportsFloat, SupportsInt
 
 import h5py
 import numpy as np
@@ -57,11 +59,11 @@ triggers = {
 
 
 def check_output_file(
-    out_file: Optional[Union[Path, str]] = None,
-    stem: Optional[str] = None,
+    out_file: Path | str | None = None,
+    stem: str | None = None,
     suffix: str = "output",
     force: bool = False,
-) -> Optional[Path]:
+) -> Path | None:
     """
     Find and check the output file path.
 
@@ -96,11 +98,11 @@ def check_output_file(
 
 def check_multiple_output_files(
     quantity: int,
-    out_file: Optional[Union[Path, str]] = None,
-    stem: Optional[str] = None,
+    out_file: Path | str | None = None,
+    stem: str | None = None,
     suffix: str = "output",
     force: bool = False,
-) -> Optional[Tuple[List[Path], Path]]:
+) -> tuple[list[Path], Path] | None:
     """
     Find and check file paths for output of multiple image sequences.
 
@@ -142,7 +144,7 @@ def check_multiple_output_files(
         return out_files, out_file_pattern
 
 
-def data_files(data_dir: Path, stem: str, n_dig: int = 6) -> (List[Path], Path):
+def data_files(data_dir: Path, stem: str, n_dig: int = 6) -> (list[Path], Path):
     """
     Extract information about the files containing raw cues and events data.
 
@@ -185,7 +187,7 @@ version_parser.add_argument(
     "-V",
     "--version",
     action="version",
-    version="%(prog)s:  Tristan tools {version}".format(version=__version__),
+    version=f"%(prog)s:  Tristan tools {__version__}",
 )
 
 
@@ -202,7 +204,7 @@ class _InputFileAction(argparse.Action):
         setattr(namespace, "stem", file_name_stem)
 
     @staticmethod
-    def find_input_file_name(in_file: Union[Path, str]) -> (Path, str):
+    def find_input_file_name(in_file: Path | str) -> (Path, str):
         """
         Resolve the input file name into a directory and a file name stem.
 
@@ -318,7 +320,7 @@ trigger_parser.add_argument(
 )
 
 
-def units_of_time(quantity: Union[Quantity, SupportsFloat, str]) -> Quantity:
+def units_of_time(quantity: Quantity | SupportsFloat | str) -> Quantity:
     """
     Ensure a quantity of time, has compatible units, defaulting to seconds.
 

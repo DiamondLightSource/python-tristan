@@ -2,12 +2,13 @@
 
 """Apply a flat-field correction to reconstructed Tristan images."""
 
+from __future__ import annotations
+
 import argparse
 import pathlib
 import shutil
 import sys
 from operator import mul, truediv
-from typing import List, Optional
 
 import h5py
 import hdf5plugin
@@ -62,7 +63,7 @@ file_exists = (
 )
 
 
-def main(args: Optional[List[str]] = None) -> None:
+def main(args: list[str] | None = None) -> None:
     """
     Apply the flat field data set to an images data set.
 

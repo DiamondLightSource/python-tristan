@@ -1,79 +1,75 @@
 """Tools for binning events to images."""
-
+from __future__ import annotations
 
 from operator import mul
-from typing import Dict, Tuple
 
 import numpy as np
 from dask import array as da
-from dask.distributed import progress
+from dask.diagnostics import ProgressBar
 from numpy.typing import ArrayLike
 
-from .data import (
-    event_keys,
-    event_location_key,
-    event_time_key,
-    first_cue_time,
-    pixel_index,
-    shutter_close,
-    shutter_open,
-)
-
-Data = Dict[str, da.Array]
+from . import blockwise_selection
+from .data import LatrdData, event_keys, pixel_index, shutter_close, shutter_open
 
 
-def find_start_end(data: Data, distributed: bool = False) -> (int, int):
+def find_start_end(data: LatrdData, show_progress: bool = False) -> tuple[int, int]:
     """
     Find the shutter open and shutter close timestamps.
 
     Args:
-        data:  A LATRD data dictionary (a dictionary with data set names as keys
-               and Dask arrays as values).  Must contain one entry for cue id
-               messages and one for cue timestamps.  The two arrays are assumed
-               to have the same length.
-        distributed:  Whether the computation uses the Dask distributed scheduler,
-                      in which case a progress bar will be displayed.
+        data:           LATRD data.  Must contain one 'cue_id' field and one
+                        'cue_timestamp_zero' field.  The two arrays are assumed to have
+                        the same length.
+        show_progress:  Whether to show a progress bar.
 
     Returns:
         The shutter open and shutter close timestamps, in clock cycles.
     """
-    start_time = first_cue_time(data, shutter_open)
-    end_time = first_cue_time(data, shutter_close)
-
-    # If we are using the distributed scheduler (for multiple images), show progress.
-    if distributed:
+    if show_progress:
         print("Finding detector shutter open and close times.")
-        progress(start_time.persist(), end_time.persist())
-    start_time, end_time = da.compute(start_time, end_time)
-    print()
 
-    return start_time, end_time
+    start_index = da.argmax(data.cue_id == shutter_open)
+    end_index = da.argmax(data.cue_id == shutter_close)
+
+    # Optionally, show progress.
+    if show_progress:
+        with ProgressBar():
+            start_index, end_index = da.compute(start_index, end_index)
+    else:
+        start_index, end_index = da.compute(start_index, end_index)
+
+    start_end = data.cue_timestamp_zero[[start_index, end_index]]
+
+    return tuple(start_end.compute())
 
 
-def valid_events(data: Data, start: int, end: int) -> Data:
+def valid_events(data: LatrdData, start: int, end: int) -> LatrdData:
     """
     Return those events that have a timestamp in the specified range.
 
     Args:
-        data:   An LATRD data dictionary, containing an 'event_time_offset' item
-                and optional 'event_id' and 'event_energy' items.
+        data:   LATRD data, containing an 'event_time_offset' field and optional
+                'event_id' and 'event_energy' fields.
         start:  The start time of the accepted range, in clock cycles.
         end:    The end time of the accepted range, in clock cycles.
 
     Returns:
         A dictionary containing only the valid events.
     """
-    valid = (start <= data[event_time_key]) & (data[event_time_key] < end)
+    valid = (start <= data.event_time_offset) & (data.event_time_offset < end)
 
     for key in event_keys:
-        value = data.get(key)
+        value = getattr(data, key)
         if value is not None:
-            data[key] = value[valid].compute_chunk_sizes()
+            value = value.rechunk(data.event_time_offset.chunks)
+            setattr(data, key, blockwise_selection(value, valid))
 
     return data
 
 
-def make_images(data: Data, image_size: Tuple[int, int], bins: ArrayLike) -> da.Array:
+def make_images(
+    data: LatrdData, image_size: tuple[int, int], bins: ArrayLike
+) -> da.Array:
     """
     Bin LATRD events data into images of event counts.
 
@@ -82,10 +78,9 @@ def make_images(data: Data, image_size: Tuple[int, int], bins: ArrayLike) -> da.
     of events recorded at each pixel.
 
     Args:
-        data:        A LATRD data dictionary (a dictionary with data set names as keys
-                     and Dask arrays as values).  Must contain one entry for event
-                     location messages and one for event timestamps.  The two arrays are
-                     assumed to have the same length.
+        data:        LATRD data.  Must have one 'event_id' field and one
+                     'event_time_offset' field.  The two arrays are assumed to have
+                     the same length.
         image_size:  The (y, x), i.e. (slow, fast) dimensions (number of pixels) of
                      the image.
         bins:        The time bin edges of the images (in clock cycles, to match the
@@ -97,7 +92,7 @@ def make_images(data: Data, image_size: Tuple[int, int], bins: ArrayLike) -> da.
     """
     # We need to ensure that the chunk layout of the event location array matches
     # that of the event time array, so that we can perform matching blockwise iterations
-    event_locations = data[event_location_key].rechunk(data[event_time_key].chunks)
+    event_locations = data.event_id.rechunk(data.event_time_offset.chunks)
     event_locations = pixel_index(event_locations, image_size)
 
     num_images = len(bins) - 1
@@ -107,20 +102,12 @@ def make_images(data: Data, image_size: Tuple[int, int], bins: ArrayLike) -> da.
         # would require allocating enough memory for the entire image stack.
 
         # Find the index of the image to which each event belongs.
-        image_indices = da.digitize(data[event_time_key], bins) - 1
-
-        (images_in_block,) = da.compute(map(np.unique, image_indices.blocks))
+        image_indices = da.digitize(data.event_time_offset, bins) - 1
 
         # Construct a stack of images using dask.array.bincount.
         images = []
         for i in range(num_images):
-            # When searching for events with a given image index, we already know we
-            # can exclude some blocks and thereby save some computation time.
-            contains_index = [i in indices for indices in images_in_block]
-
-            image_events = event_locations.blocks[contains_index][
-                image_indices.blocks[contains_index] == i
-            ]
+            image_events = blockwise_selection(event_locations, image_indices == i)
             images.append(da.bincount(image_events, minlength=mul(*image_size)))
 
         images = da.stack(images)

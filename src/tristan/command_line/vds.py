@@ -7,6 +7,8 @@ file is named 'my_data_1_meta.h5', then the new VDS file will be named
 'my_data_1_vds.h5'.
 """
 
+from __future__ import annotations
+
 import argparse
 
 import h5py

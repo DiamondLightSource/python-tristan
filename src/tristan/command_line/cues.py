@@ -1,18 +1,12 @@
 """Summarise the cue messages in Tristan data."""
 
+from __future__ import annotations
+
 import argparse
 
 import numpy as np
 
-from ..data import (
-    cue_id_key,
-    cue_keys,
-    cue_time_key,
-    cues,
-    latrd_data,
-    reserved,
-    seconds,
-)
+from ..data import cue_keys, cues, latrd_data, reserved, seconds
 from . import data_files, input_parser, version_parser
 
 parser = argparse.ArgumentParser(
@@ -27,9 +21,9 @@ def main(args=None):
     raw_files, _ = data_files(args.data_dir, args.stem)
 
     with latrd_data(raw_files, keys=cue_keys) as data:
-        relevant = (data[cue_id_key] > 0) & (data[cue_id_key] != reserved)
-        cue_ids = data[cue_id_key][relevant].compute()
-        cue_times = data[cue_time_key][relevant].compute()
+        relevant = (data.cue_id > 0) & (data.cue_id != reserved)
+        cue_ids = data.cue_id[relevant].compute()
+        cue_times = data.cue_timestamp_zero[relevant].compute()
 
     unique_cues = np.sort(np.unique(cue_ids))
 
