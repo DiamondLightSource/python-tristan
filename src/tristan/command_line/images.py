@@ -161,7 +161,8 @@ def save_multiple_images(
     # Use threads, rather than processes.
     with Client(processes=False):
         # Compute the array and store the values, using a progress bar.
-        print(wait(progress(array.persist())) or "")
+        print(progress(array.persist()) or "")
+        wait(array)
 
     print("Transferring the images to the output file.")
     store = zarr.DirectoryStore(intermediate)
