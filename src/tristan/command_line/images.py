@@ -161,7 +161,8 @@ def save_multiple_images(
     # Use threads, rather than processes.
     with Client(processes=False):
         # Compute the array and store the values, using a progress bar.
-        print(progress(array.persist()) or "")
+        array = array.persist()
+        print(progress(array) or "")
         wait(array)
 
     print("Transferring the images to the output file.")
