@@ -10,7 +10,7 @@ from __future__ import annotations
 
 __author__ = "Diamond Light Source - Scientific Software"
 __email__ = "scientificsoftware@diamond.ac.uk"
-__version__ = "0.1.13"
+__version__ = "0.1.14"
 __version_tuple__ = tuple(int(x) for x in __version__.split("."))
 
 import pint
