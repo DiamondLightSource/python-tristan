@@ -13,6 +13,7 @@ __email__ = "scientificsoftware@diamond.ac.uk"
 __version__ = "0.1.15"
 __version_tuple__ = tuple(int(x) for x in __version__.split("."))
 
+import dask
 import pint
 from dask import array as da
 
@@ -21,6 +22,7 @@ ureg = pint.UnitRegistry()
 clock_frequency = ureg.Quantity(6.4e8, "Hz").to_compact()
 
 
+@dask.delayed
 def blockwise_selection(array: da.Array, selection: da.Array) -> da.Array:
     """
     Select from an array in a blockwise fashion, without computing chunk sizes.
