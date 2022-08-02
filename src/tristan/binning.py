@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from operator import mul
 
+import dask
 import numpy as np
 from dask import array as da
 from dask.diagnostics import ProgressBar
@@ -108,7 +109,8 @@ def make_images(
         images = []
         for i in range(num_images):
             image_events = blockwise_selection(event_locations, image_indices == i)
-            images.append(da.bincount(image_events, minlength=mul(*image_size)))
+            image = dask.delayed(da.bincount)(image_events, minlength=mul(*image_size))
+            images.append(image)
 
         images = da.stack(images)
     else:
