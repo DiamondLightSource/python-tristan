@@ -167,7 +167,7 @@ def save_multiple_images(
         image.to_zarr(
             intermediate,
             component="data",
-            region=slice(i, i + 1),
+            region=[slice(i, i + 1), slice(None, None), slice(None, None)],
             overwrite=True,
             compute=False,
         )
