@@ -154,6 +154,7 @@ def save_multiple_images(
     image, *_ = images
     intermediate = zarr.creation.empty(
         store=output_file.with_suffix(".zarr"),
+        path="data",
         shape=(len(images), *image.shape),
         chunks=(1, *image.shape),
         dtype=image.dtype,
