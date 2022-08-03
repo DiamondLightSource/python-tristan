@@ -164,7 +164,11 @@ def save_multiple_images(
     # Delayed objects, so that we can compute them with a progress bar.
     images = [
         image.to_zarr(
-            intermediate, component="data", region=i, overwrite=True, compute=False
+            intermediate,
+            component="data",
+            region=slice(i, i + 1),
+            overwrite=True,
+            compute=False,
         )
         for i, image in enumerate(images)
     ]
