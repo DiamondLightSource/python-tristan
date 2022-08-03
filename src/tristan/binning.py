@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from operator import mul
 
-import dask
 import numpy as np
 from dask import array as da
 from dask.diagnostics import ProgressBar
@@ -68,9 +67,16 @@ def valid_events(data: LatrdData, start: int, end: int) -> LatrdData:
     return data
 
 
+def make_image(locations, image_size):
+    """Construct an image using dask.array.bincount."""
+    locations = pixel_index(locations, image_size)
+    image = da.bincount(locations, minlength=mul(*image_size))
+    return image.astype(np.uint32).reshape(image_size)
+
+
 def make_images(
     data: LatrdData, image_size: tuple[int, int], bins: ArrayLike
-) -> da.Array:
+) -> list[da.Array]:
     """
     Bin LATRD events data into images of event counts.
 
@@ -88,13 +94,11 @@ def make_images(
                      event timestamps).
 
     Returns:
-        A dask array representing the calculations required to obtain the
-        resulting image.
+        A sequential list of Dask arrays representing the binned images.
     """
-    # We need to ensure that the chunk layout of the event location array matches
-    # that of the event time array, so that we can perform matching blockwise iterations
+    # We need to ensure that the chunk layout of the event location array matches that
+    # of the event time array, so that we can perform matching blockwise iterations.
     event_locations = data.event_id.rechunk(data.event_time_offset.chunks)
-    event_locations = pixel_index(event_locations, image_size)
 
     num_images = len(bins) - 1
 
@@ -104,16 +108,11 @@ def make_images(
 
         # Find the index of the image to which each event belongs.
         image_indices = da.digitize(data.event_time_offset, bins) - 1
-
-        # Construct a stack of images using dask.array.bincount.
-        images = []
-        for i in range(num_images):
-            image_events = blockwise_selection(event_locations, image_indices == i)
-            image = dask.delayed(da.bincount)(image_events, minlength=mul(*image_size))
-            images.append(image)
-
-        images = da.stack(images)
+        image_events = [
+            blockwise_selection(event_locations, image_indices == i)
+            for i in range(num_images)
+        ]
     else:
-        images = da.bincount(event_locations, minlength=mul(*image_size))
+        image_events = [event_locations]
 
-    return images.astype(np.uint32).reshape(num_images, *image_size)
+    return [make_image(locations, image_size) for locations in image_events]

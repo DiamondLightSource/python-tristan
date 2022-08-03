@@ -127,7 +127,7 @@ def single_image_cli(args):
 
 
 def save_multiple_images(
-    array: da.Array, output_file: Path, write_mode: str = "x"
+    images: list[da.Array], output_file: Path, write_mode: str = "x"
 ) -> None:
     """
     Calculate and store a Dask array in an HDF5 file without exceeding available memory.
@@ -147,28 +147,38 @@ def save_multiple_images(
     Multithreading is used, as the calculation is assumed to be I/O bound.
 
     Args:
-        array:  A Dask array to be calculated and stored.
+        images:  A stack of Dask arrays to be calculated and stored.
         output_file:  Path to the output HDF5 file.
         write_mode:  HDF5 file opening mode.  See :class:`h5py.File`.
     """
-    intermediate = str(output_file.with_suffix(".zarr"))
+    image, *_ = images
+    intermediate = zarr.creation.empty(
+        output_file.with_suffix(".zarr"),
+        shape=(len(images), *image.shape),
+        dtype=image.dtype,
+        overwrite=True,
+    )
 
     # Prepare to save the calculated images to the intermediate Zarr store.
     # Overwrite any pre-existing Zarr arrays.  Don't compute immediately but return
-    # the Delayed object so we can compute it with a progress bar.
-    array = array.to_zarr(intermediate, component="data", overwrite=True, compute=False)
-    # Use threads, rather than processes.
-    with Client(processes=False):
+    # Delayed objects, so that we can compute them with a progress bar.
+    images = [
+        image.to_zarr(
+            intermediate, component="data", region=i, overwrite=True, compute=False
+        )
+        for i, image in enumerate(images)
+    ]
+    # Use threads, rather than processes, to calculate and write the binned images.
+    with Client(processes=False) as c:
         # Compute the array and store the values, using a progress bar.
-        print(progress(array.persist()) or "")
+        print(progress(c.persist(images)) or "")
 
     print("Transferring the images to the output file.")
-    store = zarr.DirectoryStore(intermediate)
     with h5py.File(output_file, write_mode) as f:
-        zarr.copy_all(zarr.open(store), f, **Bitshuffle())
+        zarr.copy_all(zarr.open(intermediate.store), f, **Bitshuffle())
 
     # Delete the Zarr store.
-    store.clear()
+    intermediate.store.clear()
 
 
 def save_multiple_image_sequences(
