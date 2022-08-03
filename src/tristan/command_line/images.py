@@ -152,7 +152,7 @@ def save_multiple_images(
         write_mode:  HDF5 file opening mode.  See :class:`h5py.File`.
     """
     image, *_ = images
-    tmp = zarr.creation.empty(
+    tmp = zarr.empty(
         store=output_file.with_suffix(".zarr"),
         path="data",
         shape=(len(images), *image.shape),
@@ -164,7 +164,10 @@ def save_multiple_images(
     # Prepare to save the calculated images to the intermediate Zarr store.
     # Overwrite any pre-existing Zarr arrays.  Don't compute immediately but return
     # Delayed objects, so that we can compute them with a progress bar.
-    images = da.store(images, tmp["data"], overwrite=True, compute=False, lock=False)
+    images = [
+        da.store(image, tmp[i], overwrite=True, compute=False, lock=False)
+        for i, image in enumerate(images)
+    ]
 
     # Use threads, rather than processes, to calculate and write the binned images.
     with Client(processes=False) as c:
