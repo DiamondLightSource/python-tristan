@@ -153,7 +153,7 @@ def save_multiple_images(
     """
     image, *_ = images
     intermediate = zarr.creation.empty(
-        output_file.with_suffix(".zarr"),
+        store=output_file.with_suffix(".zarr"),
         shape=(len(images), *image.shape),
         dtype=image.dtype,
         overwrite=True,
