@@ -71,7 +71,7 @@ def make_image(locations, image_size):
     """Construct an image using dask.array.bincount."""
     locations = pixel_index(locations, image_size)
     image = da.bincount(locations, minlength=mul(*image_size))
-    return image.astype(np.uint32).reshape(image_size)
+    return image.astype(np.uint32).reshape(1, *image_size)
 
 
 def make_images(
