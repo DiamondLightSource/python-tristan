@@ -145,7 +145,9 @@ def latrd_data(
         ]
 
         data = {
-            k: aggregate_chunks(da.concatenate([da.from_array(f[k]) for f in files]))
+            k: aggregate_chunks(
+                da.concatenate([da.from_array(f[k], inline_array=True) for f in files])
+            )
             for k in keys
         }
 
