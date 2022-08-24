@@ -12,6 +12,7 @@ from typing import Iterable
 import dask
 import h5py
 import numpy as np
+import pandas as pd
 import pint
 import zarr
 from dask import array as da
@@ -23,7 +24,6 @@ from nexgen.nxs_copy import CopyTristanNexus
 from .. import blockwise_selection, clock_frequency
 from ..binning import find_start_end, make_images, valid_events
 from ..data import (
-    LatrdData,
     cue_keys,
     cue_times,
     cues,
@@ -51,8 +51,12 @@ def determine_image_size(nexus_file: Path) -> tuple[int, int]:
     """Find the image size from metadata."""
     recommend = f"Please specify the detector dimensions in (x, y) with '--image-size'."
     try:
-        with h5py.File(nexus_file, "r") as f:
-            return f["entry/instrument/detector/module/data_size"][()]
+        with h5py.File(nexus_file) as f:
+            # For the sake of some functions like zarr.create, ensure that the image
+            # dimensions are definintely tuple[int, int], not tuple[np.int64,
+            # np.int64] or anything else.
+            y, x = map(int, f["entry/instrument/detector/module/data_size"][()])
+            return y, x
     except (FileNotFoundError, OSError):
         sys.exit(f"Cannot find NeXus file:\n\t{nexus_file}\n{recommend}")
     except KeyError:
@@ -266,9 +270,36 @@ def multiple_images_cli(args):
         f"{exposure_time:.3g~#P}."
     )
 
+    images = zarr.zeros(
+        (num_images, *image_size),
+        chunks=(1, *image_size),
+        overwrite=True,
+        store=output_file.with_suffix(".zarr"),
+    )
+
     with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
-        images = make_images(valid_events(data, start, end), image_size, bins)
-        save_multiple_images(images, output_file, write_mode)
+        data = valid_events(data, start, end)
+        data = data.map_partitions(
+            make_images,
+            image_size,
+            bins,
+            cache=images,
+            meta=pd.DataFrame(),
+            enforce_metadata=False,
+            transform_divisions=False,
+            align_dataframes=False,
+        ).to_delayed()
+        # Use threads, rather than processes.
+        with Client(processes=False):
+            # Compute the array and store the values, using a progress bar.
+            print(progress(dask.compute(data)) or "")
+
+    print("Transferring the images to the output file.")
+    # with h5py.File(output_file, write_mode) as f:
+    #     zarr.copy_all(images.store, f, **Bitshuffle())
+
+    # Delete the Zarr store.
+    images.store.clear()
 
     if input_nexus.exists():
         try:
@@ -471,7 +502,7 @@ def multiple_sequences_cli(args):
         image_sequence_stack = []
         for i in range(num_intervals):
             select = partial(blockwise_selection, selection=sequence == i)
-            interval_data = LatrdData()
+            interval_data = pd.DataFrame()
             interval_data.event_time_offset = select(data.event_time_offset)
             interval_data.event_id = select(data.event_id)
 

@@ -104,17 +104,18 @@ def latrd_data(
 
         # Determine an appropriate block size for a Dask DataFrame of these data,
         # remembering to leave room for a 64-bit index.
-        row_size = sum(files[0][k].dtype.itemsize for k in keys) + np.int64.itemsize
+        row_size = sum(files[0][k].dtype.itemsize for k in keys)
         block_size = ureg.Quantity(dask.config.get("array.chunk-size"))
         block_length = int(block_size.m_as("B") / row_size)
 
         # Construct a single Dask DataFrame from the specified keys.
-        data = []
-        for f in files:
-            array = [da.from_array(f[k], chunks=block_length) for k in cue_keys]
-            array = da.stack(array, axis=1)
-            data.append(dd.from_array(array, chunksize=block_length, columns=cue_keys))
-
+        data = [
+            dd.concat(
+                [dd.from_array(f[k], chunksize=block_length).to_frame(k) for k in keys],
+                axis=1,
+            )
+            for f in files
+        ]
         yield dd.concat(data, interleave_partitions=True)
 
 
