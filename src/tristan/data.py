@@ -191,8 +191,8 @@ def pixel_index(location: ArrayLike, image_size: tuple[int, int]) -> ArrayLike:
     flattened image array by multiplying the y value by the size of the array in x,
     and adding the x value.
 
-    This function calls the Python built-in divmod and so can be broadcast over NumPy
-    and Dask arrays.
+    This function calls the Python built-in divmod and so can be broadcast over
+    array-like data structures.
 
     Args:
         location:    Event location message (an integer).

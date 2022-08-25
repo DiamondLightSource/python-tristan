@@ -275,6 +275,7 @@ def multiple_images_cli(args):
         chunks=(1, *image_size),
         overwrite=True,
         store=output_file.with_suffix(".zarr"),
+        synchronizer=zarr.ThreadSynchronizer(),
     )
 
     with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
@@ -285,14 +286,11 @@ def multiple_images_cli(args):
             bins,
             cache=images,
             meta=pd.DataFrame(),
-            enforce_metadata=False,
-            transform_divisions=False,
-            align_dataframes=False,
         ).to_delayed()
         # Use threads, rather than processes.
         with Client(processes=False):
             # Compute the array and store the values, using a progress bar.
-            print(progress(dask.compute(data)) or "")
+            print(progress(dask.persist(data)) or "")
 
     print("Transferring the images to the output file.")
     # with h5py.File(output_file, write_mode) as f:

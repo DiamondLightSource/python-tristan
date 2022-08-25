@@ -5,6 +5,7 @@ from operator import mul
 
 import numpy as np
 import pandas as pd
+import zarr
 from dask import array as da
 from dask import dataframe as dd
 from dask.diagnostics import ProgressBar
@@ -92,6 +93,13 @@ def make_images(
                      should be added.  This might be a Zarr array, in which case it
                      functions as an on-disk cache of the binned images.
     """
+    cache = cache.vindex if isinstance(cache, zarr.Array) else cache
+
+    # For empty data, do nothing.
+    return_value = pd.DataFrame(columns=data.columns)
+    if data.empty:
+        return return_value
+
     # We need to ensure that the chunk layout of the event location array matches
     # that of the event time array, so that we can perform matching blockwise iterations
     data[event_location_key] = pixel_index(data[event_location_key], image_size)
@@ -103,19 +111,18 @@ def make_images(
         # would require allocating enough memory for the entire image stack.
 
         # Find the index of the image to which each event belongs.
-        data[event_time_key] = da.digitize(data[event_time_key], bins) - 1
+        data[event_time_key] = np.digitize(data[event_time_key], bins) - 1
         image_indices = data[event_time_key].unique()
-        data = data.set_index(event_time_key)
 
-        # Construct a stack of images using dask.array.bincount.
-        images = [
-            np.bincount(data[event_location_key][i], minlength=mul(*image_size))
-            for i in image_indices
-        ]
-        images = np.stack(images)
     else:
         image_indices = [0]
-        images = np.bincount(data[event_location_key], minlength=mul(*image_size))
 
-    # Add the binned events to the image stack cache.
-    cache[image_indices] += images.astype(np.uint32).reshape(num_images, *image_size)
+    # Construct a stack of images using dask.array.bincount and add them to the cache.
+    for i in image_indices:
+        image = np.bincount(
+            data[event_location_key][data[event_time_key] == i],
+            minlength=mul(*image_size),
+        )
+        cache[i] += image.astype(np.uint32).reshape(image_size)
+
+    return return_value
