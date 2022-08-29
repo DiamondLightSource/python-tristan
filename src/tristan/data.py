@@ -109,14 +109,14 @@ def latrd_data(
         block_length = int(block_size.m_as("B") / row_size)
 
         # Construct a single Dask DataFrame from the specified keys.
-        data = [
-            dd.concat(
-                [dd.from_array(f[k], chunksize=block_length).to_frame(k) for k in keys],
-                axis=1,
-            )
-            for f in files
-        ]
-        yield dd.concat(data, interleave_partitions=True)
+        data = {
+            k: da.concatenate([da.from_array(f[k], chunks=block_length) for f in files])
+            for k in keys
+        }
+        data = dd.concat(
+            [dd.from_dask_array(v, columns=k) for k, v in data.items()], axis=1
+        )
+        yield data
 
 
 def first_cue_time(data: dd.DataFrame, message: int) -> dd.DataFrame | None:

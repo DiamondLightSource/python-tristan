@@ -48,8 +48,7 @@ def find_start_end(data: dd.DataFrame, show_progress: bool = False) -> tuple[int
     else:
         start, end = da.compute(start, end)
 
-    start, end = data[cue_time_key].values[[start, end]]
-
+    start, end = data[cue_time_key].values.compute_chunk_sizes()[[start, end]]
     return da.compute(start, end)
 
 
