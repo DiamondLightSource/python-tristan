@@ -5,7 +5,6 @@ from operator import mul
 
 import numpy as np
 import pandas as pd
-import zarr
 from dask import array as da
 from dask import dataframe as dd
 from dask.diagnostics import ProgressBar
@@ -16,7 +15,6 @@ from .data import (
     cue_time_key,
     event_location_key,
     event_time_key,
-    pixel_index,
     shutter_close,
     shutter_open,
 )
@@ -71,7 +69,7 @@ def valid_events(data: dd.DataFrame, start: int, end: int) -> dd.DataFrame:
 
 
 def make_images(
-    data: pd.DataFrame, image_size: tuple[int, int], bins: ArrayLike, cache: ArrayLike
+    data: pd.DataFrame, image_index: int, image_size: tuple[int, int], cache: ArrayLike
 ):
     """
     Bin LATRD events data into images of event counts.
@@ -92,36 +90,25 @@ def make_images(
                      should be added.  This might be a Zarr array, in which case it
                      functions as an on-disk cache of the binned images.
     """
-    cache = cache.vindex if isinstance(cache, zarr.Array) else cache
+    # Construct a stack of images using dask.array.bincount and add them to the cache.
+    location = data[event_location_key]
+    i = data[event_time_key]
+    image = np.bincount(location[i == image_index], minlength=mul(*image_size))
+    cache[image_index] += image.astype(np.uint32).reshape(image_size)
 
-    # For empty data, do nothing.
-    return_value = pd.DataFrame(columns=data.columns)
-    if data.empty:
-        return return_value
 
-    # We need to ensure that the chunk layout of the event location array matches
-    # that of the event time array, so that we can perform matching blockwise iterations
-    data[event_location_key] = pixel_index(data[event_location_key], image_size)
-
+def find_image_indices(data: pd.DataFrame, bins: ArrayLike):
     num_images = len(bins) - 1
 
+    # Find the index of the image to which each event belongs.
     if num_images > 1:
-        # We cannot perform a single bincount of the entire data set because that
-        # would require allocating enough memory for the entire image stack.
-
-        # Find the index of the image to which each event belongs.
         data[event_time_key] = np.digitize(data[event_time_key], bins) - 1
         image_indices = data[event_time_key].unique()
-
-    else:
+    elif num_images:
+        data[event_time_key] = 0
         image_indices = [0]
+    else:
+        image_indices = []
 
-    # Construct a stack of images using dask.array.bincount and add them to the cache.
-    for i in image_indices:
-        image = np.bincount(
-            data[event_location_key][data[event_time_key] == i],
-            minlength=mul(*image_size),
-        )
-        cache[i] += image.astype(np.uint32).reshape(image_size)
-
-    return return_value
+    data.rename({event_time_key: "image_index"})
+    return data, image_indices

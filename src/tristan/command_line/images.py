@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Iterable
 
 import dask
+import distributed
 import h5py
 import numpy as np
 import pandas as pd
@@ -22,7 +23,7 @@ from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
 
 from .. import blockwise_selection, clock_frequency
-from ..binning import find_start_end, make_images, valid_events
+from ..binning import find_image_indices, find_start_end, make_images, valid_events
 from ..data import (
     cue_keys,
     cue_times,
@@ -31,6 +32,7 @@ from ..data import (
     event_time_key,
     first_cue_time,
     latrd_data,
+    pixel_index,
     seconds,
 )
 from . import (
@@ -45,6 +47,9 @@ from . import (
     triggers,
     version_parser,
 )
+
+find_image_indices = dask.delayed(find_image_indices, nout=2, pure=True)
+make_images = dask.delayed(make_images)
 
 
 def determine_image_size(nexus_file: Path) -> tuple[int, int]:
@@ -273,31 +278,52 @@ def multiple_images_cli(args):
     images = zarr.zeros(
         (num_images, *image_size),
         chunks=(1, *image_size),
+        dtype=np.int32,
         overwrite=True,
         store=output_file.with_suffix(".zarr"),
+        path="data",
         synchronizer=zarr.ThreadSynchronizer(),
     )
 
     with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
+        # Consider only those events that occur between the start and end times.
         data = valid_events(data, start, end)
-        data = data.map_partitions(
-            make_images,
-            image_size,
-            bins,
-            cache=images,
-            meta=pd.DataFrame(),
-        ).to_delayed()
+        # Convert the event IDs to a form that is suitable for a NumPy bincount.
+        data[event_location_key] = pixel_index(data[event_location_key], image_size)
+
+        # print("Sorting events into images.")
+        # data = [find_image_indices(df, bins=bins) for df in data]
+        # with Client(processes=False):
+        #     print(progress(dask.persist(data)) or "")
+
+        if num_images > 1:
+            data[event_time_key] = da.digitize(data[event_time_key].values, bins) - 1
+        elif num_images:
+            data[event_time_key] = 0
+        # data.rename({event_time_key: "image_index"})
+
+        with ProgressBar():
+            print(data.count().compute())
+
+        data = data.to_delayed()
+
         # Use threads, rather than processes.
         with Client(processes=False):
+            bincounts = []
+            for df in data:
+                for i in range(num_images):
+                    with distributed.Lock(i):
+                        bincounts.append(make_images(df, i, image_size, images))
+
             # Compute the array and store the values, using a progress bar.
-            print(progress(dask.persist(data)) or "")
+            print(progress(dask.persist(bincounts)) or "")
 
     print("Transferring the images to the output file.")
     # with h5py.File(output_file, write_mode) as f:
     #     zarr.copy_all(images.store, f, **Bitshuffle())
 
-    # Delete the Zarr store.
-    images.store.clear()
+    # # Delete the Zarr store.
+    # images.store.clear()
 
     if input_nexus.exists():
         try:
