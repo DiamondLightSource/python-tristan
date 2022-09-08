@@ -8,13 +8,13 @@ import argparse
 import glob
 import logging
 import multiprocessing as mp
-import sys
 import time
 from pathlib import Path
 
 import h5py
 import numpy as np
 
+from ..command_line import version_parser
 from ..data import (  # ttl_falling,
     cue_id_key,
     cue_time_key,
@@ -26,20 +26,13 @@ from ..data import (  # ttl_falling,
     sync_rising,
     ttl_rising,
 )
+from . import diagnostics_log as log
 
-# TODO set up a better logger.
-# Define a logger
-logger = logging.getLogger("Tristan.Diagnostics.TriggerTimes")
-logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter("%(message)s")  # %(levelname)s
-# Deifne stream handler
-CH = logging.StreamHandler(sys.stdout)
-CH.setLevel(logging.DEBUG)
-CH.setFormatter(formatter)
-logger.addHandler(CH)
+# Define a logger object
+logger = logging.getLogger("TristanDiagnostics.TriggerTimes")
 
 # Define parser
-parser = argparse.ArgumentParser(description=__doc__)
+parser = argparse.ArgumentParser(description=__doc__, parents=[version_parser])
 parser.add_argument("visitpath", type=str, help="Visit directory")
 parser.add_argument("filename", type=str, help="Filename")
 parser.add_argument(
@@ -218,11 +211,7 @@ def main(args):
 
     # Define stream handler
     logfile = wdir / (filepath.stem + "_TRIGGERCHECK.log")
-    file_formatter = logging.Formatter("%(levelname)s %(message)s")
-    FH = logging.FileHandler(logfile, mode="w")
-    FH.setLevel(logging.DEBUG)
-    FH.setFormatter(file_formatter)
-    logger.addHandler(FH)
+    log.config(logfile.as_posix())
 
     # Start logging
     logger.info(f"Current working directory: {wdir}")
@@ -238,6 +227,7 @@ def main(args):
     ]
     logger.info(f"Found {len(file_list)} files in directory.\n")
     # For now let's just go with the usual assumption that files are coherently divided.
+    # TODO what if they're not?!?!
     L = [file_list[i : i + 10] for i in range(0, len(file_list), 10)]
 
     nxsfile = filepath / (args.filename + ".nxs")
