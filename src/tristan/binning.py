@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from dask import array as da
 from dask import dataframe as dd
+from dask import delayed, distributed
 from dask.diagnostics import ProgressBar
 from numpy.typing import ArrayLike
 
@@ -68,6 +69,7 @@ def valid_events(data: dd.DataFrame, start: int, end: int) -> dd.DataFrame:
     return data[valid]
 
 
+@delayed
 def make_images(
     data: pd.DataFrame, image_index: int, image_size: tuple[int, int], cache: ArrayLike
 ):
@@ -82,33 +84,42 @@ def make_images(
     Args:
         data:        LATRD data.  Must have one 'event_id' column and one
                      'event_time_offset' column.
+        image_index: FIXME
         image_size:  The (y, x), i.e. (slow, fast) dimensions (number of pixels) of
                      the image.
-        bins:        The time bin edges of the images (in clock cycles, to match the
-                     event timestamps).
         cache:       Array representing the image stack, to which the binned events
                      should be added.  This might be a Zarr array, in which case it
                      functions as an on-disk cache of the binned images.
     """
     # Construct a stack of images using dask.array.bincount and add them to the cache.
-    location = data[event_location_key]
-    i = data[event_time_key]
-    image = np.bincount(location[i == image_index], minlength=mul(*image_size))
-    cache[image_index] += image.astype(np.uint32).reshape(image_size)
+    with distributed.Lock(image_index):
+        location = data[event_location_key]
+        selection = data[event_time_key] == image_index
+        if np.any(selection):
+            image = np.bincount(location[selection], minlength=mul(*image_size))
+            image = image.astype(np.uint32).reshape(image_size)
+            # Beware!  Using inplace addition (+=) here causes the locking to fail.
+            cache[image_index] = cache[image_index] + image
 
 
 def find_image_indices(data: pd.DataFrame, bins: ArrayLike):
+    """
+    FIXME
+
+    Args:
+        data:  FIXME
+        bins:  The time bin edges of the images (in clock cycles, to match the event
+               timestamps).
+
+    Returns:
+        FIXME
+    """
     num_images = len(bins) - 1
 
     # Find the index of the image to which each event belongs.
     if num_images > 1:
         data[event_time_key] = np.digitize(data[event_time_key], bins) - 1
-        image_indices = data[event_time_key].unique()
     elif num_images:
         data[event_time_key] = 0
-        image_indices = [0]
-    else:
-        image_indices = []
 
-    data.rename({event_time_key: "image_index"})
-    return data, image_indices
+    return data
