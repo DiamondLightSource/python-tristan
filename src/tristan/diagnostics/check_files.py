@@ -1,5 +1,5 @@
 """
-Check that all files in all modules contain valid data.
+Check that all files from all detector modules contain valid data.
 """
 import argparse
 import glob
