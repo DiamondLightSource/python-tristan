@@ -17,9 +17,11 @@ import pint
 import zarr
 from dask import array as da
 from dask.diagnostics import ProgressBar
-from dask.distributed import Client, progress
+from dask.distributed import Client, diagnostics, progress
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
+from tqdm import tqdm
+from tqdm.contrib.itertools import product
 
 from .. import blockwise_selection, clock_frequency
 from ..binning import find_image_indices, find_start_end, make_images, valid_events
@@ -46,6 +48,27 @@ from . import (
     triggers,
     version_parser,
 )
+
+
+class TqdmLikeDask(tqdm):
+    """A tqdm progress bar with a format that mimics Dask Distributed's 'progress'."""
+
+    @staticmethod
+    def format_interval(t):
+        return diagnostics.progress.format_time(t)
+
+    @property
+    def format_dict(self):
+        d = super(TqdmLikeDask, self).format_dict
+        d["elapsed_str"] = self.format_interval(d.get("elapsed", 0))
+        return d
+
+    def __init__(self, **kwargs):
+        dask_params = {
+            "ascii": " #",
+            "bar_format": "[{bar:40}] | {percentage:.0f}% Completed | {elapsed_str}",
+        }
+        super(TqdmLikeDask, self).__init__(**dask_params, **kwargs)
 
 
 def determine_image_size(nexus_file: Path) -> tuple[int, int]:
@@ -242,7 +265,7 @@ def multiple_images_cli(args):
     raw_files, _ = data_files(args.data_dir, args.stem)
 
     with latrd_data(raw_files, keys=cue_keys) as data:
-        start, end = find_start_end(data, show_progress=True)
+        start, end = find_start_end(data)
         exposure_time, exposure_cycles, num_images = exposure(
             start, end, args.exposure_time, args.num_images
         )
@@ -294,11 +317,17 @@ def multiple_images_cli(args):
         with Client(processes=False):
             # Bin to images, partition by partition.
             bincounts = []
-            for df in data.partitions:
-                for i in range(num_images):
-                    bincounts.append(make_images(df, i, image_size, images))
+            print("Assembling the list of binning tasks.")
+            for df, i in product(
+                data.partitions,
+                range(num_images),
+                tqdm_class=TqdmLikeDask,
+                total=num_images * data.npartitions,
+            ):
+                bincounts.append(make_images(df, i, image_size, images))
 
             # Compute the array and store the values, using a progress bar.
+            print("Calculating the binned images.")
             print(progress(dask.persist(bincounts)) or "")
 
     print("Transferring the images to the output file.")
