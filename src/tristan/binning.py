@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from dask import array as da
 from dask import dataframe as dd
-from dask import delayed, distributed
+from dask import distributed
 from dask.diagnostics import ProgressBar
 from numpy.typing import ArrayLike
 
@@ -69,7 +69,6 @@ def valid_events(data: dd.DataFrame, start: int, end: int) -> dd.DataFrame:
     return data[valid]
 
 
-@delayed
 def make_images(
     data: pd.DataFrame, image_index: int, image_size: tuple[int, int], cache: ArrayLike
 ):
@@ -100,6 +99,8 @@ def make_images(
             image = image.astype(np.uint32).reshape(image_size)
             # Beware!  Using inplace addition (+=) here causes the locking to fail.
             cache[image_index] = cache[image_index] + image
+
+    return pd.DataFrame()
 
 
 def find_image_indices(data: pd.DataFrame, bins: ArrayLike):

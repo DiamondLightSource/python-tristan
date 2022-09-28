@@ -16,12 +16,12 @@ import pandas as pd
 import pint
 import zarr
 from dask import array as da
+from dask import dataframe as dd
 from dask.diagnostics import ProgressBar
 from dask.distributed import Client, diagnostics, progress, wait
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
 from tqdm import tqdm
-from tqdm.contrib.itertools import product
 
 from .. import blockwise_selection, clock_frequency
 from ..binning import find_image_indices, find_start_end, make_images, valid_events
@@ -63,12 +63,12 @@ class TqdmLikeDask(tqdm):
         d["elapsed_str"] = self.format_interval(d.get("elapsed", 0))
         return d
 
-    def __init__(self, **kwargs):
+    def __init__(self, iterable=None, **kwargs):
         dask_params = {
             "ascii": " #",
             "bar_format": "[{bar:40}] | {percentage:.0f}% Completed | {elapsed_str}",
         }
-        super(TqdmLikeDask, self).__init__(**dask_params, **kwargs)
+        super(TqdmLikeDask, self).__init__(iterable=iterable, **dask_params, **kwargs)
 
 
 def determine_image_size(nexus_file: Path) -> tuple[int, int]:
@@ -316,15 +316,20 @@ def multiple_images_cli(args):
         # Use threads, rather than processes.
         with Client(processes=False):
             # Bin to images, partition by partition.
-            bincounts = []
             print("Assembling the list of binning tasks.")
-            for df, i in product(
-                data.partitions,
-                range(num_images),
-                tqdm_class=TqdmLikeDask,
-                total=num_images * data.npartitions,
-            ):
-                bincounts.append(make_images(df, i, image_size, images))
+            bincounts = []
+            for i in TqdmLikeDask(range(num_images)):
+                bincounts.append(
+                    dd.map_partitions(
+                        make_images,
+                        data,
+                        i,
+                        image_size,
+                        images,
+                        meta=pd.DataFrame(),
+                        enforce_metadata=False,
+                    )
+                )
 
             # Compute the array and store the values, using a progress bar.
             print("Calculating the binned images.")
