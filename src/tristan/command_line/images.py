@@ -328,7 +328,7 @@ def multiple_images_cli(args):
 
             # Compute the array and store the values, using a progress bar.
             print("Calculating the binned images.")
-            bincounts = dask.persist(bincounts)
+            bincounts = dask.persist(bincounts, optimize_graph=False)
             print(progress(bincounts) or "")
             wait(bincounts)
 
