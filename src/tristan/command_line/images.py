@@ -17,7 +17,7 @@ import pint
 import zarr
 from dask import array as da
 from dask.diagnostics import ProgressBar
-from dask.distributed import Client, diagnostics, progress
+from dask.distributed import Client, diagnostics, progress, wait
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
 from tqdm import tqdm
@@ -328,7 +328,9 @@ def multiple_images_cli(args):
 
             # Compute the array and store the values, using a progress bar.
             print("Calculating the binned images.")
-            print(progress(dask.persist(bincounts)) or "")
+            bincounts = dask.persist(bincounts)
+            print(progress(bincounts) or "")
+            wait(bincounts)
 
     print("Transferring the images to the output file.")
     with h5py.File(output_file, write_mode) as f:
