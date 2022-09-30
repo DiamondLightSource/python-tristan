@@ -333,13 +333,9 @@ def multiple_images_cli(args):
 
             # Compute the array and store the values, using a progress bar.
             print("Calculating the binned images.")
-            if num_images < 1000:
-                bincounts = dask.persist(bincounts)
-                print(progress(bincounts) or "")
-                wait(bincounts)
-            else:
-                for bincount in TqdmLikeDask(bincounts):
-                    bincount.compute()
+            bincounts = dask.persist(bincounts, optimize_graph=False)
+            print(progress(bincounts) or "")
+            wait(bincounts)
 
     print("Transferring the images to the output file.")
     with h5py.File(output_file, write_mode) as f:
