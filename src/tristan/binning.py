@@ -69,9 +69,7 @@ def valid_events(data: dd.DataFrame, start: int, end: int) -> dd.DataFrame:
     return data[valid]
 
 
-def make_images(
-    data: pd.DataFrame, image_index: int, image_size: tuple[int, int], cache: ArrayLike
-):
+def make_images(data: pd.DataFrame, image_size: tuple[int, int], cache: ArrayLike):
     """
     Bin LATRD events data into images of event counts.
 
@@ -83,7 +81,6 @@ def make_images(
     Args:
         data:        LATRD data.  Must have one 'event_id' column and one
                      'event_time_offset' column.
-        image_index: FIXME
         image_size:  The (y, x), i.e. (slow, fast) dimensions (number of pixels) of
                      the image.
         cache:       Array representing the image stack, to which the binned events
@@ -91,16 +88,18 @@ def make_images(
                      functions as an on-disk cache of the binned images.
     """
     # Construct a stack of images using dask.array.bincount and add them to the cache.
-    with distributed.Lock(image_index):
-        location = data[event_location_key]
-        selection = data[event_time_key] == image_index
-        if np.any(selection):
-            image = np.bincount(location[selection], minlength=mul(*image_size))
-            image = image.astype(np.uint32).reshape(image_size)
-            # Beware!  Using inplace addition (+=) here causes the locking to fail.
-            cache[image_index] = cache[image_index] + image
+    for image_index in data[event_time_key].unique():
+        locations = data[event_location_key][data[event_time_key] == image_index]
+        pixel_counts = np.bincount(locations, minlength=mul(*image_size))
+        pixel_counts = pixel_counts.astype(np.uint32).reshape(image_size)
+        with distributed.Lock(image_index):
+            # Beware!  Using inplace addition (+=) here causes the locking to fail
+            # when the cache is a Zarr array.  Presumably this is due to Zarr
+            # releasing the GIL before it has finished flushing the result of the
+            # inplace addition to disk.
+            cache[image_index] = cache[image_index] + pixel_counts
 
-    return pd.DataFrame()
+    return pd.DataFrame(columns=data.columns)
 
 
 def find_image_indices(data: pd.DataFrame, bins: ArrayLike):

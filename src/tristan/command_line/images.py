@@ -313,29 +313,23 @@ def multiple_images_cli(args):
         meta = pd.DataFrame(columns=data.columns).astype(dtype=data.dtypes)
         data = data.map_partitions(find_image_indices, bins=bins, meta=meta)
 
+        # Bin to images, partition by partition.
+        data = dd.map_partitions(
+            make_images,
+            data,
+            image_size,
+            images,
+            meta=pd.DataFrame(columns=data.columns),
+            enforce_metadata=False,
+        )
+
         # Use threads, rather than processes.
         with Client(processes=False):
-            # Bin to images, partition by partition.
-            print("Assembling the list of binning tasks.")
-            bincounts = []
-            for i in TqdmLikeDask(range(num_images)):
-                bincounts.append(
-                    dd.map_partitions(
-                        make_images,
-                        data,
-                        i,
-                        image_size,
-                        images,
-                        meta=pd.DataFrame(),
-                        enforce_metadata=False,
-                    )
-                )
-
             # Compute the array and store the values, using a progress bar.
             print("Calculating the binned images.")
-            bincounts = dask.persist(bincounts, optimize_graph=False)
-            print(progress(bincounts) or "")
-            wait(bincounts)
+            data = dask.persist(data)
+            print(progress(data) or "")
+            wait(data)
 
     print("Transferring the images to the output file.")
     with h5py.File(output_file, write_mode) as f:
