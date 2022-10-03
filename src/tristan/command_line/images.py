@@ -327,8 +327,16 @@ def multiple_images_cli(args):
         with Client(processes=False):
             # Compute the array and store the values, using a progress bar.
             print("Calculating the binned images.")
-            data = dask.persist(data)
-            print(progress(data) or "")
+            (data,) = dask.persist(data)
+
+            # View progress only of the top layer of the task graph, which consists
+            # of the rate limiting make_images tasks, to avoid giving a false sense
+            # of rapid progress from the quick execution of the large number of
+            # other, cheaper tasks.
+            *_, top_layer = data.dask.layers.values()
+            futures = list(top_layer.values())
+            print(progress(futures) or "")
+
             wait(data)
 
     print("Transferring the images to the output file.")
