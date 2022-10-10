@@ -78,7 +78,7 @@ def determine_image_size(nexus_file: Path) -> tuple[int, int]:
     try:
         with h5py.File(nexus_file) as f:
             # For the sake of some functions like zarr.create, ensure that the image
-            # dimensions are definintely tuple[int, int], not tuple[np.int64,
+            # dimensions are definitely tuple[int, int], not tuple[np.int64,
             # np.int64] or anything else.
             y, x = map(int, f["entry/instrument/detector/module/data_size"][()])
             return y, x
