@@ -6,6 +6,7 @@ import argparse
 import sys
 from contextlib import ExitStack
 from functools import partial
+from operator import mul
 from pathlib import Path
 from typing import Iterable
 
@@ -139,7 +140,10 @@ def single_image_cli(args):
 
     print("Binning events into a single image.")
     with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
-        image = make_images(valid_events(data, start, end), image_size, (start, end))
+        data = valid_events(data, start, end)
+        data[event_location_key] = pixel_index(data[event_location_key], image_size)
+        image = da.bincount(data[event_location_key], minlength=mul(*image_size))
+        image = image.astype(np.uint32).reshape(1, *image_size)
 
         with ProgressBar(), h5py.File(output_file, write_mode) as f:
             data_set = f.require_dataset(
