@@ -8,7 +8,6 @@ import pandas as pd
 from dask import array as da
 from dask import dataframe as dd
 from dask import distributed
-from dask.diagnostics import ProgressBar
 from numpy.typing import ArrayLike
 
 from .data import (
@@ -21,34 +20,23 @@ from .data import (
 )
 
 
-def find_start_end(data: dd.DataFrame, show_progress: bool = False) -> tuple[int, int]:
+def find_start_end(data: dict[str, da.Array]) -> (da.Array, da.Array):
     """
     Find the shutter open and shutter close timestamps.
 
     Args:
-        data:           LATRD data.  Must contain one 'cue_id' column and one
-                        'cue_timestamp_zero' column.
-        show_progress:  Whether to show a progress bar.
+        data:           LATRD data.  Must contain one 'cue_id' entry and one
+                        'cue_timestamp_zero' entry.  The two arrays are assumed to have
+                        the same length.
 
     Returns:
         The shutter open and shutter close timestamps, in clock cycles.
     """
-    if show_progress:
-        print("Finding detector shutter open and close times.")
+    start_index = da.argmax(data[cue_id_key] == shutter_open)
+    end_index = da.argmax(data[cue_id_key] == shutter_close)
+    start, end = data[cue_time_key][[start_index, end_index]]
 
-    cues = data[cue_id_key].values.compute_chunk_sizes()
-    start = da.argmax(cues == shutter_open)
-    end = da.argmax(cues == shutter_close)
-
-    # Optionally, show progress.
-    if show_progress:
-        with ProgressBar():
-            start, end = da.compute(start, end)
-    else:
-        start, end = da.compute(start, end)
-
-    start, end = data[cue_time_key].values.compute_chunk_sizes()[[start, end]]
-    return da.compute(start, end)
+    return start, end
 
 
 def valid_events(data: dd.DataFrame, start: int, end: int) -> dd.DataFrame:
