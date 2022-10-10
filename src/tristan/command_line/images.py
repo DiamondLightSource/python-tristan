@@ -19,10 +19,9 @@ import zarr
 from dask import array as da
 from dask import dataframe as dd
 from dask.diagnostics import ProgressBar
-from dask.distributed import Client, diagnostics, progress, wait
+from dask.distributed import Client, progress, wait
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
-from tqdm import tqdm
 
 from .. import blockwise_selection, clock_frequency
 from ..binning import find_image_indices, find_start_end, make_images, valid_events
@@ -49,27 +48,6 @@ from . import (
     triggers,
     version_parser,
 )
-
-
-class TqdmLikeDask(tqdm):
-    """A tqdm progress bar with a format that mimics Dask Distributed's 'progress'."""
-
-    @staticmethod
-    def format_interval(t):
-        return diagnostics.progress.format_time(t)
-
-    @property
-    def format_dict(self):
-        d = super(TqdmLikeDask, self).format_dict
-        d["elapsed_str"] = self.format_interval(d.get("elapsed", 0))
-        return d
-
-    def __init__(self, iterable=None, **kwargs):
-        dask_params = {
-            "ascii": " #",
-            "bar_format": "[{bar:40}] | {percentage:.0f}% Completed | {elapsed_str}",
-        }
-        super(TqdmLikeDask, self).__init__(iterable=iterable, **dask_params, **kwargs)
 
 
 def determine_image_size(nexus_file: Path) -> tuple[int, int]:
