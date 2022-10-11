@@ -22,9 +22,7 @@ from .data import (
 )
 
 
-def find_start_end(
-    data: dict[str, da.Array], show_progress: bool = False
-) -> (int, int):
+def find_start_end(data: dd.DataFrame, show_progress: bool = False) -> (int, int):
     """
     Find the shutter open and shutter close timestamps.
 
@@ -43,12 +41,10 @@ def find_start_end(
     else:
         context = nullcontext
 
-    start_index = da.argmax(data[cue_id_key] == shutter_open)
-    end_index = da.argmax(data[cue_id_key] == shutter_close)
-    start, end = data[cue_time_key][[start_index, end_index]]
+    times = data[cue_time_key][data[cue_id_key].isin((shutter_open, shutter_close))]
 
     with context():
-        start, end = da.compute(start, end)
+        start, end = np.unique(da.compute(times))
 
     return start, end
 
