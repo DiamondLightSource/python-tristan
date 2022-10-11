@@ -41,7 +41,8 @@ def find_start_end(data: dd.DataFrame, show_progress: bool = False) -> (int, int
     else:
         context = nullcontext
 
-    times = data[cue_time_key][data[cue_id_key].isin((shutter_open, shutter_close))]
+    indices = (data[cue_id_key] == shutter_open) | (data[cue_id_key] == shutter_close)
+    times = data[cue_time_key][indices]
 
     with context():
         start, end = np.unique(da.compute(times))

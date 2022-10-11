@@ -113,7 +113,7 @@ def single_image_cli(args):
 
     raw_files, _ = data_files(args.data_dir, args.stem)
 
-    with latrd_data(raw_files, keys=cue_keys) as data:
+    with latrd_data(raw_files, keys=cue_keys, dataframe=False) as data:
         start, end = find_start_end(data, show_progress=True)
 
     print("Binning events into a single image.")
