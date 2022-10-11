@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 from contextlib import ExitStack, contextmanager
-from functools import partial
 from pathlib import Path
 from typing import Iterable
 
@@ -15,7 +14,6 @@ from dask import array as da
 from dask import dataframe as dd
 from numpy.typing import ArrayLike
 from pint import Quantity
-from toolz import valmap
 
 from . import clock_frequency, ureg
 
@@ -81,35 +79,6 @@ event_keys = event_location_key, event_time_key, event_energy_key
 nx_size_key = "entry/instrument/detector/module/data_size"
 
 
-def aggregate_chunks(array: da.Array, target_size: int) -> da.Array:
-    """
-    Concatenate adjacent small chunks in a one-dimensional Dask array.
-
-    Reduce the total number of chunks in a one-dimensional Dask array by joining
-    adjacent chunks that are smaller than the optimal chunk size, as determined by
-    the Dask config 'array.chunk-size'.
-
-    Args:
-        array:        A one-dimensional Dask array.
-        target_size:  The optimal number of data per Dask chunk.
-
-    Returns:
-        The input array, rechunked to minimise the number of chunks.
-    """
-    new_chunks = []
-    (old_chunks,) = array.chunks
-    for chunk in old_chunks:
-        if new_chunks and new_chunks[-1] + chunk <= target_size:
-            # If this input data set will fit into the current Dask chunk, add it.
-            new_chunks[-1] += chunk
-        else:
-            # If the current chunk is full (or the chunks list is empty), add this
-            # data set to the next chunk.
-            new_chunks.append(chunk)
-
-    return array.rechunk(new_chunks)
-
-
 @contextmanager
 def latrd_data(
     raw_file_paths: Iterable[str | Path],
@@ -152,8 +121,6 @@ def latrd_data(
             k: da.concatenate([da.from_array(f[k], chunks=block_length) for f in files])
             for k in keys
         }
-        aggregate = partial(aggregate_chunks, target_size=block_length)
-        data = valmap(aggregate, data)
 
         if dataframe:
             data = dd.concat(
