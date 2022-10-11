@@ -1,15 +1,12 @@
 """Tools for binning events to images."""
 from __future__ import annotations
 
-from contextlib import nullcontext
 from operator import mul
 
 import numpy as np
 import pandas as pd
-from dask import array as da
 from dask import dataframe as dd
 from dask import distributed
-from dask.diagnostics import ProgressBar
 from numpy.typing import ArrayLike
 
 from .data import (
@@ -22,30 +19,21 @@ from .data import (
 )
 
 
-def find_start_end(data: dd.DataFrame, show_progress: bool = False) -> (int, int):
+def find_start_end(data: dd.DataFrame) -> (int, int):
     """
     Find the shutter open and shutter close timestamps.
 
     Args:
-        data:           LATRD data.  Must contain one 'cue_id' entry and one
-                        'cue_timestamp_zero' entry.  The two arrays are assumed to have
-                        the same length.
-        show_progress:  Whether to show a progress bar.
+        data:  LATRD data.  Must contain one 'cue_id' entry and one
+               'cue_timestamp_zero' entry.  The two arrays are assumed to have the
+               same length.
 
     Returns:
         The shutter open and shutter close timestamps, in clock cycles.
     """
-    if show_progress:
-        print("Finding detector shutter open and close times.")
-        context = ProgressBar
-    else:
-        context = nullcontext
-
     indices = (data[cue_id_key] == shutter_open) | (data[cue_id_key] == shutter_close)
     times = data[cue_time_key][indices]
-
-    with context():
-        start, end = np.unique(da.compute(times))
+    start, end = np.unique(times.compute())
 
     return start, end
 

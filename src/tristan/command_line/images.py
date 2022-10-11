@@ -113,8 +113,9 @@ def single_image_cli(args):
 
     raw_files, _ = data_files(args.data_dir, args.stem)
 
-    with latrd_data(raw_files, keys=cue_keys, dataframe=False) as data:
-        start, end = find_start_end(data, show_progress=True)
+    print("Finding detector shutter open and close times.")
+    with latrd_data(raw_files, keys=cue_keys) as data, ProgressBar():
+        start, end = find_start_end(data)
 
     print("Binning events into a single image.")
     with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
@@ -246,9 +247,10 @@ def multiple_images_cli(args):
 
     raw_files, _ = data_files(args.data_dir, args.stem)
 
-    print("Finding detector shutter open and close times.")
-    with latrd_data(raw_files, keys=cue_keys, dataframe=False) as data, ProgressBar():
-        start, end = dask.compute(find_start_end(data))
+    with latrd_data(raw_files, keys=cue_keys) as data:
+        print("Finding detector shutter open and close times.")
+        with ProgressBar():
+            start, end = find_start_end(data)
         exposure_time, exposure_cycles, num_images = exposure(
             start, end, args.exposure_time, args.num_images
         )

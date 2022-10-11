@@ -83,7 +83,6 @@ nx_size_key = "entry/instrument/detector/module/data_size"
 def latrd_data(
     raw_file_paths: Iterable[str | Path],
     keys: Iterable[str] = cue_keys + event_keys,
-    dataframe=True,
 ) -> dd.DataFrame | dict[str, da.Array]:
     """
     A context manager to read LATRD data sets from multiple files.
@@ -94,15 +93,9 @@ def latrd_data(
     the default Dask array chunk size, but with chunk boundaries aligned with HDF5
     file boundaries.
 
-    This can either yield a Dask DataFrame or a dictionary of Dask arrays.  The former
-    can make certain slicing operations simpler.  The latter can be useful because
-    Dask DataFrames discard the known chunk/partition sizes but some computations can
-    be made simpler if redundant compute_chunk_sizes calls can be avoided.
-
     Args:
         raw_file_paths:  The paths of the raw LATRD data files.
         keys:  The set of LATRD data keys to be read.
-        dataframe:  Yield a Dask DataFrame if True, or else a dictionary of Dask arrays.
 
     Yields:
         The data from all the files.
@@ -121,11 +114,9 @@ def latrd_data(
             k: da.concatenate([da.from_array(f[k], chunks=block_length) for f in files])
             for k in keys
         }
-
-        if dataframe:
-            data = dd.concat(
-                [dd.from_dask_array(v, columns=k) for k, v in data.items()], axis=1
-            )
+        data = dd.concat(
+            [dd.from_dask_array(v, columns=k) for k, v in data.items()], axis=1
+        )
 
         yield data
 
