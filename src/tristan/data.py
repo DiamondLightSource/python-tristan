@@ -121,7 +121,9 @@ def latrd_data(
         yield data
 
 
-def first_cue_time(data: dd.DataFrame, message: int) -> dd.DataFrame | None:
+def first_cue_time(
+    data: dd.DataFrame, message: int, after: int | None = None
+) -> dd.DataFrame | None:
     """
     Find the timestamp of the first instance of a cue message in a Tristan data set.
 
@@ -130,18 +132,21 @@ def first_cue_time(data: dd.DataFrame, message: int) -> dd.DataFrame | None:
                   'cue_timestamp_zero' column.  The two arrays are assumed to have the
                   same length.
         message:  The message code, as defined in the Tristan standard.
+        after:    Ignore instances of the specified message before this timestamp.
 
     Returns:
         The timestamp, measured in clock cycles from the global synchronisation signal.
         If the message doesn't exist in the data set, this returns None.
     """
-    # Avoid dask.dataframe.DataFrame.idxmax for fear of duplicate indices.
-    first_index = da.argmax(data[cue_id_key] == message).compute()
-    if first_index or data[cue_id_key].iloc[0].compute() == message:
-        return data[cue_time_key].iloc[first_index]
+    message_incidences = data[cue_id_key] == message
+    if after:
+        message_incidences &= data[cue_time_key] >= after
+    first_index = message_incidences.idxmax().compute()
+    if first_index or data[cue_id_key].loc[0].compute().values == message:
+        return data[cue_time_key].loc[first_index]
 
 
-def cue_times(data: dd.DataFrame, message: int) -> da.Array:
+def cue_times(data: dd.DataFrame, message: int, after: int | None = None) -> da.Array:
     """
     Find the timestamps of all instances of a cue message in a Tristan data set.
 
@@ -151,13 +156,16 @@ def cue_times(data: dd.DataFrame, message: int) -> da.Array:
         data:     A DataFrame of LATRD data.  Must contain one column for cue id
                   messages and one for cue timestamps.
         message:  The message code, as defined in the Tristan standard.
+        after:    Ignore instances of the specified message before this timestamp.
 
     Returns:
         The timestamps, measured in clock cycles from the global synchronisation
         signal, de-duplicated.
     """
     index = data[cue_id_key] == message
-    return da.unique(data[cue_time_key][index.values])
+    if after:
+        index &= data[cue_time_key] >= after
+    return da.unique(data[cue_time_key][index].values)
 
 
 def seconds(timestamp: int, reference: int = 0) -> Quantity:
