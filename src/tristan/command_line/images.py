@@ -336,8 +336,8 @@ def multiple_images_cli(args):
             make_images, data, image_size, images, meta=meta, enforce_metadata=False
         )
 
-        # Use threads, rather than processes.
-        with Client(processes=False):
+        # Use multiprocessing.
+        with Client():
             # Compute the array and store the values, using a progress bar.
             print("Calculating the binned images.")
             (data,) = dask.persist(data)
