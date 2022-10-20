@@ -67,7 +67,7 @@ def make_images(data: pd.DataFrame, image_size: tuple[int, int], cache: ArrayLik
 
     Args:
         data:        LATRD data.  Must have one 'event_id' column and one
-                     'event_time_offset' column.
+                    'image_index' column.
         image_size:  The (y, x), i.e. (slow, fast) dimensions (number of pixels) of
                      the image.
         cache:       Array representing the image stack, to which the binned events
@@ -75,15 +75,18 @@ def make_images(data: pd.DataFrame, image_size: tuple[int, int], cache: ArrayLik
                      functions as an on-disk cache of the binned images.
     """
     # Construct a stack of images using dask.array.bincount and add them to the cache.
-    for image_index in data[event_time_key].unique():
-        locations = data[event_location_key][data[event_time_key] == image_index]
+    for image_index in data["image_index"].unique():
+        image_index = int(image_index)  # Convert to a serialisable type.
+        locations = data[event_location_key][data["image_index"] == image_index]
         pixel_counts = np.bincount(locations, minlength=mul(*image_size))
         pixel_counts = pixel_counts.astype(np.uint32).reshape(image_size)
         with distributed.Lock(image_index):
-            # Beware!  Using inplace addition (+=) here causes the locking to fail
-            # when the cache is a Zarr array.  Presumably this is due to Zarr
-            # releasing the GIL before it has finished flushing the result of the
-            # inplace addition to disk.
+            # Beware!  When the cache is a Zarr array, using inplace addition (+=)
+            # here means the locking fails to prevent the race condition of multiple
+            # make_images calls in separate threads accessing the same chunk of the
+            # cache simultaneously.  Presumably this is due to Zarr releasing the GIL
+            # before it has finished flushing the result of the inplace addition to
+            # disk.
             cache[image_index] = cache[image_index] + pixel_counts
 
     return pd.DataFrame(columns=data.columns)
@@ -109,4 +112,4 @@ def find_image_indices(data: pd.DataFrame, bins: ArrayLike):
     elif num_images:
         data[event_time_key] = 0
 
-    return data
+    return data.rename(columns={event_time_key: "image_index"})

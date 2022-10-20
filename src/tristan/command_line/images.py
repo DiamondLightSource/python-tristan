@@ -295,17 +295,15 @@ def multiple_images_cli(args):
         # Convert the event IDs to a form that is suitable for a NumPy bincount.
         data[event_location_key] = pixel_index(data[event_location_key], image_size)
 
-        meta = pd.DataFrame(columns=data.columns).astype(dtype=data.dtypes)
+        columns = event_location_key, "image_index"
+        dtypes = data.dtypes
+        dtypes["image_index"] = dtypes.pop(event_time_key)
+        meta = pd.DataFrame(columns=columns).astype(dtype=dtypes)
         data = data.map_partitions(find_image_indices, bins=bins, meta=meta)
 
         # Bin to images, partition by partition.
         data = dd.map_partitions(
-            make_images,
-            data,
-            image_size,
-            images,
-            meta=pd.DataFrame(columns=data.columns),
-            enforce_metadata=False,
+            make_images, data, image_size, images, meta=meta, enforce_metadata=False
         )
 
         # Use threads, rather than processes.
