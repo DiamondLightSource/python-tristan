@@ -250,29 +250,59 @@ def multiple_images_cli(args):
     with latrd_data(raw_files, keys=cue_keys) as data:
         print("Finding detector shutter open and close times.")
         with ProgressBar():
-            start, end = find_start_end(data)
+            start, end = map(int, find_start_end(data))
         exposure_time, exposure_cycles, num_images = exposure(
             start, end, args.exposure_time, args.num_images
         )
 
         if args.align_trigger:
-            trigger_type = triggers.get(args.align_trigger)
+            trigger_type = triggers[args.align_trigger]
             print(
                 f"Image start and end times will be chosen such that the first "
-                f"'{cues[trigger_type]}' is aligned with an image boundary."
+                f"'{cues[trigger_type]}' after the detector shutter open signal is "
+                f"aligned with an image boundary."
             )
             # Note we are assuming that the first trigger time is after shutter open.
-            trigger_time = first_cue_time(data, trigger_type)
+            trigger_time = first_cue_time(data, trigger_type, after=start)
             if trigger_time is None:
-                sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
-            trigger_time = trigger_time.compute().astype(int)
-            bins_pre = np.arange(
-                trigger_time - exposure_cycles, start, -exposure_cycles, dtype=np.uint64
-            )[::-1]
-            bins_post = np.arange(trigger_time, end, exposure_cycles, dtype=np.uint64)
-            bins = np.concatenate((bins_pre, bins_post))
-        else:
-            bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
+                sys.exit(
+                    f"Could not find a '{cues[trigger_type]}' signal after the "
+                    f"detector shutter open signal."
+                )
+            # TODO:  Break this if/elif/else clause out into a function taking
+            #        start, end, trigger_time, exposure_cycles (optional), num_images
+            #        (optional); returning start, exposure_cycles, num_images.
+            trigger_time = int(trigger_time.compute())
+            if args.exposure_time:
+                # Adjust the start time to align a bin edge with the trigger time.
+                n_bins_before = (trigger_time - start) // exposure_cycles
+                start = trigger_time - n_bins_before * exposure_cycles
+                num_images = (end - start) // exposure_cycles
+            # It is assumed that start ≤ trigger_time ≤ end.
+            elif trigger_time <= (start + end) / 2:
+                # Find the exposure time by pinning a bin edge to the trigger time
+                # and the last bin edge to the end time, maximising the number of
+                # bins we can fit between the start time and the trigger time.
+                # At least half the images must happen after the trigger time.
+                n_bins_after = np.arange(num_images // 2 or 1, num_images + 1)
+                exposure_cycles = ((end - trigger_time) / n_bins_after).astype(int)
+                new_start = end - num_images * exposure_cycles
+                best = np.argmax(new_start >= start)
+                start = new_start[best]
+                exposure_cycles = exposure_cycles[best]
+            else:
+                # Find the exposure time by pinning a bin edge to the trigger time
+                # and the first bin edge to the start time, maximising the number of
+                # bins we can fit between the trigger time and the end time.
+                # At least half the images must happen before the trigger time.
+                n_bins_before = np.arange(num_images // 2 or 1, num_images + 1)
+                exposure_cycles = ((trigger_time - start) / n_bins_before).astype(int)
+                new_end = start + num_images * exposure_cycles
+                best = np.argmax(new_end <= end)
+                exposure_cycles = exposure_cycles[best]
+
+        end = start + num_images * exposure_cycles
+        bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
 
     print(
         f"Binning events into {num_images} images with an exposure time of "
