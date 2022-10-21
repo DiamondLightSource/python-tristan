@@ -187,6 +187,24 @@ def seconds(timestamp: int, reference: int = 0) -> Quantity:
     return ((timestamp - reference) / clock_frequency).to_base_units().to_compact()
 
 
+def valid_events(data: dd.DataFrame, start: int, end: int) -> dd.DataFrame:
+    """
+    Return those events that have a timestamp in the specified range.
+
+    Args:
+        data:   LATRD data, containing an 'event_time_offset' column and optional
+                'event_id' and 'event_energy' columns.
+        start:  The start time of the accepted range, in clock cycles.
+        end:    The end time of the accepted range, in clock cycles.
+
+    Returns:
+        The valid events.
+    """
+    valid = (start <= data[event_time_key]) & (data[event_time_key] < end)
+
+    return data[valid]
+
+
 def pixel_index(location: ArrayLike, image_size: tuple[int, int]) -> ArrayLike:
     """
     Extract pixel coordinate information from an event location (event_id) message.

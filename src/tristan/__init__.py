@@ -13,12 +13,34 @@ __email__ = "dataanalysis@diamond.ac.uk"
 __version__ = "0.1.16"
 __version_tuple__ = tuple(int(x) for x in __version__.split("."))
 
+import dask
 import pint
 from dask import array as da
+from dask.distributed import progress, wait
 
 ureg = pint.UnitRegistry()
 
 clock_frequency = ureg.Quantity(6.4e8, "Hz").to_compact()
+
+
+def compute_with_progress(collection):
+    """
+    Compute a Dask collection, showing the progress of the top layer of the task graph.
+
+    Args:
+        collection:  A single Dask collection.
+    """
+    (collection,) = dask.persist(collection)
+
+    # View progress only of the top layer of the task graph, which consists
+    # of the rate limiting make_images tasks, to avoid giving a false sense
+    # of rapid progress from the quick execution of the large number of
+    # other, cheaper tasks.
+    *_, top_layer = collection.dask.layers.values()
+    futures = list(top_layer.values())
+    print(progress(futures) or "")
+
+    wait(collection)
 
 
 def blockwise_selection(array: da.Array, selection: da.Array) -> da.Array:
