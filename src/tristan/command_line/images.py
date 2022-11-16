@@ -286,17 +286,18 @@ def pump_probe_cli(args):
 
     with ExitStack() as stack:
         # Get the cues data, from which to extract the trigger times.
-        data = stack.enter_context(latrd_data(raw_files, keys=cue_keys))
+        cues_data = stack.enter_context(latrd_data(raw_files, keys=cue_keys))
 
         print("Finding trigger signal times.")
-        trigger_times = cue_times(data, trigger_type)
+        trigger_times = cue_times(cues_data, trigger_type)
         with ProgressBar():
-            trigger_times = trigger_times.astype(int).compute_chunk_sizes()
+            # Assumes the trigger times can be held in memory.
+            trigger_times = trigger_times.astype(int).compute()
 
         if not trigger_times.size:
             sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
 
-        end = da.diff(trigger_times).min().compute()
+        end = da.diff(trigger_times).min()
         exposure_time, num_images = args.exposure_time, args.num_images
         exposure_time, _, num_images = exposure(0, end, exposure_time, num_images)
         bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
@@ -312,22 +313,21 @@ def pump_probe_cli(args):
 
         # Get the events data.
         keys = (event_location_key, event_time_key)
-        data = stack.enter_context(latrd_data(raw_files, keys=keys))
+        events_data = stack.enter_context(latrd_data(raw_files, keys=keys))
 
         # Measure the event time as time elapsed since the most recent trigger signal.
-        data = data.astype({event_time_key: np.int64})
-        event_times = data[event_time_key].values
-        trigger_index = da.searchsorted(trigger_times, event_times, "right")
-        trigger_index -= 1
-        data[event_time_key] -= trigger_times[trigger_index]
+        events_data = events_data.astype({event_time_key: np.int64})
+        event_times = events_data[event_time_key].values
+        trigger_index = da.digitize(event_times, trigger_times) - 1
+        events_data[event_time_key] -= da.take(trigger_times, trigger_index)
 
         # Bin the events into images.
-        data = events_to_images(data, bins, image_size, images)
+        events_data = events_to_images(events_data, bins, image_size, images)
 
         print("Calculating the binned images.")
         # Use multi-threading, rather than multi-processing.
         with Client(processes=False):
-            compute_with_progress(data)
+            compute_with_progress(events_data)
 
     print("Transferring the images to the output file.")
     with h5py.File(output_file, write_mode) as f:
