@@ -43,7 +43,7 @@ from ..data import (
 Quantity, Unit = ureg.Quantity, ureg.Unit
 
 # Regex for Tristan data file name stems.
-meta_file_name_regex = re.compile(r"(.*)_(?:meta|\d+)")
+input_file_name_regex = re.compile(r"(.*)(?:_(?:meta|\d+)\.h5|\.nxs)")
 
 
 triggers = {
@@ -150,7 +150,7 @@ def data_files(data_dir: Path, stem: str, n_dig: int = 6) -> (list[Path], Path):
 
     Args:
         data_dir: Directory containing the raw data and time slice metadata HDF5 files.
-        stem:     Input file name, stripped of '_meta.h5', '_000001.h5', etc..
+        stem:     Input file name, stripped of '.nxs', '_meta.h5', '_000001.h5', etc..
         n_dig:    Number of digits in the raw file number, e.g. six in '_000001.h5'.
 
     Returns:
@@ -199,7 +199,10 @@ class _InputFileAction(argparse.Action):
     """
 
     def __call__(self, parser, namespace, values, option_string=None):
-        data_dir, file_name_stem = self.find_input_file_name(values)
+        try:
+            data_dir, file_name_stem = self.find_input_file_name(values)
+        except ValueError as e:
+            raise argparse.ArgumentError(self, *e.args)
         setattr(namespace, "data_dir", data_dir)
         setattr(namespace, "stem", file_name_stem)
 
@@ -208,7 +211,8 @@ class _InputFileAction(argparse.Action):
         """
         Resolve the input file name into a directory and a file name stem.
 
-        The file name stem is the file name stem stripped of the last _(meta|\\d+).
+        The file name stem is the file name stem stripped of any trailing '_meta' or
+        '_<digits>'.
 
         Args:
             in_file:  The input file path.
@@ -224,25 +228,25 @@ class _InputFileAction(argparse.Action):
             try:
                 (file_name,) = data_dir.glob("*_meta.h5")
             except ValueError:
-                sys.exit(
-                    "Could not find a single unique '<filename>_meta.h5' file in the "
-                    "specified directory.\n"
-                    "Please specify the desired input file name instead."
+                raise ValueError(
+                    "Could not find a single unique '<filename>_meta.h5' or "
+                    "'<filename>.nxs' file in the specified directory.\n"
+                    "Please specify the desired input file name instead.",
                 )
-            file_name_stem = meta_file_name_regex.fullmatch(file_name.stem)[1]
+            file_name_stem = input_file_name_regex.fullmatch(file_name.name).group(1)
         else:
             data_dir = in_file.parent
 
             # Get the segment 'name_stem' from 'name_stem_meta.h5' or
             # 'name_stem_000001.h5'.
-            file_name_stem = meta_file_name_regex.fullmatch(in_file.stem)
-            if file_name_stem:
-                file_name_stem = file_name_stem[1]
+            file_name_match = input_file_name_regex.fullmatch(in_file.name)
+            if file_name_match:
+                file_name_stem = file_name_match.group(1)
             else:
-                sys.exit(
+                raise ValueError(
                     "Input file name did not have the expected format "
-                    "'<name>_meta.h5':\n"
-                    f"\t{in_file}"
+                    "'<name>_meta.h5' or '<name>.nxs':\n"
+                    f"\t{in_file}",
                 )
 
         return data_dir, file_name_stem
@@ -253,9 +257,9 @@ class _InputFileAction(argparse.Action):
 input_parser = argparse.ArgumentParser(add_help=False)
 input_parser.add_argument(
     "input_file",
-    help="Tristan metadata ('_meta.h5') or raw data ('_000001.h5', etc.) file.  "
-    "This file must be in the same directory as the HDF5 files containing all the "
-    "corresponding raw events data.",
+    help="Tristan NeXus ('.nxs'), metadata ('_meta.h5') or raw data ('_000001.h5', "
+    "etc.) file.  This file must be in the same directory as the HDF5 files "
+    "containing all the corresponding raw events data.",
     metavar="input-file",
     action=_InputFileAction,
 )

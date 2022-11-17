@@ -94,18 +94,23 @@ def test_version_parser_no_help(capsys):
     assert "error: unrecognized arguments: -h" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("stem", ("dummy_meta", "dummy_1", "dummy_0001"))
+@pytest.mark.parametrize(
+    "filename", ("dummy_meta.h5", "dummy_1.h5", "dummy_0001.h5", "dummy.nxs")
+)
 @pytest.mark.parametrize("directory", (".", "/", "~", "test_dir"))
-def test_find_input_file_name(directory, stem):
+def test_find_input_file_name(directory, filename):
     """Test the determination of input file names."""
-    in_file = "/".join([directory, stem + ".h5"])
+    in_file = "/".join([directory, filename])
     expected_dir = Path(directory).expanduser().resolve()
     assert _InputFileAction.find_input_file_name(in_file) == (expected_dir, "dummy")
 
 
-def test_find_input_file_name_by_directory(tmp_path):
+@pytest.mark.parametrize(
+    "filename", ("dummy_meta.h5", "dummy_1.h5", "dummy_0001.h5", "dummy.nxs")
+)
+def test_find_input_file_name_by_directory(tmp_path, filename):
     """Test that the input file name can be found from its parent directory."""
-    with h5py.File(tmp_path / "dummy_meta.h5", "w"):
+    with h5py.File(tmp_path / filename, "w"):
         pass
     assert _InputFileAction.find_input_file_name(tmp_path) == (tmp_path, "dummy")
 
@@ -178,7 +183,7 @@ def test_input_parser_cwd_improper_input():
 
 
 def test_input_parser_no_help(capsys):
-    """Check that the input parser parser does not introduce a help flag."""
+    """Check that the input parser does not introduce a help flag."""
     directory = "some/dummy/path/to"
     stem = "file_name"
     for flag in "-h", "--help":
