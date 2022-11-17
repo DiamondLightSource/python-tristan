@@ -6,5 +6,5 @@ nexgen==0.6.13
 numpy==1.23.4
 Pint==0.20.1
 pytest==7.2.0
-pytest-cov==3.0.0
+pytest-cov==4.0.0
 zarr==2.13.3
