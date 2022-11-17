@@ -27,6 +27,7 @@
   "prHourlyLimit": 2,
   "automerge": true,
   "pre-commit": {
+    "enabled": true,
     "groupName": "all pre-commit hooks",
     "groupSlug": "all-pre-commit",
     "schedule": [
