@@ -4,6 +4,7 @@ h5py==3.7.0
 hdf5plugin==3.3.1
 nexgen==0.6.13
 numpy==1.23.4
+pandas==1.5.1
 Pint==0.20.1
 pytest==7.2.0
 pytest-cov==4.0.0
