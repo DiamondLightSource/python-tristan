@@ -96,7 +96,7 @@ def create_cache(
     i.e. the chunk shape will be (1, *image_size).
 
     Args:
-        output_file:  Output file name.  Any file extension will be replaces with .zarr.
+        output_file:  Output file name.  Any file extension will be replaced with .zarr.
         num_images:   The number of images in the array.
         image_size:   The size of an image in the array.
 
