@@ -63,7 +63,7 @@ def main(args):
     split = {k: [] for k in MOD.keys()}
     broken = []
     for filename in file_list:
-        with h5py.File(filename, "r") as fh:
+        with h5py.File(filename) as fh:
             try:
                 # Note: checking item of index 1 because for broken files there will just be one item in "event_id" set to 0.
                 x, y = divmod(fh["event_id"][1], DIV)

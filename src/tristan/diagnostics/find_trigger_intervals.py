@@ -67,7 +67,7 @@ def trigger_lookup(tristanlist):
     lvds_re = []
     lvds_fe = []
     for filename in filelist:
-        with h5py.File(filename, "r") as fh:
+        with h5py.File(filename) as fh:
             cues = fh[cue_id_key][()]
             cues_time = fh[cue_time_key]
             # Look for shutters
@@ -116,7 +116,7 @@ def trigger_lookup_ssx(tristanlist):
     sync_re = []
     sync_fe = []
     for filename in filelist:
-        with h5py.File(filename, "r") as fh:
+        with h5py.File(filename) as fh:
             cues = fh[cue_id_key][()]
             cues_time = fh[cue_time_key]
             # Look for shutters
@@ -200,7 +200,7 @@ def main(args):
 
     nxsfile = filepath / (args.filename + ".nxs")
     if nxsfile in filepath.iterdir():
-        with h5py.File(nxsfile, "r") as nxs:
+        with h5py.File(nxsfile) as nxs:
             count_time = nxs["/entry/instrument/detector/count_time"][()]
         logger.info(f"Total collection time recorded in NeXus file: {count_time} s.\n")
 
