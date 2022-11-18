@@ -161,7 +161,7 @@ def data_files(data_dir: Path, stem: str, n_dig: int = 6) -> (list[Path], Path):
     if not meta_file.exists():
         sys.exit(f"Could not find the expected detector metadata file:\n\t{meta_file}")
 
-    with h5py.File(meta_file, "r") as f:
+    with h5py.File(meta_file) as f:
         n_files = np.sum(f.get("fp_per_module", default=()))
 
     if n_files:
