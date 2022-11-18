@@ -227,12 +227,21 @@ class _InputFileAction(argparse.Action):
 
             try:
                 (file_name,) = data_dir.glob("*_meta.h5")
-            except ValueError:
-                raise ValueError(
-                    "Could not find a single unique '<filename>_meta.h5' or "
-                    "'<filename>.nxs' file in the specified directory.\n"
-                    "Please specify the desired input file name instead.",
-                )
+            except ValueError as e:
+                (message,) = e.args
+                if message == "not enough values to unpack (expected 1, got 0)":
+                    e.args = (
+                        "Could not find any '<filename>_meta.h5' or '<filename>.nxs' "
+                        "file in the specified directory.",
+                    )
+                elif message == "too many values to unpack (expected 1)":
+                    e.args = (
+                        "Could not find a single unique '<filename>_meta.h5' or "
+                        "'<filename>.nxs' file in the specified directory.\n"
+                        "Please specify the desired input file name instead.",
+                    )
+                raise
+
             file_name_stem = input_file_name_regex.fullmatch(file_name.name).group(1)
         else:
             data_dir = in_file.parent
