@@ -15,11 +15,6 @@ image_size = (3043, 4183)  # slow, fast
 
 
 def define_modules():
-    """_summary_
-
-    Returns:
-        _type_: _description_
-    """
     mod = {}
     for _y in range(modules[0]):
         for _x in range(modules[1]):
