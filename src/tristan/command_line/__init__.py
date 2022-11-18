@@ -246,7 +246,7 @@ class _InputFileAction(argparse.Action):
                 raise ValueError(
                     "Input file name did not have the expected format "
                     "'<name>_meta.h5' or '<name>.nxs':\n"
-                    f"\t{in_file}",
+                    f"\t{in_file.name}",
                 )
 
         return data_dir, file_name_stem

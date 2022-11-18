@@ -105,12 +105,9 @@ def test_find_input_file_name(directory, filename):
     assert _InputFileAction.find_input_file_name(in_file) == (expected_dir, "dummy")
 
 
-@pytest.mark.parametrize(
-    "filename", ("dummy_meta.h5", "dummy_1.h5", "dummy_0001.h5", "dummy.nxs")
-)
-def test_find_input_file_name_by_directory(tmp_path, filename):
+def test_find_input_file_name_by_directory(tmp_path):
     """Test that the input file name can be found from its parent directory."""
-    with h5py.File(tmp_path / filename, "w"):
+    with h5py.File(tmp_path / "dummy_meta.h5", "w"):
         pass
     assert _InputFileAction.find_input_file_name(tmp_path) == (tmp_path, "dummy")
 
@@ -119,10 +116,11 @@ def test_find_input_file_name_unexpected():
     """Test that a malformed input file name raises an error."""
     in_file = "dummy_invalid.h5"
     error = (
-        f"Input file name did not have the expected format '<name>_meta.h5':\n"
-        f"\t.*{in_file}"
+        "Input file name did not have the expected format '<name>_meta.h5' or "
+        "'<name>.nxs':\n"
+        f"\t{in_file}"
     )
-    with pytest.raises(SystemExit, match=error):
+    with pytest.raises(ValueError, match=error):
         _InputFileAction.find_input_file_name(in_file)
 
 
@@ -131,10 +129,10 @@ def test_find_file_name_empty_directory(tmp_path):
     Test that finding an input file in an empty directory raises an appropriate error.
     """
     error = (
-        "Could not find a single unique '<filename>_meta.h5' file in the "
-        "specified directory."
+        "Could not find a single unique '<filename>_meta.h5' or '<filename>.nxs' file "
+        "in the specified directory."
     )
-    with pytest.raises(SystemExit, match=error):
+    with pytest.raises(ValueError, match=error):
         _InputFileAction.find_input_file_name(tmp_path)
 
 
@@ -166,20 +164,36 @@ def test_input_parser_mandatory(capsys):
     assert "error: the following arguments are required: input-file" in error
 
 
-def test_input_parser_cwd_improper_input():
+def test_input_parser_improper_input(capsys):
     """
-    Check the default directory and that a mangled meta file name is caught.
+    Check that a mangled meta file name is caught.
 
-    Check that an undefined directory defaults to the current working directory,
-    and that a file name that doesn't match the expected format is caught with a
+    Check that a file name that doesn't match the expected format is caught with a
     help message.
     """
+    filename = "test.h5"
     error = (
-        "Input file name did not have the expected format '<name>_meta.h5':\n\t"
-        f"{Path.cwd() / 'test.h5'}"
+        "Input file name did not have the expected format '<name>_meta.h5' or "
+        "'<name>.nxs':\n\t"
+        f"{filename}"
     )
-    with pytest.raises(SystemExit, match=error):
-        input_parser.parse_args(["test.h5"])
+    with pytest.raises(SystemExit, match="2"):
+        input_parser.parse_args([filename])
+
+    assert error in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "filename", ("dummy_meta.h5", "dummy_1.h5", "dummy_0001.h5", "dummy.nxs")
+)
+def test_input_parser_cwd(run_in_tmp_path, filename):
+    """Check that an undefined directory defaults to the current working directory."""
+    tmp_path = run_in_tmp_path
+    with h5py.File(tmp_path / filename, "w"):
+        pass
+    args = input_parser.parse_args([filename])
+    assert args.data_dir == tmp_path
+    assert args.stem == "dummy"
 
 
 def test_input_parser_no_help(capsys):
