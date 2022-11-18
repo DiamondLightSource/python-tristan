@@ -73,6 +73,22 @@ def determine_image_size(nexus_file: Path) -> tuple[int, int]:
 def exposure(
     start: int, end: int, exposure_time: pint.Quantity = None, num_images: int = None
 ) -> (pint.Quantity, int, int):
+    """
+    Find the exposure time or number of images.
+
+    From a start time and an end time, either derive an exposure time from the
+    number of images, or derive the number of images from the exposure time.
+
+    Args:
+        start:          Start time in clock cycles.
+        end:            End time in clock cycles.
+        exposure_time:  Exposure time in any unit of time (optional).
+        num_images:     Number of images (optional).
+
+    Returns:
+        The exposure time in seconds, the exposure time in clock cycles, the number
+        of images.
+    """
     if exposure_time:
         exposure_time = exposure_time.to_base_units().to_compact()
         exposure_cycles = (exposure_time * clock_frequency).to_base_units().magnitude
