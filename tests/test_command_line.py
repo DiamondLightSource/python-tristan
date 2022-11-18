@@ -94,19 +94,20 @@ def test_version_parser_no_help(capsys):
     assert "error: unrecognized arguments: -h" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("stem", ("dummy_meta", "dummy_1", "dummy_0001"))
+@pytest.mark.parametrize(
+    "filename", ("dummy_meta.h5", "dummy_1.h5", "dummy_0001.h5", "dummy.nxs")
+)
 @pytest.mark.parametrize("directory", (".", "/", "~", "test_dir"))
-def test_find_input_file_name(directory, stem):
+def test_find_input_file_name(directory, filename):
     """Test the determination of input file names."""
-    in_file = "/".join([directory, stem + ".h5"])
+    in_file = "/".join([directory, filename])
     expected_dir = Path(directory).expanduser().resolve()
     assert _InputFileAction.find_input_file_name(in_file) == (expected_dir, "dummy")
 
 
 def test_find_input_file_name_by_directory(tmp_path):
     """Test that the input file name can be found from its parent directory."""
-    with h5py.File(tmp_path / "dummy_meta.h5", "w"):
-        pass
+    Path.touch(tmp_path / "dummy_meta.h5")
     assert _InputFileAction.find_input_file_name(tmp_path) == (tmp_path, "dummy")
 
 
@@ -114,10 +115,11 @@ def test_find_input_file_name_unexpected():
     """Test that a malformed input file name raises an error."""
     in_file = "dummy_invalid.h5"
     error = (
-        f"Input file name did not have the expected format '<name>_meta.h5':\n"
-        f"\t.*{in_file}"
+        "Input file name did not have the expected format '<name>_meta.h5' or "
+        "'<name>.nxs':\n"
+        f"\t{in_file}"
     )
-    with pytest.raises(SystemExit, match=error):
+    with pytest.raises(ValueError, match=error):
         _InputFileAction.find_input_file_name(in_file)
 
 
@@ -126,10 +128,24 @@ def test_find_file_name_empty_directory(tmp_path):
     Test that finding an input file in an empty directory raises an appropriate error.
     """
     error = (
-        "Could not find a single unique '<filename>_meta.h5' file in the "
+        "Could not find any '<filename>_meta.h5' or '<filename>.nxs' file in the "
         "specified directory."
     )
-    with pytest.raises(SystemExit, match=error):
+    with pytest.raises(ValueError, match=error):
+        _InputFileAction.find_input_file_name(tmp_path)
+
+
+def test_find_file_name_ambiguous(tmp_path):
+    """Test the error from an input directory with multiple candidate input files ."""
+    for filename in ("foo_meta.h5", "bar_meta.h5"):
+        Path.touch(tmp_path / filename)
+
+    error = (
+        "Could not find a single unique '<filename>_meta.h5' or '<filename>.nxs' file "
+        "in the specified directory.\n"
+        "Please specify the desired input file name instead."
+    )
+    with pytest.raises(ValueError, match=error):
         _InputFileAction.find_input_file_name(tmp_path)
 
 
@@ -157,28 +173,78 @@ def test_input_parser_mandatory(capsys):
     """Check that the input file path is a mandatory argument."""
     with pytest.raises(SystemExit, match="2"):
         input_parser.parse_args([])
-    error = capsys.readouterr().err
-    assert "error: the following arguments are required: input-file" in error
+    error = "error: the following arguments are required: input-file"
+    assert error in capsys.readouterr().err
 
 
-def test_input_parser_cwd_improper_input():
+def test_input_parser_empty_directory_input(capsys, tmp_path):
+    """Test that parsing an empty directory as input results in the correct error."""
+    with pytest.raises(SystemExit, match="2"):
+        input_parser.parse_args([str(tmp_path)])
+    error = (
+        "error: argument input-file: Could not find any '<filename>_meta.h5' or "
+        "'<filename>.nxs' file in the specified directory."
+    )
+    assert error in capsys.readouterr().err
+
+
+def test_input_parser_directory_input_ambiguous_contents(capsys, tmp_path):
+    """Test parsing an input directory containing multiple possible input files."""
+    Path.touch(tmp_path / "foo_meta.h5")
+    Path.touch(tmp_path / "bar_meta.h5")
+    with pytest.raises(SystemExit, match="2"):
+        input_parser.parse_args([str(tmp_path)])
+    error = (
+        "error: argument input-file: Could not find a single unique "
+        "'<filename>_meta.h5' or '<filename>.nxs' file in the specified directory.\n"
+        "Please specify the desired input file name instead."
+    )
+    assert error in capsys.readouterr().err
+
+
+def test_input_parser_directory_input_meta_and_nexus(tmp_path):
+    """Test that a directory containing both NeXus and _meta.h5 files is valid input."""
+    stem = "foo"
+    Path.touch(tmp_path / f"{stem}_meta.h5")
+    Path.touch(tmp_path / f"{stem}.nxs")
+    args = input_parser.parse_args([str(tmp_path)])
+    assert args.data_dir == tmp_path
+    assert args.stem == stem
+
+
+def test_input_parser_improper_input(capsys):
     """
-    Check the default directory and that a mangled meta file name is caught.
+    Check that a mangled meta file name is caught.
 
-    Check that an undefined directory defaults to the current working directory,
-    and that a file name that doesn't match the expected format is caught with a
+    Check that a file name that doesn't match the expected format is caught with a
     help message.
     """
+    filename = "test.h5"
     error = (
-        "Input file name did not have the expected format '<name>_meta.h5':\n\t"
-        f"{Path.cwd() / 'test.h5'}"
+        "error: argument input-file: Input file name did not have the expected format "
+        "'<name>_meta.h5' or '<name>.nxs':\n\t"
+        f"{filename}"
     )
-    with pytest.raises(SystemExit, match=error):
-        input_parser.parse_args(["test.h5"])
+    with pytest.raises(SystemExit, match="2"):
+        input_parser.parse_args([filename])
+
+    assert error in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "filename", ("dummy_meta.h5", "dummy_1.h5", "dummy_0001.h5", "dummy.nxs")
+)
+def test_input_parser_cwd(run_in_tmp_path, filename):
+    """Check that an undefined directory defaults to the current working directory."""
+    tmp_path = run_in_tmp_path
+    Path.touch(tmp_path / filename)
+    args = input_parser.parse_args([filename])
+    assert args.data_dir == tmp_path
+    assert args.stem == "dummy"
 
 
 def test_input_parser_no_help(capsys):
-    """Check that the input parser parser does not introduce a help flag."""
+    """Check that the input parser does not introduce a help flag."""
     directory = "some/dummy/path/to"
     stem = "file_name"
     for flag in "-h", "--help":
@@ -266,7 +332,7 @@ def test_image_output_parser_malformed_image_size(capsys):
 
 
 def test_image_output_parser_no_help(capsys):
-    """Check that the output/image size parser parser does not introduce a help flag."""
+    """Check that the output/image size parser does not introduce a help flag."""
     for flag in "-h", "--help":
         with pytest.raises(SystemExit, match="2"):
             image_output_parser.parse_args([flag])
