@@ -300,41 +300,35 @@ def pump_probe_cli(args):
 
     trigger_type = triggers.get(args.trigger_type)
 
-    with ExitStack() as stack:
-        # Get the cues data, from which to extract the trigger times.
-        cues_data = stack.enter_context(latrd_data(raw_files, keys=cue_keys))
-
+    with latrd_data(raw_files, keys=cue_keys) as cues_data:
         print("Finding trigger signal times.")
         trigger_times = cue_times(cues_data, trigger_type)
         with ProgressBar():
             # Assumes the trigger times can be held in memory.
             trigger_times = trigger_times.astype(int).compute()
 
-        if not trigger_times.size:
-            sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
-        elif not trigger_times.size > 1:
-            sys.exit(
-                f"Only one '{cues[trigger_type]}' signal found.  Two or more needed."
-            )
+    if not trigger_times.size:
+        sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
+    elif not trigger_times.size > 1:
+        sys.exit(f"Only one '{cues[trigger_type]}' signal found.  Two or more needed.")
 
-        end = da.diff(trigger_times).min()
-        exposure_time, num_images = args.exposure_time, args.num_images
-        exposure_time, _, num_images = exposure(0, end, exposure_time, num_images)
-        bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
+    end = da.diff(trigger_times).min()
+    exposure_time, num_images = args.exposure_time, args.num_images
+    exposure_time, _, num_images = exposure(0, end, exposure_time, num_images)
+    bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
 
-        print(
-            f"Binning events into {num_images} images with an exposure time of "
-            f"{exposure_time:.3g~#P} according to the time elapsed since the most "
-            f"recent '{cues[trigger_type]}' signal."
-        )
+    print(
+        f"Binning events into {num_images} images with an exposure time of "
+        f"{exposure_time:.3g~#P} according to the time elapsed since the most "
+        f"recent '{cues[trigger_type]}' signal."
+    )
 
-        # Make a cache for the images.
-        images = create_cache(output_file, num_images, image_size)
+    # Make a cache for the images.
+    images = create_cache(output_file, num_images, image_size)
 
-        # Get the events data.
-        keys = (event_location_key, event_time_key)
-        events_data = stack.enter_context(latrd_data(raw_files, keys=keys))
-
+    # Get the events data.
+    keys = (event_location_key, event_time_key)
+    with latrd_data(raw_files, keys=keys) as events_data:
         # Measure the event time as time elapsed since the most recent trigger signal.
         events_data = events_data.astype({event_time_key: np.int64})
         event_times = events_data[event_time_key].values
