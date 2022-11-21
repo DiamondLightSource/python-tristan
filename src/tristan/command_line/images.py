@@ -312,6 +312,10 @@ def pump_probe_cli(args):
 
         if not trigger_times.size:
             sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
+        elif not trigger_times.size > 1:
+            sys.exit(
+                f"Only one '{cues[trigger_type]}' signal found.  Two or more needed."
+            )
 
         end = da.diff(trigger_times).min()
         exposure_time, num_images = args.exposure_time, args.num_images
