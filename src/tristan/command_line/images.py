@@ -246,7 +246,7 @@ def multiple_images_cli(args):
     with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
         data = events_to_images(data, bins, image_size, images)
 
-        print("Calculating the binned images.")
+        print("Computing the binned images.")
         # Use multi-threading, rather than multi-processing.
         with Client(processes=False):
             compute_with_progress(data)
@@ -344,7 +344,7 @@ def pump_probe_cli(args):
         # Bin the events into images.
         events_data = events_to_images(events_data, bins, image_size, images)
 
-        print("Calculating the binned images.")
+        print("Computing the binned images.")
         # Use multi-threading, rather than multi-processing.
         with Client(processes=False):
             compute_with_progress(events_data)
