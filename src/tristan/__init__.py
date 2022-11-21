@@ -15,7 +15,6 @@ __version_tuple__ = tuple(int(x) for x in __version__.split("."))
 
 import dask
 import pint
-from dask import array as da
 from dask.distributed import progress, wait
 
 ureg = pint.UnitRegistry()
@@ -41,28 +40,3 @@ def compute_with_progress(collection):
     print(progress(futures) or "")
 
     wait(collection)
-
-
-def blockwise_selection(array: da.Array, selection: da.Array) -> da.Array:
-    """
-    Select from an array in a blockwise fashion, without computing chunk sizes.
-
-    Slicing a dask.Array with an array of bools or indices returns an array with
-    unknown chunk sizes, which causes problems for downstream Dask operations.  If
-    this is not a concern, (for example, if we are simply lumping the resulting array
-    into a bincount call, and have no need of the chunk size information),
-    we can save ourselves an expensive pass over the data by not computing the chunk
-    sizes at all.  This can be achieved by replacing Dask slicing with NumPy slicing,
-    mapped over all the blocks of an array.
-
-    Args:
-        array:      The array from which to take the selection.
-        selection:  An array of dtype bool, or an array of indices, specifying the
-                    desired selection from array.  There must be the same number of
-                    chunks as in array, and if the dtype is bool, the chunk sizes
-                    must match too.
-
-    Returns:
-        A slice from 'array', with the same dtype, and with the shape of 'selection'.
-    """
-    return da.map_blocks(lambda b, a: a[b], selection, array, dtype=array.dtype)

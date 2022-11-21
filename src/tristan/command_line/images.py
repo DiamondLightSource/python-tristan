@@ -5,27 +5,29 @@ from __future__ import annotations
 import argparse
 import sys
 from contextlib import ExitStack
-from functools import partial
 from operator import mul
 from pathlib import Path
 
+import dask
 import h5py
 import numpy as np
 import pandas as pd
 import pint
 import zarr
 from dask import array as da
+from dask import dataframe as dd
 from dask.diagnostics import ProgressBar
 from dask.distributed import Client
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import CopyTristanNexus
 
-from .. import blockwise_selection, clock_frequency, compute_with_progress
+from .. import clock_frequency, compute_with_progress
 from ..binning import (
     align_bins,
     create_cache,
     events_to_images,
     find_start_end,
+    find_time_bins,
     make_images,
     valid_events,
 )
@@ -359,10 +361,10 @@ def multiple_sequences_cli(args):
 
     The time between one pump trigger signal and the next is subdivided into a number
     of intervals of equal duration, quantising the time elapsed since the most recent
-    trigger pulse.  Events are labelled according to which interval they fall in and,
-    for each interval in turn, all the events so labelled are aggregated, providing a
-    stack of image sequences that captures the evolution of the response of the
-    measurement to a pump signal.
+    trigger pulse.  Events are labelled according to the interval into which they fall
+    and, for each interval in turn, all the events so labelled are binned into a
+    sequence of images, providing a stack of image sequences that captures the
+    evolution of the response of the measurement to a pump signal.
     """
     write_mode = "w" if args.force else "x"
 
@@ -381,114 +383,148 @@ def multiple_sequences_cli(args):
 
     print("Finding trigger signal times.")
 
-    with ExitStack() as stack:
-        data = stack.enter_context(latrd_data(raw_files, keys=cue_keys))
+    with latrd_data(raw_files, keys=cue_keys) as cues_data:
 
-        trigger_times = cue_times(data, trigger_type)
+        trigger_times = cue_times(cues_data, trigger_type)
         with ProgressBar():
-            trigger_times = trigger_times.astype(int).compute_chunk_sizes()
+            trigger_times = trigger_times.astype(int).compute()
 
         if not trigger_times.size:
             sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
-
-        intervals_end = da.diff(trigger_times).min().compute()
+        elif not trigger_times.size > 1:
+            sys.exit(
+                f"Only one '{cues[trigger_type]}' signal found.  Two or more needed."
+            )
 
         print("Finding detector shutter open and close times.")
         with ProgressBar():
-            start, end = find_start_end(data)
+            start, end = find_start_end(cues_data)
 
-        interval_time, _, num_intervals = exposure(
-            0, intervals_end, args.interval, args.num_sequences
-        )
-        interval_bins = np.linspace(
-            0, intervals_end, num_intervals + 1, dtype=np.uint64
-        )
+    intervals_end = da.diff(trigger_times).min()
+    interval_time, _, num_intervals = exposure(
+        0, intervals_end, args.interval, args.num_sequences
+    )
+    # Find the bins denoting to which image sequence each event belongs.
+    interval_bins = np.linspace(0, intervals_end, num_intervals + 1, dtype=np.uint64)
 
-        output_files, out_file_pattern = check_multiple_output_files(
-            num_intervals, args.output_file, args.stem, "images", args.force
-        )
+    output_files, out_file_pattern = check_multiple_output_files(
+        num_intervals, args.output_file, args.stem, "images", args.force
+    )
 
-        exposure_time, exposure_cycles, num_images = exposure(
-            start, end, args.exposure_time, args.num_images
-        )
-        bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
+    exposure_time, exposure_cycles, num_images = exposure(
+        start, end, args.exposure_time, args.num_images
+    )
+    # Find the bins denoting images within a sequence.
+    bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
 
-        print(
-            f"Using '{cues[trigger_type]}' as the pump signal,\n"
-            f"binning events into {num_intervals} sequences, corresponding to "
-            f"successive pump-probe delay intervals of {interval_time:.3g~#P}.\n"
-            f"Each sequence consists of {num_images} images with an effective exposure "
-            f"time of {exposure_time / num_intervals:.3g~#P}."
-        )
+    print(
+        f"Using '{cues[trigger_type]}' as the pump signal,\n"
+        f"binning events into {num_intervals} sequences, corresponding to "
+        f"successive pump-probe delay intervals of {interval_time:.3g~#P}.\n"
+        f"Each sequence consists of {num_images} images with an effective exposure "
+        f"time of {exposure_time / num_intervals:.3g~#P}."
+    )
 
-        out_file_stem = out_file_pattern.stem
+    out_file_stem = out_file_pattern.stem
 
-        n_dig = len(str(num_intervals))
-        out_file_pattern = out_file_pattern.parent / f"{out_file_stem}_{'#' * n_dig}.h5"
+    n_dig = len(str(num_intervals))
+    out_file_pattern = out_file_pattern.parent / f"{out_file_stem}_{'#' * n_dig}.h5"
 
-        if input_nexus.exists():
-            # Write output NeXus files if we have an input NeXus file.
-            output_nexus_pattern = out_file_pattern.with_suffix(".nxs")
-            for output_file in output_files:
-                try:
-                    CopyTristanNexus.multiple_images_nexus(
-                        output_file,
-                        input_nexus,
-                        nbins=num_images,
-                        write_mode=write_mode,
-                    )
-                except FileExistsError:
-                    sys.exit(
-                        f"One or more output files already exist, "
-                        f"matching the pattern:\n\t"
-                        f"{output_nexus_pattern}\n"
-                        "Use '-f' to override, "
-                        "or specify a different output file path with '-o'."
-                    )
-        else:
-            output_nexus_pattern = None
+    if input_nexus.exists():
+        # Write output NeXus files if we have an input NeXus file.
+        output_nexus_pattern = out_file_pattern.with_suffix(".nxs")
+        for output_file in output_files:
+            try:
+                CopyTristanNexus.multiple_images_nexus(
+                    output_file,
+                    input_nexus,
+                    nbins=num_images,
+                    write_mode=write_mode,
+                )
+            except FileExistsError:
+                sys.exit(
+                    f"One or more output files already exist, "
+                    f"matching the pattern:\n\t"
+                    f"{output_nexus_pattern}\n"
+                    "Use '-f' to override, "
+                    "or specify a different output file path with '-o'."
+                )
+    else:
+        output_nexus_pattern = None
 
-        data = stack.enter_context(
-            latrd_data(raw_files, keys=(event_location_key, event_time_key))
-        )
-        data = valid_events(data, start, end)
+    # Make a cache for the images.
+    images = create_cache(out_file_pattern, num_intervals * num_images, image_size)
+
+    # Get the events data.
+    events_keys = (event_location_key, event_time_key)
+    with latrd_data(raw_files, keys=events_keys) as events_data:
+        events_data = valid_events(events_data, start, end)
 
         # Find the time elapsed since the most recent trigger signal.
-        pump_probe_time = data[event_time_key].astype(np.int64)
-        pump_probe_time -= trigger_times[
-            da.searchsorted(trigger_times, pump_probe_time.values, "right") - 1
-        ]
-        sequence = da.digitize(pump_probe_time.values, interval_bins) - 1
+        event_time = events_data[event_time_key].astype(np.int64).values
+        trigger_index = da.digitize(event_time, trigger_times) - 1
+        pump_probe_time = event_time - da.take(trigger_times, trigger_index)
+        # Enumerate the sequence to which each event belongs.
+        sequence = da.digitize(pump_probe_time, interval_bins) - 1
+        # Eliminate invalid sequence numbers (negative, or ≥ num_intervals).
+        valid = (0 <= sequence) & (sequence < num_intervals)
+        valid = dd.from_dask_array(valid, index=events_data.index)
 
-        image_sequence_stack = []
-        for i in range(num_intervals):
-            select = partial(blockwise_selection, selection=sequence == i)
-            interval_data = pd.DataFrame()
-            interval_data.event_time_offset = select(data.event_time_offset)
-            interval_data.event_id = select(data.event_id)
+        # Convert the event IDs to a form that is suitable for a NumPy bincount.
+        events_data[event_location_key] = pixel_index(
+            events_data[event_location_key], image_size
+        )
 
-            image_sequence_stack.append(make_images(interval_data, image_size, bins))
+        columns = event_location_key, "time_bin"
+        dtypes = events_data.dtypes
+        dtypes["time_bin"] = dtypes.pop(event_time_key)
+        meta = pd.DataFrame(columns=columns).astype(dtype=dtypes)
+        # Enumerate the image in the stack to which each event belongs.
+        events_data = events_data.map_partitions(find_time_bins, bins=bins, meta=meta)
+        events_data["time_bin"] += sequence * num_images
+        events_data = events_data[valid]
+
+        # Bin to images, partition by partition.
+        events_data = dd.map_partitions(
+            make_images,
+            events_data,
+            image_size,
+            images,
+            meta=meta,
+            enforce_metadata=False,
+        )
+        print("Computing the binned images.")
+        # Use multi-threading, rather than multi-processing.
+        with Client(processes=False):
+            compute_with_progress(events_data)
 
     print("Transferring the images to the output files.")
-    # # Multi-threaded copy from Zarr to HDF5.
-    # arrays = [da.from_zarr(array) for array in zarr.open(store).values()]
-    # with ExitStack() as stack:
-    #     files = (stack.enter_context(h5py.File(f, write_mode)) for f in output_files)
-    #     dsets = [
-    #         f.require_dataset(
-    #             "data",
-    #             shape=arrays[0].shape,
-    #             dtype=arrays[0].dtype,
-    #             chunks=arrays[0].chunksize,
-    #             **Bitshuffle(),
-    #         )
-    #         for f in files
-    #     ]
-    #     with ProgressBar():
-    #         da.store(arrays, dsets)
-    #
-    # # Delete the Zarr store.
-    # store.clear()
+    store = images.store
+    images = da.from_zarr(images)
+    stack_shape = num_intervals, num_images, *image_size
+    # Silence a large chunks warning, since we immediately rechunk to one-image chunks.
+    with dask.config.set(**{"array.slicing.split_large_chunks": False}):
+        images = images.reshape(stack_shape).rechunk((1, 1, *image_size))
+    images = list(images)
+
+    # Multi-threaded copy from Zarr to HDF5.
+    with ExitStack() as stack:
+        files = (stack.enter_context(h5py.File(f, write_mode)) for f in output_files)
+        dsets = [
+            f.require_dataset(
+                "data",
+                shape=images[0].shape,
+                dtype=images[0].dtype,
+                chunks=images[0].chunksize,
+                **Bitshuffle(),
+            )
+            for f in files
+        ]
+        with ProgressBar():
+            da.store(images, dsets)
+
+    # Delete the Zarr store.
+    store.clear()
 
     print(f"Images written to\n\t{output_nexus_pattern or out_file_pattern}")
 
