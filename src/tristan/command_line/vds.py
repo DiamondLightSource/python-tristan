@@ -40,7 +40,7 @@ def main(args=None):
     output_file = check_output_file(args.output_file, suffix="vds", force=args.force)
 
     raw_files, meta_file = data_files(args.data_dir, args.stem)
-    with h5py.File(meta_file, "r") as f:
+    with h5py.File(meta_file) as f:
         ts_info = time_slice_info(f)
         layouts = virtual_data_set(raw_files, f, *ts_info)
 

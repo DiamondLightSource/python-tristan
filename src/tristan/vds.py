@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Tools for creating and manipulating an HDF5 VDS for Tristan data."""
+
+from __future__ import annotations
 
 from contextlib import ExitStack
 from itertools import chain, compress, cycle, zip_longest

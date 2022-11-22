@@ -4,19 +4,18 @@ from __future__ import annotations
 
 import re
 from contextlib import ExitStack, contextmanager
-from dataclasses import field, make_dataclass
-from itertools import zip_longest
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable
 
+import dask
 import h5py
 import numpy as np
 from dask import array as da
-from dask import config
+from dask import dataframe as dd
 from numpy.typing import ArrayLike
 from pint import Quantity
 
-from . import clock_frequency
+from . import clock_frequency, ureg
 
 # Regex for the names of data sets, in the time slice metadata file, representing the
 # distribution of time slices across raw data files for each module.
@@ -80,116 +79,93 @@ event_keys = event_location_key, event_time_key, event_energy_key
 nx_size_key = "entry/instrument/detector/module/data_size"
 
 
-LatrdData = make_dataclass(
-    "LatrdData",
-    zip_longest(cue_keys + event_keys, (Optional[da.Array],), (field(default=None),)),
-)
-
-
-def aggregate_chunks(array: da.Array) -> da.Array:
-    """
-    Concatenate adjacent small chunks in a one-dimensional Dask array.
-
-    Reduce the total number of chunks in a one-dimensional Dask array by joining
-    adjacent chunks that are smaller than the optimal chunk size, as determined by
-    the Dask config 'array.chunk-size'.
-
-    Args:
-        array:  A one-dimensional Dask array.
-
-    Returns:
-        The input array, rechunked to minimise the number of chunks.
-    """
-    target_size_bytes = int(Quantity(config.get("array.chunk-size")).m_as("bytes"))
-
-    # The optimal number of data per Dask chunk.
-    target_size = target_size_bytes // array.itemsize
-
-    # Try to aggregate the input data into the fewest possible Dask chunks.
-    new_chunks = []
-    for chunk in array.chunks[0]:
-        if new_chunks and new_chunks[-1] + chunk <= target_size:
-            # If this input data set will fit into the current Dask chunk, add it.
-            new_chunks[-1] += chunk
-        else:
-            # If the current chunk is full (or the chunks list is empty), add this
-            # data set to the next chunk.
-            new_chunks.append(chunk)
-
-    return array.rechunk(new_chunks)
-
-
 @contextmanager
 def latrd_data(
-    raw_file_paths: Iterable[str | Path], keys: Iterable[str] = cue_keys + event_keys
-) -> LatrdData:
+    raw_file_paths: Iterable[str | Path],
+    keys: Iterable[str] = cue_keys + event_keys,
+) -> dd.DataFrame | dict[str, da.Array]:
     """
     A context manager to read LATRD data sets from multiple files.
 
-    The yielded dictionary has an entry for each of the specified LATRD data keys.
-    Each key must be a valid LATRD data key and the corresponding value is a Dask
-    array containing the corresponding LATRD data from all the raw data files,
-    rechunked into blocks approximately the size of the default Dask array chunk
-    size, but with chunk boundaries aligned with HDF5 data set chunk boundaries.
+    The yielded DataFrame has a column for each of the specified LATRD data keys.
+    Each key must be a valid LATRD data key and the chosen data sets must all have the
+    same length.  The data will be rechunked into partitions approximately the size of
+    the default Dask array chunk size, but with chunk boundaries aligned with HDF5
+    file boundaries.
 
     Args:
         raw_file_paths:  The paths of the raw LATRD data files.
         keys:  The set of LATRD data keys to be read.
 
     Yields:
-        A LATRD dataclass.
+        The data from all the files.
     """
     with ExitStack() as stack:
-        files = [
-            stack.enter_context(h5py.File(path, swmr=True)) for path in raw_file_paths
-        ]
+        files = [stack.enter_context(h5py.File(p, swmr=True)) for p in raw_file_paths]
 
+        # Determine an appropriate block size for a Dask DataFrame of these data,
+        # remembering to leave room for a 64-bit index.
+        row_size = sum(files[0][k].dtype.itemsize for k in keys)
+        block_size = ureg.Quantity(dask.config.get("array.chunk-size"))
+        block_length = int(block_size.m_as("B") / row_size)
+
+        # Construct a single Dask DataFrame from the specified keys.
         data = {
-            k: aggregate_chunks(da.concatenate([da.from_array(f[k]) for f in files]))
+            k: da.concatenate([da.from_array(f[k], chunks=block_length) for f in files])
             for k in keys
         }
+        data = dd.concat(
+            [dd.from_dask_array(v, columns=k) for k, v in data.items()], axis=1
+        )
 
-        yield LatrdData(**data)
+        yield data
 
 
-def first_cue_time(data: LatrdData, message: int) -> da.Array | None:
+def first_cue_time(
+    data: dd.DataFrame, message: int, after: int | None = None
+) -> dd.DataFrame | None:
     """
     Find the timestamp of the first instance of a cue message in a Tristan data set.
 
     Args:
-        data:     LATRD data.  Must contain one 'cue_id'field and one
-                  'cue_timestamp_zero' field.  The two arrays are assumed to have the
+        data:     LATRD data.  Must contain one 'cue_id' column and one
+                  'cue_timestamp_zero' column.  The two arrays are assumed to have the
                   same length.
         message:  The message code, as defined in the Tristan standard.
+        after:    Ignore instances of the specified message before this timestamp.
 
     Returns:
         The timestamp, measured in clock cycles from the global synchronisation signal.
         If the message doesn't exist in the data set, this returns None.
     """
-    index = da.argmax(data.cue_id == message).compute()
-    if index or data.cue_id[0] == message:
-        return data.cue_timestamp_zero[index]
+    message_incidences = data[cue_id_key] == message
+    if after:
+        message_incidences &= data[cue_time_key] >= after
+    first_index = message_incidences.idxmax().compute()
+    if first_index or data[cue_id_key].loc[0].compute().values == message:
+        return data[cue_time_key].loc[first_index]
 
 
-def cue_times(data: LatrdData, message: int) -> da.Array:
+def cue_times(data: dd.DataFrame, message: int, after: int | None = None) -> da.Array:
     """
     Find the timestamps of all instances of a cue message in a Tristan data set.
 
     The found timestamps are de-duplicated.
 
     Args:
-        data:     A LATRD data dictionary (a dictionary with data set names as keys
-                  and Dask arrays as values).  Must contain one entry for cue id
-                  messages and one for cue timestamps.  The two arrays are assumed
-                  to have the same length.
+        data:     A DataFrame of LATRD data.  Must contain one column for cue id
+                  messages and one for cue timestamps.
         message:  The message code, as defined in the Tristan standard.
+        after:    Ignore instances of the specified message before this timestamp.
 
     Returns:
         The timestamps, measured in clock cycles from the global synchronisation
         signal, de-duplicated.
     """
-    index = data.cue_id == message
-    return da.unique(data.cue_timestamp_zero[index])
+    index = data[cue_id_key] == message
+    if after:
+        index &= data[cue_time_key] >= after
+    return da.unique(data[cue_time_key][index].values)
 
 
 def seconds(timestamp: int, reference: int = 0) -> Quantity:
@@ -211,6 +187,24 @@ def seconds(timestamp: int, reference: int = 0) -> Quantity:
     return ((timestamp - reference) / clock_frequency).to_base_units().to_compact()
 
 
+def valid_events(data: dd.DataFrame, start: int, end: int) -> dd.DataFrame:
+    """
+    Return those events that have a timestamp in the specified range.
+
+    Args:
+        data:   LATRD data, containing an 'event_time_offset' column and optional
+                'event_id' and 'event_energy' columns.
+        start:  The start time of the accepted range, in clock cycles.
+        end:    The end time of the accepted range, in clock cycles.
+
+    Returns:
+        The valid events.
+    """
+    valid = (start <= data[event_time_key]) & (data[event_time_key] < end)
+
+    return data[valid]
+
+
 def pixel_index(location: ArrayLike, image_size: tuple[int, int]) -> ArrayLike:
     """
     Extract pixel coordinate information from an event location (event_id) message.
@@ -225,8 +219,8 @@ def pixel_index(location: ArrayLike, image_size: tuple[int, int]) -> ArrayLike:
     flattened image array by multiplying the y value by the size of the array in x,
     and adding the x value.
 
-    This function calls the Python built-in divmod and so can be broadcast over NumPy
-    and Dask arrays.
+    This function calls the Python built-in divmod and so can be broadcast over
+    array-like data structures.
 
     Args:
         location:    Event location message (an integer).
