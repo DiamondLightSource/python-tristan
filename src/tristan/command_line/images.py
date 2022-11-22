@@ -64,7 +64,7 @@ def determine_image_size(nexus_file: Path) -> tuple[int, int]:
             # For the sake of some functions like zarr.create, ensure that the image
             # dimensions are definitely tuple[int, int], not tuple[np.int64,
             # np.int64] or anything else.
-            y, x = map(int, f["entry/instrument/detector/module/data_size"][()])
+            y, x = f["entry/instrument/detector/module/data_size"][()].astype(int)
             return y, x
     except (FileNotFoundError, OSError):
         sys.exit(f"Cannot find NeXus file:\n\t{nexus_file}\n{recommend}")
