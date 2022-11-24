@@ -47,6 +47,7 @@ from . import (
     check_output_file,
     data_files,
     exposure_parser,
+    gate_parser,
     image_output_parser,
     input_parser,
     interval_parser,
@@ -529,6 +530,116 @@ def multiple_sequences_cli(args):
     print(f"Images written to\n\t{output_nexus_pattern or out_file_pattern}")
 
 
+def gated_images_cli(args):
+    """Utility to bin events into a sequence of images according to a gating signal."""
+    write_mode = "w" if args.force else "x"
+    output_file = check_output_file(args.output_file, args.stem, "images", args.force)
+
+    input_nexus = args.data_dir / f"{args.stem}.nxs"
+    if not input_nexus.exists():
+        print(
+            "Could not find a NeXus file containing experiment metadata.\n"
+            "Resorting to writing raw image data without accompanying metadata."
+        )
+
+    image_size = args.image_size or determine_image_size(input_nexus)
+
+    raw_files, _ = data_files(args.data_dir, args.stem)
+
+    # If gate_close isn't specified, default to the complementary signal to gate_open.
+    gate_open = triggers.get(args.gate_open)
+    gate_close = triggers.get(args.gate_close) or gate_open ^ (1 << 5)
+
+    with latrd_data(raw_files, keys=cue_keys) as cues_data:
+        print("Finding detector shutter open and close times.")
+        with ProgressBar():
+            start, end = find_start_end(cues_data)
+
+        print("Finding gate signal times.")
+        open_times = cue_times(cues_data, gate_open, after=start)
+        close_times = cue_times(cues_data, gate_close, after=start)
+        with ProgressBar():
+            open_times, close_times = dask.compute(open_times, close_times)
+
+    if not open_times.size:
+        sys.exit(f"Could not find a '{cues[gate_open]}' signal.")
+    if not close_times.size:
+        sys.exit(f"Could not find a '{cues[gate_close]}' signal.")
+    if not open_times.size == close_times.size:
+        sys.exit(
+            "Found a non-matching number of gate open and close signals:\n\t"
+            f"Number of '{cues[gate_open]}' signals: {open_times.size}\n\t"
+            f"Number of '{cues[gate_close]}' signals: {close_times.size}\n"
+            f"Note that signals before the shutter open time are ignored."
+        )
+
+    open_times.sort_values(inplace=True)
+    close_times.sort_values(inplace=True)
+
+    num_images = open_times.size
+
+    if input_nexus.exists():
+        try:
+            # Write output NeXus file if we have an input NeXus file.
+            output_nexus = CopyTristanNexus.multiple_images_nexus(
+                output_file,
+                input_nexus,
+                nbins=num_images,
+                write_mode=write_mode,
+            )
+        except FileExistsError:
+            sys.exit(
+                f"This output file already exists:\n\t"
+                f"{output_file.with_suffix('.nxs')}\n"
+                "Use '-f' to override, "
+                "or specify a different output file path with '-o'."
+            )
+    else:
+        output_nexus = None
+
+    print(f"Binning events into {num_images} images.")
+
+    # Make a cache for the images.
+    images = create_cache(output_file, num_images, image_size)
+
+    with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
+        # Consider only those events that occur between the start and end times.
+        data = valid_events(data, start, end)
+
+        # Gate the events.
+        event_times = data[event_time_key].values
+        open_index = da.digitize(event_times, open_times) - 1
+        close_index = da.digitize(event_times, close_times) - 1
+        data["time_bin"] = open_index
+        open_times = da.take(open_times, open_index)
+        close_times = da.take(close_times, close_index)
+        data = valid_events(data, open_times, close_times)
+        data.drop(columns=event_time_key, inplace=True)
+
+        # Convert the event IDs to a form that is suitable for a NumPy bincount.
+        data[event_location_key] = pixel_index(data[event_location_key], image_size)
+
+        # Bin to images, partition by partition.
+        meta = pd.DataFrame(columns=data.columns).astype(dtype=data.dtypes)
+        data = dd.map_partitions(
+            make_images, data, image_size, images, meta=meta, enforce_metadata=False
+        )
+
+        print("Computing the binned images.")
+        # Use multi-threading, rather than multi-processing.
+        with Client(processes=False):
+            compute_with_progress(data)
+
+    print("Transferring the images to the output file.")
+    with h5py.File(output_file, write_mode) as f:
+        zarr.copy_all(zarr.open(images.store), f, **Bitshuffle())
+
+    # Delete the Zarr store.
+    images.store.clear()
+
+    print(f"Images written to\n\t{output_nexus or output_file}")
+
+
 parser = argparse.ArgumentParser(description=__doc__, parents=[version_parser])
 subparsers = parser.add_subparsers(
     help="Choose the manner in which to create images.",
@@ -602,6 +713,16 @@ parser_multiple_sequences = subparsers.add_parser(
     ],
 )
 parser_multiple_sequences.set_defaults(func=multiple_sequences_cli)
+
+parser_serial = subparsers.add_parser(
+    "serial",
+    description="Bin events into images, gated with trigger signals.\n\n"
+    "Events will be binned into as many images as there are gate signals, one image "
+    "per gate.  Each 'gate-open' signal is taken as the start of an exposure and the "
+    "next 'gate-close' signal is taken as the end of the exposure.",
+    parents=[version_parser, input_parser, image_output_parser, gate_parser],
+)
+parser_serial.set_defaults(func=gated_images_cli)
 
 
 def main(args=None):
