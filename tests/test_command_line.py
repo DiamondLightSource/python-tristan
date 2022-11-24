@@ -13,6 +13,7 @@ from tristan.command_line import (
     check_output_file,
     data_files,
     exposure_parser,
+    gate_parser,
     image_output_parser,
     image_size,
     input_parser,
@@ -74,6 +75,24 @@ def test_data_files(dummy_data_transient):
         data_files(dummy_data_transient, stem)
 
 
+no_help_parameters = [
+    (version_parser, []),
+    (input_parser, ["some/dummy/path/to/file_name_meta.h5"]),
+    (image_output_parser, []),
+    (exposure_parser, ["-e", ".1"]),
+    (gate_parser, ["-g", "TTL-rising"]),
+]
+
+
+@pytest.mark.parametrize(("parser", "req_arguments"), no_help_parameters)
+def test_no_help(capsys, parser: argparse.ArgumentParser, req_arguments: list[str]):
+    """Check that this parser does not introduce a help flag."""
+    for flag in "-h", "--help":
+        with pytest.raises(SystemExit, match="2"):
+            parser.parse_args([*req_arguments, flag])
+        assert f"error: unrecognized arguments: {flag}" in capsys.readouterr().err
+
+
 def test_version_parser(capsys):
     """Test that the version parser gives the correct behaviour."""
     for flag in "--version", "-V":
@@ -85,13 +104,6 @@ def test_version_parser(capsys):
 def test_version_parser_optional():
     """Check that the version flag is not mandatory."""
     assert version_parser.parse_args([]) == argparse.Namespace()
-
-
-def test_version_parser_no_help(capsys):
-    """Check that the version parser does not introduce a help flag."""
-    with pytest.raises(SystemExit, match="2"):
-        version_parser.parse_args(["-h"])
-    assert "error: unrecognized arguments: -h" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(
@@ -243,16 +255,6 @@ def test_input_parser_cwd(run_in_tmp_path, filename):
     assert args.stem == "dummy"
 
 
-def test_input_parser_no_help(capsys):
-    """Check that the input parser does not introduce a help flag."""
-    directory = "some/dummy/path/to"
-    stem = "file_name"
-    for flag in "-h", "--help":
-        with pytest.raises(SystemExit, match="2"):
-            input_parser.parse_args([f"{directory}/{stem}_meta.h5", flag])
-        assert f"error: unrecognized arguments: {flag}" in capsys.readouterr().err
-
-
 def test_image_size():
     """Test unpacking an image size tuple from a comma-separated string of integers."""
     for size in "1,2", "1, 2", "1 ,2", "1 , 2", "(1,2)", "'1,2'", '"1,2"', "'\"(1,2'\"":
@@ -329,14 +331,6 @@ def test_image_output_parser_malformed_image_size(capsys):
             f"error: argument -s/--image-size: invalid image_size value: '{size}'"
             in capsys.readouterr().err
         )
-
-
-def test_image_output_parser_no_help(capsys):
-    """Check that the output/image size parser does not introduce a help flag."""
-    for flag in "-h", "--help":
-        with pytest.raises(SystemExit, match="2"):
-            image_output_parser.parse_args([flag])
-        assert f"error: unrecognized arguments: {flag}" in capsys.readouterr().err
 
 
 def test_units_of_time():
@@ -452,11 +446,3 @@ def test_exposure_time_mutually_exclusive(capsys):
         "error: argument -e/--exposure-time: not allowed with argument -n/--num-images"
         in capsys.readouterr().err
     )
-
-
-def test_exposure_time_no_help(capsys):
-    """Check that this parser does not introduce a help flag."""
-    for flag in "-h", "--help":
-        with pytest.raises(SystemExit, match="2"):
-            exposure_parser.parse_args(["-e", ".1", flag])
-        assert f"error: unrecognized arguments: {flag}" in capsys.readouterr().err
