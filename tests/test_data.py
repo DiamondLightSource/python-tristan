@@ -60,7 +60,7 @@ def test_first_cue_time(dummy_data):
         assert (first_cue_time(data, first_cue_message) == 7).compute().bool
         # Next, check that searching for a cue message that does not appear in the data
         # results in no returned timestamp.
-        assert random_range not in data.cue_id
+        assert random_range not in data.cue_id.values.compute()
         assert first_cue_time(data, random_range) is None
 
 
