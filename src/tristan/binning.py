@@ -5,6 +5,7 @@ from operator import mul
 from pathlib import Path
 from typing import Sequence
 
+import dask
 import numpy as np
 import pandas as pd
 import zarr
@@ -13,8 +14,7 @@ from dask import distributed
 from numpy.typing import ArrayLike
 
 from .data import (
-    cue_id_key,
-    cue_time_key,
+    cue_times,
     event_location_key,
     event_time_key,
     pixel_index,
@@ -36,9 +36,10 @@ def find_start_end(data: dd.DataFrame) -> (int, int):
     Returns:
         The shutter open and shutter close timestamps, in clock cycles.
     """
-    indices = (data[cue_id_key] == shutter_open) | (data[cue_id_key] == shutter_close)
-    times = data[cue_time_key][indices]
-    start, end = np.unique(times.compute())
+    start = cue_times(data, shutter_open)
+    end = cue_times(data, shutter_close)
+    start, end = dask.compute(start, end)
+    (start,), (end,) = map(np.unique, (start, end))
 
     return start, end
 
