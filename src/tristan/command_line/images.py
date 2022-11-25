@@ -573,8 +573,8 @@ def gated_images_cli(args):
             f"Note that signals before the shutter open time are ignored."
         )
 
-    open_times.sort_values(inplace=True)
-    close_times.sort_values(inplace=True)
+    open_times = np.sort(open_times)
+    close_times = np.sort(close_times)
 
     num_images = open_times.size
 
@@ -614,7 +614,7 @@ def gated_images_cli(args):
         open_times = da.take(open_times, open_index)
         close_times = da.take(close_times, close_index)
         data = valid_events(data, open_times, close_times)
-        data.drop(columns=event_time_key, inplace=True)
+        data = data.drop(columns=event_time_key)
 
         # Convert the event IDs to a form that is suitable for a NumPy bincount.
         data[event_location_key] = pixel_index(data[event_location_key], image_size)
