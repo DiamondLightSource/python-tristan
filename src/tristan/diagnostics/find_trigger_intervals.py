@@ -55,7 +55,7 @@ parser.add_argument(
     "--nproc",
     type=int,
     # default=1,
-    help="",
+    help="The number of processes to use.",
 )
 
 

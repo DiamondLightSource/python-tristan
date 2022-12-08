@@ -33,10 +33,10 @@ parser.add_argument(
     help="Output directory to save results/log file. If not passed, the script will default to current working directory.",
 )
 parser.add_argument(
-    "-n",
+    "-m",
     "--num-modules",
     choices=["1M", "2M", "10M"],
-    default="10M",
+    default="1M",
     type=str,
     help="",
 )
