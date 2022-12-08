@@ -86,7 +86,7 @@ def main(args):
     num = 0
     for k, v in split.items():
         logger.info(f"--- Module {num} ---")
-        logger.info(f"Position of detector: {k}")
+        logger.info(f"Position on detector: {k}")
         logger.info(f"Number of files found for this module: {len(v)}")
         num += 1
         if args.list:
