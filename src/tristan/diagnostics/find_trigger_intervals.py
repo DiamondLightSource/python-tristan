@@ -143,8 +143,8 @@ def trigger_lookup_ssx(tristanlist):
                 for i in range(len(ttl_idx)):
                     ttl_re.append(cues_time[ttl_idx[i]] * timing_resolution_fine)
             # Look for sync
-            sync_up_idx = np.where(cues == sync_rising)
-            sync_down_idx = np.where(cues == sync_falling)
+            sync_up_idx = np.where(cues == sync_rising)[0]
+            sync_down_idx = np.where(cues == sync_falling)[0]
             if len(sync_up_idx) > 0:
                 for i in range(len(sync_up_idx)):
                     sync_re.append(cues_time[sync_up_idx[i]] * timing_resolution_fine)
