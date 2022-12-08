@@ -171,6 +171,3 @@ def cli():
     toc = time.process_time()
     logger.debug(f"Total time taken: {toc - tic:4f} s.")
     logger.info("~~~ EOF ~~~")
-
-
-cli()
