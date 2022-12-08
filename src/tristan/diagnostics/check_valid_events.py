@@ -164,7 +164,9 @@ def main(args):
         for k, v in el.items():
             logger.info(f"--- {k} ---")
             if v["Valid events"] is False:
-                logger.warning("No valid events found in this module!")
+                logger.warning("WARNING! No valid events found in this module!")
+            else:
+                logger.info("Valid events found!")
             logger.info(f"Max timestamp found: {v['Max timestamp']}")
             logger.info(f"Min timestamp found: {v['Min timestamp']}")
     logger.info("\n")
