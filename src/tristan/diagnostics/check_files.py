@@ -55,7 +55,7 @@ def main(args):
     logfile = savedir / (filepath.stem + "_MODULECHECK.log")
     log.config(logfile.as_posix())
 
-    logger.info("Quick data check for Tristan {args.num_modules} modules.")
+    logger.info(f"Quick data check for Tristan {args.num_modules} modules.")
     logger.info(f"Collection directory: {filepath}")
     logger.info(f"Filename root: {args.filename}")
 
