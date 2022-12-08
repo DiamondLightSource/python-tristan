@@ -10,6 +10,7 @@ from pathlib import Path
 import h5py
 
 from ..command_line import version_parser
+from ..data import event_location_key
 from . import DIV, define_modules
 from . import diagnostics_log as log
 
@@ -75,7 +76,7 @@ def main(args):
             try:
                 # Note: checking item of index 1 because for broken files there will
                 # just be one item in "event_id" set to 0.
-                x, y = divmod(fh["event_id"][1], DIV)
+                x, y = divmod(fh[event_location_key][1], DIV)
                 for k, v in MOD.items():
                     if v[1][0] <= x <= v[1][1]:
                         if v[0][0] <= y <= v[0][1]:
