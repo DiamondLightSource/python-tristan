@@ -32,6 +32,14 @@ parser.add_argument(
     type=str,
     help="Output directory to save results/log file. If not passed, the script will default to current working directory.",
 )
+parser.add_argument(
+    "-n",
+    "--num-modules",
+    choices=["1M", "2M", "10M"],
+    default="10M",
+    type=str,
+    help="",
+)
 
 
 def main(args):
@@ -47,7 +55,7 @@ def main(args):
     logfile = savedir / (filepath.stem + "_MODULECHECK.log")
     log.config(logfile.as_posix())
 
-    logger.info("Quick data check for Tristan 10M modules.")
+    logger.info("Quick data check for Tristan {args.num_modules} modules.")
     logger.info(f"Collection directory: {filepath}")
     logger.info(f"Filename root: {args.filename}")
 
@@ -58,7 +66,7 @@ def main(args):
     ]
     logger.info(f"Found {len(file_list)} files in directory.")
 
-    MOD = define_modules()
+    MOD = define_modules(args.num_modules)
     logger.info("Assigning each data file to correct module.\n")
     split = {k: [] for k in MOD.keys()}
     broken = []
