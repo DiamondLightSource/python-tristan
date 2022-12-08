@@ -35,6 +35,12 @@ parser.add_argument(
             If not passed, the program will look for them inside the data files.",
 )
 parser.add_argument(
+    "-o",
+    "--output",
+    type=str,
+    help="Output directory to save results. If not passed, the script will default to current working directory.",
+)
+parser.add_argument(
     "-n",
     "--nproc",
     type=int,
