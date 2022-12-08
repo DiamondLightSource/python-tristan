@@ -183,9 +183,6 @@ def main(args):
 
     # Start logging
     logger.info(f"Current working directory: {wdir}")
-    logger.info(
-        f"Look for triggers in cue messages for a Tristan10M {args.expt} collection."
-    )
     logger.info(f"Collection directory: {filepath}")
     logger.info(f"Filename root: {args.filename}")
     filename_template = filepath / base
@@ -197,6 +194,10 @@ def main(args):
     # For now let's just go with the usual assumption that files are coherently divided.
     # TODO what if they're not?!?!
     L = [file_list[i : i + 10] for i in range(0, len(file_list), 10)]
+
+    logger.info(
+        f"Look for triggers in cue messages for a Tristan{len(L)}M {args.expt} collection."
+    )
 
     nxsfile = filepath / (args.filename + ".nxs")
     if nxsfile in filepath.iterdir():
