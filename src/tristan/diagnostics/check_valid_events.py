@@ -165,8 +165,8 @@ def main(args):
             logger.info(f"--- {k} ---")
             if v["Valid events"] is False:
                 logger.warning("No valid events found in this module!")
-            logger.info(f"Max timestamp found: {v['Min timestamp']}")
-            logger.info(f"Min timestamp found: {v['Max timestamp']}")
+            logger.info(f"Max timestamp found: {v['Max timestamp']}")
+            logger.info(f"Min timestamp found: {v['Min timestamp']}")
     logger.info("\n")
 
 
