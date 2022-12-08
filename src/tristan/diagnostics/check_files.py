@@ -10,6 +10,7 @@ from pathlib import Path
 import h5py
 
 from ..command_line import version_parser
+from ..data import event_location_key
 from . import DIV, define_modules
 from . import diagnostics_log as log
 
@@ -32,6 +33,14 @@ parser.add_argument(
     type=str,
     help="Output directory to save results/log file. If not passed, the script will default to current working directory.",
 )
+parser.add_argument(
+    "-m",
+    "--num-modules",
+    choices=["1M", "2M", "10M"],
+    default="1M",
+    type=str,
+    help="",
+)
 
 
 def main(args):
@@ -47,7 +56,7 @@ def main(args):
     logfile = savedir / (filepath.stem + "_MODULECHECK.log")
     log.config(logfile.as_posix())
 
-    logger.info("Quick data check for Tristan 10M modules.")
+    logger.info(f"Quick data check for Tristan {args.num_modules} modules.")
     logger.info(f"Collection directory: {filepath}")
     logger.info(f"Filename root: {args.filename}")
 
@@ -58,7 +67,7 @@ def main(args):
     ]
     logger.info(f"Found {len(file_list)} files in directory.")
 
-    MOD = define_modules()
+    MOD = define_modules(args.num_modules)
     logger.info("Assigning each data file to correct module.\n")
     split = {k: [] for k in MOD.keys()}
     broken = []
@@ -67,7 +76,7 @@ def main(args):
             try:
                 # Note: checking item of index 1 because for broken files there will
                 # just be one item in "event_id" set to 0.
-                x, y = divmod(fh["event_id"][1], DIV)
+                x, y = divmod(fh[event_location_key][1], DIV)
                 for k, v in MOD.items():
                     if v[1][0] <= x <= v[1][1]:
                         if v[0][0] <= y <= v[0][1]:
@@ -78,7 +87,7 @@ def main(args):
     num = 0
     for k, v in split.items():
         logger.info(f"--- Module {num} ---")
-        logger.info(f"Position of detector: {k}")
+        logger.info(f"Position on detector: {k}")
         logger.info(f"Number of files found for this module: {len(v)}")
         num += 1
         if args.list:

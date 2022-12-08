@@ -55,7 +55,7 @@ parser.add_argument(
     "--nproc",
     type=int,
     # default=1,
-    help="",
+    help="The number of processes to use.",
 )
 
 
@@ -143,8 +143,8 @@ def trigger_lookup_ssx(tristanlist):
                 for i in range(len(ttl_idx)):
                     ttl_re.append(cues_time[ttl_idx[i]] * timing_resolution_fine)
             # Look for sync
-            sync_up_idx = np.where(cues == sync_rising)
-            sync_down_idx = np.where(cues == sync_falling)
+            sync_up_idx = np.where(cues == sync_rising)[0]
+            sync_down_idx = np.where(cues == sync_falling)[0]
             if len(sync_up_idx) > 0:
                 for i in range(len(sync_up_idx)):
                     sync_re.append(cues_time[sync_up_idx[i]] * timing_resolution_fine)
@@ -183,9 +183,6 @@ def main(args):
 
     # Start logging
     logger.info(f"Current working directory: {wdir}")
-    logger.info(
-        f"Look for triggers in cue messages for a Tristan10M {args.expt} collection."
-    )
     logger.info(f"Collection directory: {filepath}")
     logger.info(f"Filename root: {args.filename}")
     filename_template = filepath / base
@@ -197,6 +194,10 @@ def main(args):
     # For now let's just go with the usual assumption that files are coherently divided.
     # TODO what if they're not?!?!
     L = [file_list[i : i + 10] for i in range(0, len(file_list), 10)]
+
+    logger.info(
+        f"Look for triggers in cue messages for a Tristan{len(L)}M {args.expt} collection."
+    )
 
     nxsfile = filepath / (args.filename + ".nxs")
     if nxsfile in filepath.iterdir():
