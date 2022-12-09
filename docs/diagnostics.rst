@@ -9,5 +9,5 @@ Diagnostic tools
 Logging configuration
 =====================
 
-.. automodule:: tristan.diagnostics.log
+.. automodule:: tristan.diagnostics.diagnostics_log.log
     :members:
