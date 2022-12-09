@@ -14,7 +14,7 @@ gap_size = (117, 45)  # slow, fast
 image_size = (3043, 4183)  # slow, fast
 
 
-def define_modules(num_modules: str = "10M") -> dict[tuple, tuple]:
+def define_modules(num_modules: str = "10M") -> dict:
     """Define the start and end pixel of each module in the Tristan detector.
 
     Args:
