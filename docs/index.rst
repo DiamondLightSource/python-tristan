@@ -10,6 +10,10 @@ Welcome to tristan's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   usage
+   diagnostics
+   api
+
 
 
 Indices and tables
