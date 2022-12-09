@@ -15,6 +15,7 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 
+import tristan
 
 # -- Project information -----------------------------------------------------
 
@@ -23,9 +24,9 @@ copyright = "2021, Diamond Light Source Ltd."
 author = "Diamond Light Source — Data Analysis"
 
 # The short X.Y version
-version = ""
+version = tristan.__version__
 # The full version, including alpha/beta/rc tags
-release = ""
+release = tristan.__version__
 
 
 # -- General configuration ---------------------------------------------------
@@ -42,6 +43,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.coverage",
     "sphinx.ext.viewcode",
+    "sphinx.ext.napoleon",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
