@@ -1,9 +1,16 @@
 """
 Run a quick check on trigger signals recorded in a Tristan collection.
-
-Look for shutter open and close signals and check their timestamps.
-Calculate the time interval between rising and falling edge of each trigger.
 """
+from __future__ import annotations
+
+epilog_message = """
+This program looks for shutter open and close signals and checks their timestamps.\n
+Additionally, it calculates the time interval between rising and falling edge of each trigger in a Tristan collection:\n
+    - TTL and LVDS for a standard time-resolved collection\n
+    - TTL, LVDS and SYNC for time-resolved serial crystallography collection.\n
+The results are written to a filename_TRIGGERCHECK.log.
+"""
+
 import argparse
 import glob
 import logging
@@ -33,7 +40,14 @@ from . import timing_resolution_fine
 logger = logging.getLogger("TristanDiagnostics.TriggerTimes")
 
 # Define parser
-parser = argparse.ArgumentParser(description=__doc__, parents=[version_parser])
+usage = "%(prog)s /path/to/data/dir filename_root [options]"
+parser = argparse.ArgumentParser(
+    usage=usage,
+    formatter_class=argparse.RawTextHelpFormatter,
+    description=__doc__,
+    epilog=epilog_message,
+    parents=[version_parser],
+)
 parser.add_argument("visitpath", type=str, help="Visit directory")
 parser.add_argument("filename", type=str, help="Filename")
 parser.add_argument(
@@ -54,7 +68,6 @@ parser.add_argument(
     "-n",
     "--nproc",
     type=int,
-    # default=1,
     help="The number of processes to use.",
 )
 
@@ -191,8 +204,7 @@ def main(args):
         for f in sorted(glob.glob(filename_template.as_posix()))
     ]
     logger.info(f"Found {len(file_list)} files in directory.\n")
-    # For now let's just go with the usual assumption that files are coherently divided.
-    # TODO what if they're not?!?!
+    # The 10 files for each module are consecutive (although not necessarily eg. 1-10 for module0l)
     L = [file_list[i : i + 10] for i in range(0, len(file_list), 10)]
 
     logger.info(
@@ -209,10 +221,6 @@ def main(args):
         nproc = args.nproc
     else:
         nproc = mp.cpu_count() - 1
-    # if args.nproc >= mp.cpu_count():
-    #     nproc = mp.cpu_count() -1
-    # else:
-    #     nproc = args.nproc
 
     tristanlist = [(n, l) for n, l in enumerate(L)]
 
