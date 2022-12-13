@@ -1,6 +1,11 @@
 """
 Run a quick check to diagnose possible asynchronicity between the shutter timestamps and events timestamps.
-In particular, chack that there are events recorded after the shutter open signal.
+"""
+from __future__ import annotations
+
+epilog_message = """
+This program checks that there are events recorded after the shutter open signal in the data files.\n
+The results are written to a filename_VALIDEVENTSCHECK.log.
 """
 
 import argparse
@@ -22,7 +27,14 @@ from . import timing_resolution_fine
 logger = logging.getLogger("TristanDiagnostics.ValidEventsCheck")
 
 # Define parser
-parser = argparse.ArgumentParser(description=__doc__, parents=[version_parser])
+usage = "%(prog)s /path/to/data/dir filename_root [options]"
+parser = argparse.ArgumentParser(
+    usage=usage,
+    formatter_class=argparse.RawTextHelpFormatter,
+    description=__doc__,
+    epilog=epilog_message,
+    parents=[version_parser],
+)
 parser.add_argument("visitpath", type=str, help="Visit directory.")
 parser.add_argument("filename", type=str, help="Root filename.")
 parser.add_argument(
@@ -44,7 +56,6 @@ parser.add_argument(
     "-n",
     "--nproc",
     type=int,
-    # default=1,
     help="The number of processes to use.",
 )
 
@@ -74,7 +85,7 @@ def event_timestamp_check(tristanlist):
     for filename in filelist:
         with h5py.File(filename) as fh:
             event_time = fh[event_time_key]
-            # I should use chunking here
+            # Use chunking here
             shape = event_time.shape[0]
             chunk_size = event_time.chunks[0]
             chunk_num = (

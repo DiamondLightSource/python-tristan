@@ -1,6 +1,14 @@
 """
 Check that all files from all detector modules contain valid data.
 """
+from __future__ import annotations
+
+epilog_message = """
+This program runs through all the files written for a Tristan collection and checks that they contain events, \
+as well as that they are assigned to the correct module.\n
+The results are written to a filename_MODULECHECK.log.
+"""
+
 import argparse
 import glob
 import logging
@@ -18,7 +26,14 @@ from . import diagnostics_log as log
 logger = logging.getLogger("TristanDiagnostics.ModuleCheck")
 
 # Define parser
-parser = argparse.ArgumentParser(description=__doc__, parents=[version_parser])
+usage = "%(prog)s /path/to/data/dir filename_root [options]"
+parser = argparse.ArgumentParser(
+    usage=usage,
+    formatter_class=argparse.RawTextHelpFormatter,
+    description=__doc__,
+    epilog=epilog_message,
+    parents=[version_parser],
+)
 parser.add_argument("visitpath", type=str, help="Visit directory.")
 parser.add_argument("filename", type=str, help="Root filename.")
 parser.add_argument(
@@ -37,7 +52,7 @@ parser.add_argument(
     "-m",
     "--num-modules",
     choices=["1M", "2M", "10M"],
-    default="1M",
+    default="10M",
     type=str,
     help="",
 )
