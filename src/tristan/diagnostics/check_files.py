@@ -37,7 +37,7 @@ parser.add_argument(
     "-m",
     "--num-modules",
     choices=["1M", "2M", "10M"],
-    default="1M",
+    default="10M",
     type=str,
     help="",
 )
