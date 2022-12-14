@@ -293,7 +293,7 @@ def main(args):
                         ]
                         diff2_1 = new_re[0] - v["LVDS re"][0]
                         logger.info(
-                            f"Time difference between LVDS re and first TTL after it: {diff2_1}"
+                            f"Time difference between LVDS re and first TTL after it: {diff2_1:.4f} s."
                         )
                 if len(v["LVDS fe"]) > 0:
                     diff3 = v["LVDS fe"][0] - v["TTL re"][-1]
@@ -310,7 +310,7 @@ def main(args):
                         ]
                         diff3_1 = v["LVDS fe"][0] - new_re[-1]
                         logger.info(
-                            f"Time difference between LVDS re and last TTL after it: {diff3_1}"
+                            f"Time difference between LVDS re and last TTL after it: {diff3_1:.4f} s."
                         )
             else:
                 logger.warning("No TTL triggers found!")
