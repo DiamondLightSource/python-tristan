@@ -111,9 +111,9 @@ def trigger_lookup(tristanlist):
         f"Module {mod_number}": {
             "Shutter open": sh_open,
             "Shutter close": sh_close,
-            "LVDS re": lvds_re,
-            "LVDS fe": lvds_fe,
-            "TTL re": ttl_re,
+            "LVDS re": sorted(lvds_re),
+            "LVDS fe": sorted(lvds_fe),
+            "TTL re": sorted(ttl_re),
         }
     }
     return D
@@ -169,11 +169,11 @@ def trigger_lookup_ssx(tristanlist):
         f"Module {mod_number}": {
             "Shutter open": sh_open,
             "Shutter close": sh_close,
-            "LVDS re": lvds_re,
-            "LVDS fe": lvds_fe,
-            "TTL re": ttl_re,
-            "SYNC re": sync_re,
-            "SYNC fe": sync_fe,
+            "LVDS re": sorted(lvds_re),
+            "LVDS fe": sorted(lvds_fe),
+            "TTL re": sorted(ttl_re),
+            "SYNC re": sorted(sync_re),
+            "SYNC fe": sorted(sync_fe),
         }
     }
     return D
@@ -315,7 +315,7 @@ def main(args):
                 elif len(v["SYNC re"]) == 0:
                     logger.warning("No SYNC rising edges found!")
                 elif len(v["SYNC fe"]) == 0:
-                    logger.warning("No SYNC rising edges found!")
+                    logger.warning("No SYNC falling edges found!")
         logger.info("\n")
 
 
