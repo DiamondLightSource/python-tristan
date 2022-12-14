@@ -283,17 +283,35 @@ def main(args):
                     logger.info(
                         f"Time difference between first TTL and LVDS re: {diff2:.4f} s."
                     )
-                    n_before = np.where(v["TTL re"] < v["LVDS re"][0])[0]
-                    if len(n_before) > 0:
+                    before = np.where(v["TTL re"] < v["LVDS re"][0])[0]
+                    if len(before) > 0:
                         logger.info(
-                            f"{len(n_before)} TTL triggers found before LVDS rising edge."
+                            f"{len(before)} TTL triggers found before LVDS rising edge."
                         )
-                        print(len(v["TTL re"][n_before]))
+                        new_re = [
+                            el for n, el in enumerate(v["TTL re"]) if n not in before
+                        ]
+                        diff2_1 = new_re[0] - v["LVDS re"][0]
+                        logger.info(
+                            f"Time difference between LVDS re and first TTL after it: {diff2_1}"
+                        )
                 if len(v["LVDS fe"]) > 0:
                     diff3 = v["LVDS fe"][0] - v["TTL re"][-1]
                     logger.info(
                         f"Time difference between LVDS fe and last TTL: {diff3:.4f} s."
                     )
+                    after = np.where(v["TTL re"] > v["LVDS fe"][0])[0]
+                    if len(after) > 0:
+                        logger.info(
+                            f"{len(after)} TTL triggers found before LVDS falling edge."
+                        )
+                        new_re = [
+                            el for n, el in enumerate(v["TTL re"]) if n not in after
+                        ]
+                        diff3_1 = v["LVDS fe"][0] - new_re[-1]
+                        logger.info(
+                            f"Time difference between LVDS re and last TTL after it: {diff3_1}"
+                        )
             else:
                 logger.warning("No TTL triggers found!")
             # If SSX, print out SYNC info.
