@@ -111,9 +111,9 @@ def trigger_lookup(tristanlist):
         f"Module {mod_number}": {
             "Shutter open": sh_open,
             "Shutter close": sh_close,
-            "LVDS re": lvds_re,
-            "LVDS fe": lvds_fe,
-            "TTL re": ttl_re,
+            "LVDS re": sorted(lvds_re),
+            "LVDS fe": sorted(lvds_fe),
+            "TTL re": sorted(ttl_re),
         }
     }
     return D
@@ -169,11 +169,11 @@ def trigger_lookup_ssx(tristanlist):
         f"Module {mod_number}": {
             "Shutter open": sh_open,
             "Shutter close": sh_close,
-            "LVDS re": lvds_re,
-            "LVDS fe": lvds_fe,
-            "TTL re": ttl_re,
-            "SYNC re": sync_re,
-            "SYNC fe": sync_fe,
+            "LVDS re": sorted(lvds_re),
+            "LVDS fe": sorted(lvds_fe),
+            "TTL re": sorted(ttl_re),
+            "SYNC re": sorted(sync_re),
+            "SYNC fe": sorted(sync_fe),
         }
     }
     return D
@@ -283,11 +283,35 @@ def main(args):
                     logger.info(
                         f"Time difference between first TTL and LVDS re: {diff2:.4f} s."
                     )
+                    before = np.where(v["TTL re"] < v["LVDS re"][0])[0]
+                    if len(before) > 0:
+                        logger.info(
+                            f"{len(before)} TTL triggers found before LVDS rising edge."
+                        )
+                        new_re = [
+                            el for n, el in enumerate(v["TTL re"]) if n not in before
+                        ]
+                        diff2_1 = new_re[0] - v["LVDS re"][0]
+                        logger.info(
+                            f"Time difference between LVDS re and first TTL after it: {diff2_1:.4f} s."
+                        )
                 if len(v["LVDS fe"]) > 0:
                     diff3 = v["LVDS fe"][0] - v["TTL re"][-1]
                     logger.info(
                         f"Time difference between LVDS fe and last TTL: {diff3:.4f} s."
                     )
+                    after = np.where(v["TTL re"] > v["LVDS fe"][0])[0]
+                    if len(after) > 0:
+                        logger.info(
+                            f"{len(after)} TTL triggers found before LVDS falling edge."
+                        )
+                        new_re = [
+                            el for n, el in enumerate(v["TTL re"]) if n not in after
+                        ]
+                        diff3_1 = v["LVDS fe"][0] - new_re[-1]
+                        logger.info(
+                            f"Time difference between LVDS re and last TTL after it: {diff3_1:.4f} s."
+                        )
             else:
                 logger.warning("No TTL triggers found!")
             # If SSX, print out SYNC info.
@@ -315,14 +339,14 @@ def main(args):
                 elif len(v["SYNC re"]) == 0:
                     logger.warning("No SYNC rising edges found!")
                 elif len(v["SYNC fe"]) == 0:
-                    logger.warning("No SYNC rising edges found!")
+                    logger.warning("No SYNC falling edges found!")
         logger.info("\n")
 
 
 def cli():
-    tic = time.process_time()
+    tic = time.time()
     args = parser.parse_args()
     main(args)
-    toc = time.process_time()
+    toc = time.time()
     logger.debug(f"Total time taken: {toc - tic:4f} s.")
     logger.info("~~~ EOF ~~~")

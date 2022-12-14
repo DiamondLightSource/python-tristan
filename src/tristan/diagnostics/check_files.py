@@ -54,7 +54,7 @@ parser.add_argument(
     choices=["1M", "2M", "10M"],
     default="10M",
     type=str,
-    help="",
+    help="Number of detector modules.",
 )
 
 
@@ -120,8 +120,8 @@ def main(args):
 
 
 def cli():
-    tic = time.process_time()
+    tic = time.time()
     args = parser.parse_args()
     main(args)
-    toc = time.process_time()
+    toc = time.time()
     logger.debug(f"Total time taken: {toc - tic:.4f} s.")
