@@ -279,12 +279,16 @@ def main(args):
                     f"Average time interval between one TTL re and the next: {d_avg:.4} s"
                 )
                 if len(v["LVDS re"]) > 0:
-                    n = np.where(v["TTL re"] < v["LVDS re"][0])[0]
-                    logger.info(f"Number of TTL triggers before LVDS re: {len(n)}")
                     diff2 = v["TTL re"][0] - v["LVDS re"][0]
                     logger.info(
                         f"Time difference between first TTL and LVDS re: {diff2:.4f} s."
                     )
+                    n_before = np.where(v["TTL re"] < v["LVDS re"][0])[0]
+                    if len(n_before) > 0:
+                        logger.info(
+                            f"{len(n_before)} TTL triggers found before LVDS rising edge."
+                        )
+                        print(len(v["TTL re"][n_before]))
                 if len(v["LVDS fe"]) > 0:
                     diff3 = v["LVDS fe"][0] - v["TTL re"][-1]
                     logger.info(
