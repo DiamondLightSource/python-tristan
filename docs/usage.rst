@@ -21,6 +21,9 @@ energy (time over threshold). The processing consists in binning these events in
 Single image tool
 ^^^^^^^^^^^^^^^^^
 
+To bin all the events into a single image, for powder processing or similar, use the images single command, alias images 1. 
+As input, this accepts either the <file-name-stem>.nxs file or, if there is only a single data set in a given directory, you can just pass the directory.
+
 .. code-block:: console
 
     images single /path/to/file
@@ -28,6 +31,9 @@ Single image tool
 
 Multiple image tool
 ^^^^^^^^^^^^^^^^^^^
+
+To bin the events into a chronological image sequence, like a rotation scan, use images multi. 
+As before, this accepts the _meta.h5 file or (if unique) its parent directory, but now we also need to specify either the number of images, with -n, or the exposure time, with -e. -e uses accepts most human-readable specifications of units, like -e 100us, -e 100µs, -e .1ms, etc..
 
 .. code-block:: console
 
@@ -44,6 +50,12 @@ Alternatively,
 Static sequence pump-probe tool
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+The tool images pump-probe, alias images pp, aggregates all the events from a pump-probe measurement, divides the pump rep period into bins of equal 'width' in time and creates an image for each bin. The resulting sequence of images describes the evolution of the system following a pump pulse, averaged over all pump pulses.
+
+This tool could, for example, be used to create a 'waterfall plot' of the intensity of a single reflection from a static sample, as it evolves in response to pump pulses.
+
+This tool requires that you specify the trigger type with -t, and the bin 'width' with -e or the number of bins with -n, in a similar manner as for images multi. 
+
 .. code-block:: console
 
     images pp -n 20 -t TTL-rising /path/to/file
@@ -51,6 +63,10 @@ Static sequence pump-probe tool
 
 Multiple sequence pump-probe tool
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The tool images sequences, alias images sweeps, divides the pump rep period into bins of equal duration, as for images pp above. It then creates a sweep of images, in the same manner as images multi, for each bin, using only the events that fall into that bin. The result is a sequence, or sweep, of images for each pump-probe delay bin. This could be used to deconstruct a rotation data collection into several rotation data image sets, each corresponding to a different pump-probe delay window.
+
+In the same manner as images multi, you can set the exposure time of the images with -e, or the number of images per sweep with -n. As for images pp, the trigger signal is specified with -t. The pump-probe delay intervals are specified either by duration, with -i, or by number, with -x.
 
 .. code-block:: console
 
