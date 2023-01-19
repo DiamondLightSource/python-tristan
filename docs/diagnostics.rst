@@ -14,16 +14,10 @@ This tool runs a quick check on the trigger signals - recorded as cue messages -
 
 This check is run on every module of the detector to be sure that all are correctly saving the cue messages. If one module doesn't show some or all of the triggers/timestamps, it's a sign that something might be wrong with the set-up.
 
+Valid events check
+==================
 
-===
-API
-===
-.. automodule:: tristan.diagnostics
-    :members:
+Modules inspection tool
+=======================
 
 
-Logging configuration
-=====================
-
-.. automodule:: tristan.diagnostics.diagnostics_log
-    :members:
