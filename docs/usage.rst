@@ -61,6 +61,10 @@ Multiple sequence pump-probe tool
 Apply the flatfield correction
 ==============================
 
+A tool to apply the flat-field correction to the binnes images. It is possible to choose whether to multiply or divide the images by the
+flat-field.
+
+
 .. code-block:: console
 
     apply-flat-field /path/to/binned_img_file /path/to/flatfield_file {multiply, divide}
