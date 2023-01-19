@@ -1,10 +1,4 @@
-=====
-Usage
-=====
-
-**Tristan** is a python package that provides a set of prototype tools for processing data collected on Tristan, 
-the experimental timepix3-based event-mode detector in use at Diamond Light Source.
-
+============
 Installation
 ============
 
@@ -12,11 +6,15 @@ Installation
 
     pip install tristan
 
+=============
+Image binning
+=============
 
-Bin events to images
-====================
+**Tristan** is a python package that provides a set of prototype tools for processing data collected on Tristan,
+the experimental timepix3-based event-mode detector in use at Diamond Light Source.
 
-Aggregate the events from a LATRD Tristan data collection into one or more images.
+Intead of images, this detector collects an event stream recording the pixel where the photon hit the detector, its timestamp (time of arrival) and
+energy (time over threshold). The processing consists in binning these events into one or more images.
 
 
 Single image tool
@@ -35,7 +33,7 @@ Multiple image tool
     images multi /path/to/file -n 1750
 
 
-Alternatively, 
+Alternatively,
 
 .. code-block:: console
 
@@ -67,8 +65,8 @@ Apply the flatfield correction
 Getting help
 ============
 
-Every command in the tristan package has a help message that explains its usage and shows a list of accepted 
-positional and optional arguments. 
+Every command in the tristan package has a help message that explains its usage and shows a list of accepted
+positional and optional arguments.
 The help message is printed by passing the option --help, alias -h, to any of the commands.
 
 .. code-block:: console
