@@ -14,10 +14,24 @@ This tool runs a quick check on the trigger signals - recorded as cue messages -
 
 This check is run on every module of the detector to be sure that all are correctly saving the cue messages. If one module doesn't show some or all of the triggers/timestamps, it's a sign that something might be wrong with the set-up.
 
+.. code-block:: console
+
+    find-trigger-intervals /path/to/collection/directory filename_root -o .
+
+
 Valid events check
 ==================
 
+.. code-block:: console
+
+    valid-events /path/to/collection/directory filename_root -o . -s 101.43 801.43
+
+
 Modules inspection tool
 =======================
+
+.. code-block:: console
+
+    check-tristan-files /path/to/collection/directory filename_root -o .
 
 

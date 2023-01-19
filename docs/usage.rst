@@ -6,6 +6,7 @@ Installation
 
     pip install tristan
 
+
 =============
 Image binning
 =============
@@ -60,20 +61,6 @@ Multiple sequence pump-probe tool
 Apply the flatfield correction
 ==============================
 
-
-
-Getting help
-============
-
-Every command in the tristan package has a help message that explains its usage and shows a list of accepted
-positional and optional arguments.
-The help message is printed by passing the option --help, alias -h, to any of the commands.
-
 .. code-block:: console
 
-    images --help
-
-
-.. code-block:: console
-
-    images multi -h
+    apply-flat-field /path/to/binned_img_file /path/to/flatfield_file {multiply, divide}

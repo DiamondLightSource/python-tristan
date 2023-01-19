@@ -12,6 +12,7 @@ Welcome to tristan's documentation!
 
    usage
    diagnostics
+   help
    api
 
 
