@@ -11,10 +11,14 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+import os
+import sys
 
+sys.path.insert(0, os.path.abspath(".."))
+
+import sphinx_rtd_theme  # noqa; F401 - install theme
+
+import tristan
 
 # -- Project information -----------------------------------------------------
 
@@ -23,9 +27,9 @@ copyright = "2021, Diamond Light Source Ltd."
 author = "Diamond Light Source — Data Analysis"
 
 # The short X.Y version
-version = ""
+version = tristan.__version__
 # The full version, including alpha/beta/rc tags
-release = ""
+release = tristan.__version__
 
 
 # -- General configuration ---------------------------------------------------
@@ -38,9 +42,11 @@ release = ""
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "sphinx_rtd_theme",
     "sphinx.ext.autodoc",
     "sphinx.ext.coverage",
     "sphinx.ext.viewcode",
+    "sphinx.ext.napoleon",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -76,7 +82,7 @@ pygments_style = None
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "alabaster"
+html_theme = "alabaster"  # "sphinx_rtd_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the

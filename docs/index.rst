@@ -4,11 +4,16 @@
    contain the root `toctree` directive.
 
 Welcome to tristan's documentation!
-=======================================
+===================================
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
+
+   usage
+   diagnostics
+   help
+   api
 
 
 
