@@ -10,6 +10,8 @@ The help message is printed by passing the option --help, alias -h, to any of th
 
     images multi -h
 
+Or,
+
 .. code-block:: console
 
     find-trigger-intervals --help

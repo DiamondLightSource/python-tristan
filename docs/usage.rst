@@ -22,6 +22,7 @@ Single image tool
 ^^^^^^^^^^^^^^^^^
 
 To bin all the events into a single image, for powder processing or similar, use the `images single`` command, alias `images 1`.
+
 This accepts as input either the <file-name-stem>.nxs file, the <file-name-stem>_meta.h5 file or just the collection directory,
 if only a single data set has been saved there.
 
@@ -33,8 +34,9 @@ if only a single data set has been saved there.
 Multiple image tool
 ^^^^^^^^^^^^^^^^^^^
 
-To bin the events into a chronological image sequence, for example a rotation scan, use `images multi`. As input, this command also
-accepts the <file-name-stem>.nxs file, the <file-name-stem>_meta.h5 file or the collection parent directory if unique.
+To bin the events into a chronological image sequence, for example a rotation scan, use `images multi`.
+
+As input, this command also accepts the <file-name-stem>.nxs file, the <file-name-stem>_meta.h5 file or the collection parent directory if unique.
 Additionally, it is also necessary to specify either the number of images, with `-n`, or the exposure time, with `-e`, to know how many images the events should be binned into.
 
 .. code-block:: console
@@ -68,6 +70,7 @@ Static sequence pump-probe tool
 
 The tool `images pump-probe`, alias `images pp`, aggregates all the events from a pump-probe measurement, divides the pump rep period into bins of equal 'width' in time and creates an image for each bin.
 The resulting sequence of images describes the evolution of the system following a pump pulse, averaged over all pump pulses.
+
 Similarily to `images multi`, this tool requires the trigger type to be specified with `-t`, and the bin 'width' with `-e`` or the number of bins with `-n`.
 
 .. code-block:: console
