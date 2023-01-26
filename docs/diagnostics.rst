@@ -2,6 +2,17 @@
 Diagnostic tools
 ================
 
+Cues inspection tool
+====================
+
+This tool inspects all the cue messages in a Tristan dataset and prints out a summary of how many instances are found, whether they have
+the same timestamp across the modules and the time interval between TTL rising and falling edge.
+
+.. code-block:: console
+
+    cues /path/to/collection/directory
+
+
 Trigger inspection tool
 =======================
 
@@ -12,7 +23,7 @@ This tool runs a quick check on the trigger signals - recorded as cue messages -
    - Looks for SYNC triggers and timestamps if running a serial crystallography experiment (to run:  add the -e/--expt ssx option to the command line)
    - Calculates the time interval between triggers
 
-This check is run on every module of the detector to be sure that all are correctly saving the cue messages. 
+This check is run on every module of the detector to be sure that all are correctly saving the cue messages.
 If one module doesn't show some or all of the triggers/timestamps, it's a sign that something might be wrong with the setup.
 
 A copy of the results is saved as a `.log` file in the working directory, unless otherwise specified using the `-o` option.
