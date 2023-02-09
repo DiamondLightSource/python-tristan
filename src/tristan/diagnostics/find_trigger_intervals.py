@@ -1,9 +1,16 @@
 """
 Run a quick check on trigger signals recorded in a Tristan collection.
-
-Look for shutter open and close signals and check their timestamps.
-Calculate the time interval between rising and falling edge of each trigger.
 """
+from __future__ import annotations
+
+epilog_message = """
+This program looks for shutter open and close signals and checks their timestamps.\n
+Additionally, it calculates the time interval between rising and falling edge of each trigger in a Tristan collection:\n
+    - TTL and LVDS for a standard time-resolved collection\n
+    - TTL, LVDS and SYNC for time-resolved serial crystallography collection.\n
+The results are written to a filename_TRIGGERCHECK.log.
+"""
+
 import argparse
 import glob
 import logging
@@ -33,7 +40,14 @@ from . import timing_resolution_fine
 logger = logging.getLogger("TristanDiagnostics.TriggerTimes")
 
 # Define parser
-parser = argparse.ArgumentParser(description=__doc__, parents=[version_parser])
+usage = "%(prog)s /path/to/data/dir filename_root [options]"
+parser = argparse.ArgumentParser(
+    usage=usage,
+    formatter_class=argparse.RawTextHelpFormatter,
+    description=__doc__,
+    epilog=epilog_message,
+    parents=[version_parser],
+)
 parser.add_argument("visitpath", type=str, help="Visit directory")
 parser.add_argument("filename", type=str, help="Filename")
 parser.add_argument(
@@ -54,8 +68,7 @@ parser.add_argument(
     "-n",
     "--nproc",
     type=int,
-    # default=1,
-    help="",
+    help="The number of processes to use.",
 )
 
 
@@ -98,9 +111,9 @@ def trigger_lookup(tristanlist):
         f"Module {mod_number}": {
             "Shutter open": sh_open,
             "Shutter close": sh_close,
-            "LVDS re": lvds_re,
-            "LVDS fe": lvds_fe,
-            "TTL re": ttl_re,
+            "LVDS re": sorted(lvds_re),
+            "LVDS fe": sorted(lvds_fe),
+            "TTL re": sorted(ttl_re),
         }
     }
     return D
@@ -143,8 +156,8 @@ def trigger_lookup_ssx(tristanlist):
                 for i in range(len(ttl_idx)):
                     ttl_re.append(cues_time[ttl_idx[i]] * timing_resolution_fine)
             # Look for sync
-            sync_up_idx = np.where(cues == sync_rising)
-            sync_down_idx = np.where(cues == sync_falling)
+            sync_up_idx = np.where(cues == sync_rising)[0]
+            sync_down_idx = np.where(cues == sync_falling)[0]
             if len(sync_up_idx) > 0:
                 for i in range(len(sync_up_idx)):
                     sync_re.append(cues_time[sync_up_idx[i]] * timing_resolution_fine)
@@ -156,11 +169,11 @@ def trigger_lookup_ssx(tristanlist):
         f"Module {mod_number}": {
             "Shutter open": sh_open,
             "Shutter close": sh_close,
-            "LVDS re": lvds_re,
-            "LVDS fe": lvds_fe,
-            "TTL re": ttl_re,
-            "SYNC re": sync_re,
-            "SYNC fe": sync_fe,
+            "LVDS re": sorted(lvds_re),
+            "LVDS fe": sorted(lvds_fe),
+            "TTL re": sorted(ttl_re),
+            "SYNC re": sorted(sync_re),
+            "SYNC fe": sorted(sync_fe),
         }
     }
     return D
@@ -183,9 +196,6 @@ def main(args):
 
     # Start logging
     logger.info(f"Current working directory: {wdir}")
-    logger.info(
-        f"Look for triggers in cue messages for a Tristan10M {args.expt} collection."
-    )
     logger.info(f"Collection directory: {filepath}")
     logger.info(f"Filename root: {args.filename}")
     filename_template = filepath / base
@@ -194,9 +204,12 @@ def main(args):
         for f in sorted(glob.glob(filename_template.as_posix()))
     ]
     logger.info(f"Found {len(file_list)} files in directory.\n")
-    # For now let's just go with the usual assumption that files are coherently divided.
-    # TODO what if they're not?!?!
+    # The 10 files for each module are consecutive (although not necessarily eg. 1-10 for module0l)
     L = [file_list[i : i + 10] for i in range(0, len(file_list), 10)]
+
+    logger.info(
+        f"Look for triggers in cue messages for a Tristan{len(L)}M {args.expt} collection."
+    )
 
     nxsfile = filepath / (args.filename + ".nxs")
     if nxsfile in filepath.iterdir():
@@ -208,10 +221,6 @@ def main(args):
         nproc = args.nproc
     else:
         nproc = mp.cpu_count() - 1
-    # if args.nproc >= mp.cpu_count():
-    #     nproc = mp.cpu_count() -1
-    # else:
-    #     nproc = args.nproc
 
     tristanlist = [(n, l) for n, l in enumerate(L)]
 
@@ -274,11 +283,35 @@ def main(args):
                     logger.info(
                         f"Time difference between first TTL and LVDS re: {diff2:.4f} s."
                     )
+                    before = np.where(v["TTL re"] < v["LVDS re"][0])[0]
+                    if len(before) > 0:
+                        logger.info(
+                            f"{len(before)} TTL triggers found before LVDS rising edge."
+                        )
+                        new_re = [
+                            el for n, el in enumerate(v["TTL re"]) if n not in before
+                        ]
+                        diff2_1 = new_re[0] - v["LVDS re"][0]
+                        logger.info(
+                            f"Time difference between LVDS re and first TTL after it: {diff2_1:.4f} s."
+                        )
                 if len(v["LVDS fe"]) > 0:
                     diff3 = v["LVDS fe"][0] - v["TTL re"][-1]
                     logger.info(
                         f"Time difference between LVDS fe and last TTL: {diff3:.4f} s."
                     )
+                    after = np.where(v["TTL re"] > v["LVDS fe"][0])[0]
+                    if len(after) > 0:
+                        logger.info(
+                            f"{len(after)} TTL triggers found before LVDS falling edge."
+                        )
+                        new_re = [
+                            el for n, el in enumerate(v["TTL re"]) if n not in after
+                        ]
+                        diff3_1 = v["LVDS fe"][0] - new_re[-1]
+                        logger.info(
+                            f"Time difference between LVDS re and last TTL after it: {diff3_1:.4f} s."
+                        )
             else:
                 logger.warning("No TTL triggers found!")
             # If SSX, print out SYNC info.
@@ -306,14 +339,14 @@ def main(args):
                 elif len(v["SYNC re"]) == 0:
                     logger.warning("No SYNC rising edges found!")
                 elif len(v["SYNC fe"]) == 0:
-                    logger.warning("No SYNC rising edges found!")
+                    logger.warning("No SYNC falling edges found!")
         logger.info("\n")
 
 
 def cli():
-    tic = time.process_time()
+    tic = time.time()
     args = parser.parse_args()
     main(args)
-    toc = time.process_time()
+    toc = time.time()
     logger.debug(f"Total time taken: {toc - tic:4f} s.")
     logger.info("~~~ EOF ~~~")
