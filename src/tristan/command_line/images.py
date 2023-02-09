@@ -309,7 +309,10 @@ def pump_probe_cli(args):
         try:
             # Write output NeXus file if we have an input NeXus file.
             output_nexus = CopyTristanNexus.single_image_nexus(
-                output_file, input_nexus, write_mode=write_mode, pump_probe_bins=num_images
+                output_file,
+                input_nexus,
+                write_mode=write_mode,
+                pump_probe_bins=num_images,
             )
         except FileExistsError:
             sys.exit(
@@ -320,7 +323,7 @@ def pump_probe_cli(args):
             )
     else:
         output_nexus = None
-    
+
     print(
         f"Binning events into {num_images} images with an exposure time of "
         f"{exposure_time:.3g~#P} according to the time elapsed since the most "
