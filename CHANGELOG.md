@@ -1,5 +1,8 @@
 # CHANGES
 
+##
+- Fixed the axis dimensions for `images pp`.
+
 ## 0.2.1
 - Added dagnostic tool `valid-events` for checking that there are events recorded after the shutter open signal in case the binned image is blank(asynchronicity issue). Also, a couple of small improvements on the other diagnostic tools.
 - Set up documentation and published a first version with basic information.
