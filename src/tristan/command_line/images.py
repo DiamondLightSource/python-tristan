@@ -586,7 +586,7 @@ def gated_images_cli(args):
     if input_nexus.exists():
         try:
             # Write output NeXus file if we have an input NeXus file.
-            output_nexus = CopyTristanNexus.multiple_images_nexus(
+            output_nexus = CopyTristanNexus.serial_images_nexus(
                 output_file,
                 input_nexus,
                 nbins=num_images,
