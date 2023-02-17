@@ -335,7 +335,7 @@ def main(args):
                         logger.warning(
                             "First SYNC rising edge was recorded before the shutter open signal!"
                         )
-                    if v["SYNC fe"][-1] < shutters[1][0]:
+                    if v["SYNC fe"][-1] > shutters[1][0]:
                         logger.warning(
                             "Last SYNC falling edge was recorded after the shutter close signal!"
                         )
