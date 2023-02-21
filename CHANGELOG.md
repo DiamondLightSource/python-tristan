@@ -3,6 +3,7 @@
 ##
 - Fixed the axis dimensions for `images pp`.
 - Added timestamp check and warning on triggers if they happen before/after shutters in `find-tristan-triggers`.
+- Added `images serial` for gated access binning of events.
 
 ## 0.2.1
 - Added dagnostic tool `valid-events` for checking that there are events recorded after the shutter open signal in case the binned image is blank(asynchronicity issue). Also, a couple of small improvements on the other diagnostic tools.
