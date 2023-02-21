@@ -333,11 +333,13 @@ def main(args):
                     )
                     if v["SYNC re"][0] < shutters[0][0]:
                         logger.warning(
-                            "First SYNC rising edge was recorded before the shutter open signal!"
+                            "First SYNC rising edge was recorded before the shutter open signal! \n"
+                            f"Timestamp difference: {shutters[0][0] - v['SYNC re'][0]} s."
                         )
                     if v["SYNC fe"][-1] > shutters[1][0]:
                         logger.warning(
-                            "Last SYNC falling edge was recorded after the shutter close signal!"
+                            "Last SYNC falling edge was recorded after the shutter close signal! \n"
+                            f"Timestamp difference: {v['SYNC fe'][-1] - shutters[1][0]} s."
                         )
                     diff4 = [b - a for a, b in zip(v["SYNC re"], v["SYNC fe"])]
                     avg4 = np.average(diff4) if len(diff4) else np.nan
