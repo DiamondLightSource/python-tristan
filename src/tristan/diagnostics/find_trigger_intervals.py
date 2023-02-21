@@ -237,8 +237,8 @@ def main(args):
             logger.info(f"--- {k} ---")
             logger.info("SHUTTERS")
             if len(shutters[0]) > 0 and len(shutters[1]) > 0:
-                logger.info(f"Shutter open timestamp: {shutters[0][0]:.4f}")
-                logger.info(f"Shutter close timestamp: {shutters[1][0]:.4f}")
+                logger.info(f"Shutter open timestamp: {shutters[0][0]:.4f}.")
+                logger.info(f"Shutter close timestamp: {shutters[1][0]:.4f}.")
                 diff0 = shutters[1][0] - shutters[0][0]
                 logger.info(
                     f"Total time between shutter opening and closing: {diff0:.4f} s."
@@ -246,10 +246,10 @@ def main(args):
             elif len(shutters[0]) == 0 or len(shutters[1]) == 0:
                 logger.warning("Missing shutter information!")
                 logger.warning(
-                    f"Number of shutter open timestamps found: {len(shutters[0])}"
+                    f"Number of shutter open timestamps found: {len(shutters[0])}."
                 )
                 logger.warning(
-                    f"Number of shutter close timestamps found: {len(shutters[1])}"
+                    f"Number of shutter close timestamps found: {len(shutters[1])}."
                 )
             logger.info("LVDS")
             if len(v["LVDS re"]) > 0 and len(v["LVDS fe"]) > 0:
@@ -324,12 +324,12 @@ def main(args):
                         f"Found {len(v['SYNC re'])} rising edges and {len(v['SYNC fe'])} falling edges."
                     )
                     logger.info(
-                        f"First SYNC rising edge timestamp: {v['SYNC re'][0]:.4f} ."
+                        f"First SYNC rising edge timestamp: {v['SYNC re'][0]:.4f}."
                     )
                     # logger.info(f"First SYNC falling edge timestamp: {v['SYNC fe'][0]:.4f} .")
                     # logger.info(f"Last SYNC rising edge timestamp: {v['SYNC re'][-1]:.4f} .")
                     logger.info(
-                        f"Last SYNC falling edge timestamp: {v['SYNC fe'][-1]:.4f} ."
+                        f"Last SYNC falling edge timestamp: {v['SYNC fe'][-1]:.4f}."
                     )
                     if v["SYNC re"][0] < shutters[0][0]:
                         logger.warning(
@@ -344,13 +344,13 @@ def main(args):
                     diff4 = [b - a for a, b in zip(v["SYNC re"], v["SYNC fe"])]
                     avg4 = np.average(diff4) if len(diff4) else np.nan
                     logger.info(
-                        f"Average time interval between SYNC re and fe: {avg4:.4f} s"
+                        f"Average time interval between SYNC re and fe: {avg4:.4f} s."
                     )
                     if len(v["TTL re"]) == len(v["SYNC re"]):
                         diff5 = [b - a for a, b in zip(v["TTL re"], v["SYNC re"])]
                         avg5 = np.average(diff5) if len(diff5) else np.nan
                         logger.info(
-                            f"Average time interval between TTL re and SYNC re: {avg5:.4f} s"
+                            f"Average time interval between TTL re and SYNC re: {avg5:.4f} s."
                         )
                     else:
                         logger.error(
