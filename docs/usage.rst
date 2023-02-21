@@ -99,6 +99,29 @@ by duration, with `-i`, or by number, with `-x`.
 For example, this could be used to deconstruct a rotation data collection into several rotation datasets, each corresponding to a different pump-probe delay window.
 
 
+Serial crystallography tool (gated access)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To bin events into images gated by trigger signals, use `images serial`, which will write one image per gate signal. Each 'gate-open' signal is taken as the start of an exposure and
+the next 'gate-close' signal is taken as the end of the exposure.
+
+This tool requires at least the rising edge of the trigger signal, specified with `-g`, to be passed as *gate open* and will then look for the corresponding falling edge
+to be used as *gate close*. 
+
+.. code-block:: console
+
+    images serial -g SYNC-rising /path/to/file
+
+
+In some cases, it might be more useful to look at the events collected between different kinds of trigger signals, by specifying the *gate open* signal with `-g`
+and the *gate close* using the `-c` flag as in the example below.  
+
+.. code-block:: console
+
+    images serial -g TTL-rising -c SYNC-falling /path/to/file
+
+
+
 Apply the flatfield correction
 ==============================
 
