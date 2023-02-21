@@ -561,8 +561,10 @@ def gated_images_cli(args):
             start, end = find_start_end(cues_data)
 
         print("Finding gate signal times.")
+        # Here we assume no synchronization issues:
+        # falling edges always recorded after rising edges.
         open_times = cue_times(cues_data, gate_open, after=start)
-        close_times = cue_times(cues_data, gate_close, after=start)
+        close_times = cue_times(cues_data, gate_close, before=end)
         with ProgressBar():
             open_times, close_times = dask.compute(open_times, close_times)
 
@@ -570,16 +572,44 @@ def gated_images_cli(args):
         sys.exit(f"Could not find a '{cues[gate_open]}' signal.")
     if not close_times.size:
         sys.exit(f"Could not find a '{cues[gate_close]}' signal.")
-    if not open_times.size == close_times.size:
-        sys.exit(
-            "Found a non-matching number of gate open and close signals:\n\t"
-            f"Number of '{cues[gate_open]}' signals: {open_times.size}\n\t"
-            f"Number of '{cues[gate_close]}' signals: {close_times.size}\n"
-            f"Note that signals before the shutter open time are ignored."
-        )
 
     open_times = np.sort(open_times)
     close_times = np.sort(close_times)
+
+    if not open_times.size == close_times.size:
+        # If size difference is just one, look for missing one right before/after
+        # sutter and use shutter timestamp as first/last gate
+        if abs(open_times.size - close_times.size) > 1:
+            sys.exit(
+                "Found a non-matching number of gate open and close signals:\n\t"
+                f"Number of '{cues[gate_open]}' signals: {open_times.size}\n\t"
+                f"Number of '{cues[gate_close]}' signals: {close_times.size}\n"
+                f"Note that signals before the shutter open time are ignored."
+            )
+        else:
+            if open_times[-1] > close_times[-1]:
+                print(
+                    "WARNING! \n\t"
+                    f"Missing last '{cues[gate_close]}' signal.\n\t"
+                    f"Shutter close timestamp will be used instead for last image."
+                )
+                # Append shutter close to close_times
+                close_times = np.append(close_times, end)
+            elif open_times[0] > close_times[0]:
+                print(
+                    "WARNING! \n\t"
+                    f"Missing first '{cues[gate_open]}' signal.\n\t"
+                    f"Shutter open timestamp will be used instead for last image."
+                )
+                # Insert shutter open to open times
+                open_times = np.insert(open_times, 0, start)
+            else:
+                sys.exit(
+                    "Found a non-matching number of gate open and close signals:\n\t"
+                    f"Number of '{cues[gate_open]}' signals: {open_times.size}\n\t"
+                    f"Number of '{cues[gate_close]}' signals: {close_times.size}\n"
+                    # f"Note that signals before the shutter open time are ignored."
+                )
 
     num_images = open_times.size
 
