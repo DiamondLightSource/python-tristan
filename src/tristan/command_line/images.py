@@ -651,7 +651,7 @@ def gated_images_cli(args):
         before_close = da.take(close_times, close_index) - event_times
         # Eliminate invalid events.
         # Valid only if both before and after are positive
-        valid = (after_open > 0) & (before_close > 0)
+        valid = (after_open >= 0) & (before_close > 0)
         valid = dd.from_dask_array(valid, index=data.index)
 
         # Convert the event IDs to a form that is suitable for a NumPy bincount.
