@@ -578,7 +578,7 @@ def gated_images_cli(args):
 
     if not open_times.size == close_times.size:
         # If size difference is just one, look for missing one right before/after
-        # sutter and use shutter timestamp as first/last gate
+        # shutters and use shutter open/close timestamp as first/last gate
         if abs(open_times.size - close_times.size) > 1:
             sys.exit(
                 "Found a non-matching number of gate open and close signals:\n\t"
@@ -608,7 +608,6 @@ def gated_images_cli(args):
                     "Found a non-matching number of gate open and close signals:\n\t"
                     f"Number of '{cues[gate_open]}' signals: {open_times.size}\n\t"
                     f"Number of '{cues[gate_close]}' signals: {close_times.size}\n"
-                    # f"Note that signals before the shutter open time are ignored."
                 )
 
     num_images = open_times.size
@@ -647,11 +646,7 @@ def gated_images_cli(args):
         open_index = da.digitize(event_times, open_times) - 1
         close_index = da.digitize(event_times, close_times)
         # Look for events that happen after gate open and before gate close
-        # after_open = event_times - da.take(open_times, open_index)
-        # before_close = da.take(close_times, close_index) - event_times
-        # Eliminate invalid events.
-        # Valid only if both before and after are positive
-        # valid = (after_open >= 0) & (before_close > 0)
+        # Eliminate invalid events by looking at the open and close index
         valid = open_index == close_index
         valid = dd.from_dask_array(valid, index=data.index)
 
