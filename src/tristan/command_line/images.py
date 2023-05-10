@@ -645,7 +645,7 @@ def gated_images_cli(args):
         # Gate the events.
         event_times = data[event_time_key].astype(np.int64).values
         open_index = da.digitize(event_times, open_times) - 1
-        close_index = da.digitize(event_times, close_times) - 1
+        close_index = da.digitize(event_times, close_times)
         # Look for events that happen after gate open and before gate close
         after_open = event_times - da.take(open_times, open_index)
         before_close = da.take(close_times, close_index) - event_times
