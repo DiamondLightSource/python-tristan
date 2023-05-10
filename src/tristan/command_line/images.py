@@ -612,6 +612,7 @@ def gated_images_cli(args):
                 )
 
     num_images = open_times.size
+    bins = np.linspace(0, num_images, num_images + 1, dtype=np.uint64)
 
     if input_nexus.exists():
         try:
@@ -642,20 +643,31 @@ def gated_images_cli(args):
         data = valid_events(data, start, end)
 
         # Gate the events.
-        event_times = data[event_time_key].values
+        event_times = data[event_time_key].astype(np.int64).values
         open_index = da.digitize(event_times, open_times) - 1
         close_index = da.digitize(event_times, close_times) - 1
-        data["time_bin"] = open_index
-        open_times = da.take(open_times, open_index)
-        close_times = da.take(close_times, close_index)
-        data = valid_events(data, open_times, close_times)
-        data = data.drop(columns=event_time_key)
+        # Look for events that happen after gate open and before gate close
+        after_open = event_times - da.take(open_times, open_index)
+        before_close = da.take(close_times, close_index) - event_times
+        # Eliminate invalid events.
+        # Valid only if both before and after are positive
+        valid = (after_open > 0) & (before_close > 0)
+        valid = dd.from_dask_array(valid, index=data.index)
 
         # Convert the event IDs to a form that is suitable for a NumPy bincount.
         data[event_location_key] = pixel_index(data[event_location_key], image_size)
 
+        columns = event_location_key, "time_bin"
+        dtypes = data.dtypes
+        dtypes["time_bin"] = dtypes.pop(event_time_key)
+
+        meta = pd.DataFrame(columns=columns).astype(dtype=dtypes)
+        # Enumerate the image in the stack to which each event belongs
+        data = data.map_partitions(find_time_bins, bins=bins, meta=meta)
+        data["time_bin"] = open_index
+        data = data[valid]
+
         # Bin to images, partition by partition.
-        meta = pd.DataFrame(columns=data.columns).astype(dtype=data.dtypes)
         data = dd.map_partitions(
             make_images, data, image_size, images, meta=meta, enforce_metadata=False
         )
