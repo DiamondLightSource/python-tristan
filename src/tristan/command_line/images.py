@@ -599,7 +599,7 @@ def gated_images_cli(args):
                 print(
                     "WARNING! \n\t"
                     f"Missing first '{cues[gate_open]}' signal.\n\t"
-                    f"Shutter open timestamp will be used instead for last image."
+                    f"Shutter open timestamp will be used instead for first image."
                 )
                 # Insert shutter open to open times
                 open_times = np.insert(open_times, 0, start)
@@ -612,7 +612,7 @@ def gated_images_cli(args):
                 )
 
     num_images = open_times.size
-    bins = np.linspace(0, num_images - 1, num_images, dtype=np.uint64)
+    bins = np.linspace(0, num_images, num_images + 1, dtype=np.uint64)
 
     if input_nexus.exists():
         try:
@@ -647,11 +647,12 @@ def gated_images_cli(args):
         open_index = da.digitize(event_times, open_times) - 1
         close_index = da.digitize(event_times, close_times)
         # Look for events that happen after gate open and before gate close
-        after_open = event_times - da.take(open_times, open_index)
-        before_close = da.take(close_times, close_index) - event_times
+        # after_open = event_times - da.take(open_times, open_index)
+        # before_close = da.take(close_times, close_index) - event_times
         # Eliminate invalid events.
         # Valid only if both before and after are positive
-        valid = (after_open >= 0) & (before_close > 0)
+        # valid = (after_open >= 0) & (before_close > 0)
+        valid = open_index == close_index
         valid = dd.from_dask_array(valid, index=data.index)
 
         # Convert the event IDs to a form that is suitable for a NumPy bincount.
