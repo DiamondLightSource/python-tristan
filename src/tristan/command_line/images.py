@@ -612,7 +612,7 @@ def gated_images_cli(args):
                 )
 
     num_images = open_times.size
-    bins = np.linspace(0, num_images, num_images + 1, dtype=np.uint64)
+    bins = np.linspace(0, num_images - 1, num_images, dtype=np.uint64)
 
     if input_nexus.exists():
         try:
