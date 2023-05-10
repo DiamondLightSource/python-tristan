@@ -2,6 +2,9 @@
 API
 ===
 
+General
+=======
+
 .. automodule:: tristan
     :members:
     :show-inheritance:
@@ -24,6 +27,9 @@ Data
 ===============
 Diagnostics API
 ===============
+
+General
+=======
 
 .. automodule:: tristan.diagnostics
     :members:

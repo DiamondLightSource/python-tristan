@@ -106,7 +106,7 @@ To bin events into images gated by trigger signals, use `images serial`, which w
 the next 'gate-close' signal is taken as the end of the exposure.
 
 This tool requires at least the rising edge of the trigger signal, specified with `-g`, to be passed as *gate open* and will then look for the corresponding falling edge
-to be used as *gate close*. 
+to be used as *gate close*.
 
 .. code-block:: console
 
@@ -114,7 +114,7 @@ to be used as *gate close*.
 
 
 In some cases, it might be more useful to look at the events collected between different kinds of trigger signals, by specifying the *gate open* signal with `-g`
-and the *gate close* using the `-c` flag as in the example below.  
+and the *gate close* using the `-c` flag as in the example below.
 
 .. code-block:: console
 
@@ -122,6 +122,7 @@ and the *gate close* using the `-c` flag as in the example below.
 
 
 
+==============================
 Apply the flatfield correction
 ==============================
 
