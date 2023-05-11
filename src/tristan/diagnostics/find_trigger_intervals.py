@@ -326,8 +326,6 @@ def main(args):
                     logger.info(
                         f"First SYNC rising edge timestamp: {v['SYNC re'][0]:.4f}."
                     )
-                    # logger.info(f"First SYNC falling edge timestamp: {v['SYNC fe'][0]:.4f} .")
-                    # logger.info(f"Last SYNC rising edge timestamp: {v['SYNC re'][-1]:.4f} .")
                     logger.info(
                         f"Last SYNC falling edge timestamp: {v['SYNC fe'][-1]:.4f}."
                     )
