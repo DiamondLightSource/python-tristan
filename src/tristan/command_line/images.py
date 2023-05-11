@@ -29,7 +29,6 @@ from ..binning import (
     find_start_end,
     find_time_bins,
     make_images,
-    valid_events,
 )
 from ..data import (
     cue_keys,
@@ -41,6 +40,7 @@ from ..data import (
     latrd_data,
     pixel_index,
     seconds,
+    valid_events,
 )
 from . import (
     check_multiple_output_files,
