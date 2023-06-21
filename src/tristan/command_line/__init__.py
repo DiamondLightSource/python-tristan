@@ -421,3 +421,22 @@ group.add_argument(
 group.add_argument(
     "-x", "--num-sequences", help="Number of image sequences.", type=positive_int
 )
+
+# A parser for specifying a pair of trigger signals with which to gate event processing.
+gate_parser = argparse.ArgumentParser(add_help=False)
+gate_parser.add_argument(
+    "-g",
+    "--gate-open",
+    help="Trigger signal denoting the start of each gate period.",
+    choices=triggers.keys(),
+    required=True,
+)
+gate_parser.add_argument(
+    "-c",
+    "--gate-close",
+    help="Trigger signal denoting the end of each gate period (optional).  If not "
+    "provided, this will default to the complementary signal to the '--gate-open' "
+    "value.  For example, if the '--gate-open' signal is 'TTL-rising', "
+    "the --gate-close signal will default to 'TTL-falling', and vice versa.",
+    choices=triggers.keys(),
+)

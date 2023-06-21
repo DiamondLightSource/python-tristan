@@ -146,7 +146,12 @@ def first_cue_time(
         return data[cue_time_key].loc[first_index]
 
 
-def cue_times(data: dd.DataFrame, message: int, after: int | None = None) -> da.Array:
+def cue_times(
+    data: dd.DataFrame,
+    message: int,
+    after: int | None = None,
+    before: int | None = None,
+) -> da.Array:
     """
     Find the timestamps of all instances of a cue message in a Tristan data set.
 
@@ -165,6 +170,8 @@ def cue_times(data: dd.DataFrame, message: int, after: int | None = None) -> da.
     index = data[cue_id_key] == message
     if after:
         index &= data[cue_time_key] >= after
+    if before:
+        index &= data[cue_time_key] <= before
     return da.unique(data[cue_time_key][index].values)
 
 
