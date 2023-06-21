@@ -10,7 +10,7 @@ from __future__ import annotations
 
 __author__ = "Diamond Light Source — Data Analysis Group"
 __email__ = "dataanalysis@diamond.ac.uk"
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 __version_tuple__ = tuple(int(x) for x in __version__.split("."))
 
 import dask
