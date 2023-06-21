@@ -1,6 +1,6 @@
 dask==2022.11.1
 distributed==2022.11.1
-h5py==3.7.0
+h5py==3.8.0
 hdf5plugin==4.0.1
 nexgen==0.6.27
 numpy==1.23.5
