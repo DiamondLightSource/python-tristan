@@ -1,11 +1,13 @@
 dask==2022.11.1
 distributed==2022.11.1
-h5py==3.7.0
+h5py==3.8.0
 hdf5plugin==4.0.1
-nexgen==0.6.23
+nexgen==0.6.27
 numpy==1.23.5
 pandas==1.5.2
 Pint==0.20.1
+pytest==7.1.2
+pytest-cov==3.0.0
 Sphinx==6.2.0
 sphinx-rtd-theme==1.2.0
 zarr==2.13.3
