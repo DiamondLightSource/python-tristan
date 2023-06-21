@@ -1,6 +1,6 @@
 # CHANGES
 
-##
+## 0.2.2
 - Fixed the axis dimensions for `images pp`.
 - Added timestamp check and warning on triggers if they happen before/after shutters in `find-tristan-triggers`.
 - Added `images serial` for gated access binning of events.
