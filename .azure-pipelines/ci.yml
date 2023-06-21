@@ -27,7 +27,10 @@ steps:
   displayName: Install package
 
 - script: |
-    PYTHONDEVMODE=1 pytest -ra --cov=tristan --cov-report=xml --cov-branch
+    pip install pytest
+
+    pip install pytest-cov
+    python -m pytest -ra --cov=tristan --cov-report=xml --cov-branch
   displayName: Run tests
   workingDirectory: $(Pipeline.Workspace)/src
 
