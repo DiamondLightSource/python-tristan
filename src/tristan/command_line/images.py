@@ -502,7 +502,7 @@ def multiple_sequences_cli(args):
         print("Computing the binned images.")
         # Use multi-threading, rather than multi-processing.
         with Client(processes=False):
-            compute_with_progress(events_data)
+            compute_with_progress(events_data, do_not_persist=True)
 
     print("Transferring the images to the output files.")
     store = images.store
@@ -671,7 +671,7 @@ def gated_images_cli(args):
         print("Computing the binned images.")
         # Use multi-threading, rather than multi-processing.
         with Client(processes=False):
-            compute_with_progress(data)
+            compute_with_progress(data, do_not_persist=True)
 
     print("Transferring the images to the output file.")
     with h5py.File(output_file, write_mode) as f:
