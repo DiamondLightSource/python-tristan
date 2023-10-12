@@ -19,8 +19,8 @@ import h5py
 
 from ..command_line import version_parser
 from ..data import event_location_key
-from . import DIV, define_modules
 from . import diagnostics_log as log
+from .utils import DIV, define_modules
 
 # Define a logger
 logger = logging.getLogger("TristanDiagnostics.ModuleCheck")

@@ -34,7 +34,7 @@ from ..data import (  # ttl_falling,
     ttl_rising,
 )
 from . import diagnostics_log as log
-from . import timing_resolution_fine
+from .utils import TIME_RES
 
 # Define a logger object
 logger = logging.getLogger("TristanDiagnostics.TriggerTimes")
@@ -88,24 +88,24 @@ def trigger_lookup(tristanlist):
             cl_idx = np.where(cues == shutter_close)[0]
             if len(op_idx) > 0:
                 for i in range(len(op_idx)):
-                    sh_open.append(cues_time[op_idx[i]] * timing_resolution_fine)
+                    sh_open.append(cues_time[op_idx[i]] * TIME_RES)
             if len(cl_idx) > 0:
                 for i in range(len(cl_idx)):
-                    sh_close.append(cues_time[cl_idx[i]] * timing_resolution_fine)
+                    sh_close.append(cues_time[cl_idx[i]] * TIME_RES)
             # Look for lvds
             lvds_up_idx = np.where(cues == lvds_rising)[0]
             lvds_down_idx = np.where(cues == lvds_falling)[0]
             if len(lvds_up_idx) > 0:
                 for i in range(len(lvds_up_idx)):
-                    lvds_re.append(cues_time[lvds_up_idx[i]] * timing_resolution_fine)
+                    lvds_re.append(cues_time[lvds_up_idx[i]] * TIME_RES)
             if len(lvds_down_idx) > 0:
                 for i in range(len(lvds_down_idx)):
-                    lvds_fe.append(cues_time[lvds_down_idx[i]] * timing_resolution_fine)
+                    lvds_fe.append(cues_time[lvds_down_idx[i]] * TIME_RES)
             # Look for ttl
             ttl_idx = np.where(cues == ttl_rising)[0]
             if len(ttl_idx) > 0:
                 for i in range(len(ttl_idx)):
-                    ttl_re.append(cues_time[ttl_idx[i]] * timing_resolution_fine)
+                    ttl_re.append(cues_time[ttl_idx[i]] * TIME_RES)
 
     D = {
         f"Module {mod_number}": {
@@ -137,33 +137,33 @@ def trigger_lookup_ssx(tristanlist):
             cl_idx = np.where(cues == shutter_close)[0]
             if len(op_idx) > 0:
                 for i in range(len(op_idx)):
-                    sh_open.append(cues_time[op_idx[i]] * timing_resolution_fine)
+                    sh_open.append(cues_time[op_idx[i]] * TIME_RES)
             if len(cl_idx) > 0:
                 for i in range(len(cl_idx)):
-                    sh_close.append(cues_time[cl_idx[i]] * timing_resolution_fine)
+                    sh_close.append(cues_time[cl_idx[i]] * TIME_RES)
             # Look for lvds
             lvds_up_idx = np.where(cues == lvds_rising)[0]
             lvds_down_idx = np.where(cues == lvds_falling)[0]
             if len(lvds_up_idx) > 0:
                 for i in range(len(lvds_up_idx)):
-                    lvds_re.append(cues_time[lvds_up_idx[i]] * timing_resolution_fine)
+                    lvds_re.append(cues_time[lvds_up_idx[i]] * TIME_RES)
             if len(lvds_down_idx) > 0:
                 for i in range(len(lvds_down_idx)):
-                    lvds_fe.append(cues_time[lvds_down_idx[i]] * timing_resolution_fine)
+                    lvds_fe.append(cues_time[lvds_down_idx[i]] * TIME_RES)
             # Look for ttl
             ttl_idx = np.where(cues == ttl_rising)[0]
             if len(ttl_idx) > 0:
                 for i in range(len(ttl_idx)):
-                    ttl_re.append(cues_time[ttl_idx[i]] * timing_resolution_fine)
+                    ttl_re.append(cues_time[ttl_idx[i]] * TIME_RES)
             # Look for sync
             sync_up_idx = np.where(cues == sync_rising)[0]
             sync_down_idx = np.where(cues == sync_falling)[0]
             if len(sync_up_idx) > 0:
                 for i in range(len(sync_up_idx)):
-                    sync_re.append(cues_time[sync_up_idx[i]] * timing_resolution_fine)
+                    sync_re.append(cues_time[sync_up_idx[i]] * TIME_RES)
             if len(sync_down_idx) > 0:
                 for i in range(len(sync_down_idx)):
-                    sync_fe.append(cues_time[sync_down_idx[i]] * timing_resolution_fine)
+                    sync_fe.append(cues_time[sync_down_idx[i]] * TIME_RES)
 
     D = {
         f"Module {mod_number}": {

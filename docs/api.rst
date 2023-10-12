@@ -32,7 +32,9 @@ General
 =======
 
 .. automodule:: tristan.diagnostics
-    :members:
+
+
+.. autofunction:: tristan.diagnostics.utils.define_modules
 
 
 Logging configuration

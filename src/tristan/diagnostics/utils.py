@@ -1,0 +1,114 @@
+"""General utilities for the diagnostic tools."""
+from __future__ import annotations
+
+import glob
+import logging
+from pathlib import Path
+from typing import Literal, get_args
+
+import numpy as np
+
+# Define a logger
+logger = logging.getLogger("TristanDiagnostics.Utils")
+
+# Some constants
+TIME_RES = 1.5625e-9  # timing resolution fine
+DIV = np.uint32(0x2000)
+
+# Tristan 10M specs
+TConfig = Literal["1M", "2M", "10M"]
+tristan_config = {"10M": (2, 5), "2M": (1, 2), "1M": (1, 1)}  # (H, V) -.> (fast, slow)
+mod_size = (515, 2069)  # slow, fast
+gap_size = (117, 45)  # slow, fast
+image_size = (3043, 4183)  # slow, fast
+
+
+# TODO for all of them I need a function that groups all the files relative to the
+# correct module in a list
+# Empty list if broken module
+
+
+def get_file_list(filename_template: str | Path) -> list(Path):
+    """Given a template filename, including directory, get a list of all the files\
+    using that template.
+
+    Args:
+        filename_template(str | Path): Template to look up in the directory.
+
+    Returns:
+        file_list(list[Path]): A list of all the files found matching the template.
+    """
+    if not isinstance(filename_template, Path):
+        filename_template = Path(filename_template)
+    file_list = [
+        Path(f).expanduser().resolve()
+        for f in sorted(glob.glob(filename_template.as_posix()))
+    ]
+    return file_list
+
+
+def define_modules(det_config: TConfig = "10M") -> dict[str, tuple]:
+    """Define the start and end pixel of each module in the Tristan detector.
+
+    Args:
+        det_config (TConfig, optional): Specify how many physical modules make up the Tristan\
+            detector currently in use. Available configurations: 1M, 2M, 10M.\
+            Defaults to "10M".
+
+    Returns:
+        dict[str, tuple]: Start and end pixel value of each module - which are defined\
+            by a (x,y) tuple. For example a Tristan 1M will return \
+            {"0": ([0, 515], [0, 2069])}
+    """
+    config_opts = get_args(TConfig)
+    if det_config not in config_opts:
+        logger.error(f"Detector configuration {det_config} unknown.")
+        raise ValueError(
+            f"Detector configuration unknown. Please pass one of {config_opts}."
+        )
+    modules = tristan_config[det_config]
+    mod = {}
+    n = 0
+    for _y in range(modules[0]):
+        for _x in range(modules[1]):
+            int_x = [
+                _x * (mod_size[0] + gap_size[0]),
+                _x * (mod_size[0] + gap_size[0]) + mod_size[0],
+            ]
+            int_y = [
+                _y * (mod_size[1] + gap_size[1]),
+                _y * (mod_size[1] + gap_size[1]) + mod_size[1],
+            ]
+            mod[str(n)] = (int_x, int_y)
+            # mod[(_x, _y)] = (int_x, int_y)
+            n += 1
+    return mod
+
+
+def module_cooordinates(det_config: TConfig = "10M") -> dict[str, tuple]:
+    """ Create a conversion table between module number and its location on the detector.
+
+    Args:
+        det_config(TConfig, optional): Specify how many physical modules make up the Tristan\
+            detector currently in use. Available configurations: 1M, 2M, 10M.\
+            Defaults to "10M".
+
+    Returns:
+        dict[str, tuple]: effectively a conversion table mapping the module number to its\
+        location on the detector. For example a Trisstan 1M will return \
+        {"0": (0, 0)}
+    """
+    config_opts = get_args(TConfig)
+    if det_config not in config_opts:
+        logger.error(f"Detector configuration {det_config} unknown.")
+        raise ValueError(
+            f"Detector configuration unknown. Please pass one of {config_opts}."
+        )
+    modules = tristan_config[det_config]
+    table = {}
+    n = 0
+    for _y in range(modules[0]):
+        for _x in range(modules[1]):
+            table[str(n)] = (_x, _y)
+            n += 1
+    return table

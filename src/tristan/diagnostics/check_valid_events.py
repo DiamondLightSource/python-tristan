@@ -21,7 +21,7 @@ import numpy as np
 from ..command_line import version_parser
 from ..data import cue_id_key, cue_time_key, event_time_key, shutter_close, shutter_open
 from . import diagnostics_log as log
-from . import timing_resolution_fine
+from .utils import TIME_RES
 
 # Define a logger
 logger = logging.getLogger("TristanDiagnostics.ValidEventsCheck")
@@ -70,9 +70,9 @@ def find_shutter_times(filelist):
             op_idx = np.where(cues == shutter_open)[0]
             cl_idx = np.where(cues == shutter_close)[0]
             if len(op_idx) == 1:
-                sh_open.append(cues_time[op_idx[0]] * timing_resolution_fine)
+                sh_open.append(cues_time[op_idx[0]] * TIME_RES)
             if len(cl_idx) == 1:
-                sh_close.append(cues_time[cl_idx[0]] * timing_resolution_fine)
+                sh_close.append(cues_time[cl_idx[0]] * TIME_RES)
     return sh_open[0], sh_close[0]
 
 
@@ -94,10 +94,7 @@ def event_timestamp_check(tristanlist):
                 else (shape // chunk_size) + 1
             )
             for j in range(chunk_num):
-                t = (
-                    event_time[j * chunk_size : (j + 1) * chunk_size]
-                    * timing_resolution_fine
-                )
+                t = event_time[j * chunk_size : (j + 1) * chunk_size] * TIME_RES
                 Tmin = np.min(t)
                 Tmax = np.max(t)
                 if Tmax > max_timestamp:
