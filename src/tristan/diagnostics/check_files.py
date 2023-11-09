@@ -4,14 +4,13 @@ Check that all files from all detector modules contain valid data.
 from __future__ import annotations
 
 import argparse
-import glob
 import logging
 import time
 from pathlib import Path
 
 from ..command_line import version_parser
 from . import diagnostics_log as log
-from .utils import assign_files_to_modules, module_cooordinates
+from .utils import assign_files_to_modules, get_full_file_list, module_cooordinates
 
 epilog_message = """
 This program runs through all the files written for a Tristan collection and checks that they contain events, \
@@ -80,10 +79,7 @@ def main(args):
     logger.info(f"Filename root: {args.filename}")
 
     filename_template = filepath / base
-    file_list = [
-        Path(f).expanduser().resolve()
-        for f in sorted(glob.glob(filename_template.as_posix()))
-    ]
+    file_list = get_full_file_list(filename_template)
     logger.info(f"Found {len(file_list)} files in directory.")
 
     mod_coord = module_cooordinates(args.num_modules)

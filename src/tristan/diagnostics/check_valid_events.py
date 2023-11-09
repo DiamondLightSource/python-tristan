@@ -4,7 +4,6 @@ Run a quick check to diagnose possible asynchronicity between the shutter timest
 from __future__ import annotations
 
 import argparse
-import glob
 import logging
 import multiprocessing as mp
 import time
@@ -16,7 +15,7 @@ import numpy as np
 from ..command_line import version_parser
 from ..data import event_time_key
 from . import diagnostics_log as log
-from .utils import TIME_RES, find_shutter_times
+from .utils import TIME_RES, find_shutter_times, get_full_file_list
 
 epilog_message = """
 This program checks that there are events recorded after the shutter open signal in the data files.\n
@@ -110,10 +109,7 @@ def main(args):
     base = args.filename + f"_{6*'[0-9]'}.h5"
 
     filename_template = filepath / base
-    file_list = [
-        Path(f).expanduser().resolve()
-        for f in sorted(glob.glob(filename_template.as_posix()))
-    ]
+    file_list = get_full_file_list(filename_template)
 
     L = [file_list[i : i + 10] for i in range(0, len(file_list), 10)]
 

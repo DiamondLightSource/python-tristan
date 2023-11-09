@@ -4,7 +4,6 @@ Run a quick check on trigger signals recorded in a Tristan collection.
 from __future__ import annotations
 
 import argparse
-import glob
 import logging
 import multiprocessing as mp
 import time
@@ -26,7 +25,7 @@ from ..data import (  # ttl_falling,
     ttl_rising,
 )
 from . import diagnostics_log as log
-from .utils import TIME_RES, assign_files_to_modules
+from .utils import TIME_RES, assign_files_to_modules, get_full_file_list
 
 epilog_message = """
 This program looks for shutter open and close signals and checks their timestamps.\n
@@ -378,10 +377,7 @@ def main(args):
     logger.info(f"Collection directory: {filepath}")
     logger.info(f"Filename root: {args.filename}")
     filename_template = filepath / base
-    file_list = [
-        Path(f).expanduser().resolve()
-        for f in sorted(glob.glob(filename_template.as_posix()))
-    ]
+    file_list = get_full_file_list(filename_template)
     logger.info(f"Found {len(file_list)} files in directory.\n")
 
     logger.info(
