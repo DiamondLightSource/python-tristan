@@ -23,9 +23,6 @@ This program checks that there are events recorded after the shutter open signal
 The results are written to a filename_VALIDEVENTSCHECK.log.
 """
 
-# Define a logger
-logger = logging.getLogger("TristanDiagnostics.ValidEventsCheck")
-
 # Define parser
 usage = "%(prog)s /path/to/data/dir filename_root [options]"
 parser = argparse.ArgumentParser(
@@ -58,6 +55,14 @@ parser.add_argument(
     type=int,
     help="The number of processes to use.",
 )
+
+# Define a logger
+logger = logging.getLogger("TristanDiagnostics.ValidEventsCheck")
+
+
+def setup_logging(wdir, filestem):
+    logfile = wdir / (filestem + "_VALIDEVENTSCHECK.log")
+    log.config(logfile.as_posix())
 
 
 def find_shutter_times(filelist):
@@ -134,8 +139,7 @@ def main(args):
     else:
         savedir = Path.cwd()
 
-    logfile = savedir / (args.filename + "_VALIDEVENTSCHECK.log")
-    log.config(logfile.as_posix())
+    setup_logging(savedir, args.filename)
 
     # Log some info
     logger.info("Check for valid events between shutter times.")

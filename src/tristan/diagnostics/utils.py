@@ -118,6 +118,7 @@ def module_cooordinates(det_config: TConfig = "10M") -> dict[str, tuple]:
 def assign_files_to_modules(filelist: list[Path | str], det_config: TConfig = "10M"):
     MOD = define_modules(det_config)
     files_per_module = {k: [] for k in MOD.keys()}
+    broken_files = []
     for filename in filelist:
         with h5py.File(filename) as fh:
             try:
@@ -125,7 +126,7 @@ def assign_files_to_modules(filelist: list[Path | str], det_config: TConfig = "1
                 for k, v in MOD.items():
                     if v[1][0] <= x <= v[1][1]:
                         if v[0][0] <= y <= v[0][1]:
-                            files_per_module[k].append(filename.name)
+                            files_per_module[k].append(filename)
             except IndexError:
-                pass
-    return files_per_module
+                broken_files.append(filename)
+    return files_per_module, broken_files

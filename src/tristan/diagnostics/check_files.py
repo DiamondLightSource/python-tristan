@@ -9,21 +9,15 @@ import logging
 import time
 from pathlib import Path
 
-import h5py
-
 from ..command_line import version_parser
-from ..data import event_location_key
 from . import diagnostics_log as log
-from .utils import DIV, define_modules, module_cooordinates
+from .utils import module_cooordinates, assign_files_to_modules
 
 epilog_message = """
 This program runs through all the files written for a Tristan collection and checks that they contain events, \
 as well as that they are assigned to the correct module.\n
 The results are written to a filename_MODULECHECK.log.
 """
-
-# Define a logger
-logger = logging.getLogger("TristanDiagnostics.ModuleCheck")
 
 # Define parser
 usage = "%(prog)s /path/to/data/dir filename_root [options]"
@@ -46,7 +40,10 @@ parser.add_argument(
     "-o",
     "--output",
     type=str,
-    help="Output directory to save results/log file. If not passed, the script will default to current working directory.",
+    help="""
+    Output directory to save results/log file. 
+    If not passed, the script will default to current working directory.
+    """,
 )
 parser.add_argument(
     "-m",
@@ -56,6 +53,14 @@ parser.add_argument(
     type=str,
     help="Number of detector modules.",
 )
+
+# Define a logger
+logger = logging.getLogger("TristanDiagnostics.ModuleCheck")
+
+
+def setup_logging(wdir, filestem):
+    logfile = wdir / (filestem + "_MODULECHECK.log")
+    log.config(logfile.as_posix())
 
 
 def main(args):
@@ -68,8 +73,7 @@ def main(args):
     else:
         savedir = Path.cwd()
 
-    logfile = savedir / (filepath.stem + "_MODULECHECK.log")
-    log.config(logfile.as_posix())
+    setup_logging(savedir, filepath.stem)
 
     logger.info(f"Quick data check for Tristan {args.num_modules} modules.")
     logger.info(f"Collection directory: {filepath}")
@@ -82,23 +86,11 @@ def main(args):
     ]
     logger.info(f"Found {len(file_list)} files in directory.")
 
-    MOD = define_modules(args.num_modules)
     mod_coord = module_cooordinates(args.num_modules)
     logger.info("Assigning each data file to correct module.\n")
-    split = {k: [] for k in MOD.keys()}
-    broken = []
-    for filename in file_list:
-        with h5py.File(filename) as fh:
-            try:
-                # Note: checking item of index 1 because for broken files there will
-                # just be one item in "event_id" set to 0.
-                x, y = divmod(fh[event_location_key][1], DIV)
-                for k, v in MOD.items():
-                    if v[1][0] <= x <= v[1][1]:
-                        if v[0][0] <= y <= v[0][1]:
-                            split[k].append(filename.name)
-            except IndexError:
-                broken.append(filename.name)
+    split, broken = assign_files_to_modules(file_list, args.num_modules)
+    split = {k: [val.name for val in v] for k, v in split.items()}
+    broken = [b.name for b in broken]
 
     for k, v in split.items():
         logger.info(f"--- Module {k} ---")
