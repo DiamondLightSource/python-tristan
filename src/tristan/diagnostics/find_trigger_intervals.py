@@ -3,14 +3,6 @@ Run a quick check on trigger signals recorded in a Tristan collection.
 """
 from __future__ import annotations
 
-epilog_message = """
-This program looks for shutter open and close signals and checks their timestamps.\n
-Additionally, it calculates the time interval between rising and falling edge of each trigger in a Tristan collection:\n
-    - TTL and LVDS for a standard time-resolved collection\n
-    - TTL, LVDS and SYNC for time-resolved serial crystallography collection.\n
-The results are written to a filename_TRIGGERCHECK.log.
-"""
-
 import argparse
 import glob
 import logging
@@ -35,6 +27,14 @@ from ..data import (  # ttl_falling,
 )
 from . import diagnostics_log as log
 from .utils import TIME_RES
+
+epilog_message = """
+This program looks for shutter open and close signals and checks their timestamps.\n
+Additionally, it calculates the time interval between rising and falling edge of each trigger in a Tristan collection:\n
+    - TTL and LVDS for a standard time-resolved collection\n
+    - TTL, LVDS and SYNC for time-resolved serial crystallography collection.\n
+The results are written to a filename_TRIGGERCHECK.log.
+"""
 
 # Define a logger object
 logger = logging.getLogger("TristanDiagnostics.TriggerTimes")

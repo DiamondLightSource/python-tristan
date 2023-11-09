@@ -6,7 +6,10 @@ import logging
 from pathlib import Path
 from typing import Literal, get_args
 
+import h5py
 import numpy as np
+
+from ..data import event_location_key
 
 # Define a logger
 logger = logging.getLogger("TristanDiagnostics.Utils")
@@ -23,12 +26,7 @@ gap_size = (117, 45)  # slow, fast
 image_size = (3043, 4183)  # slow, fast
 
 
-# TODO for all of them I need a function that groups all the files relative to the
-# correct module in a list
-# Empty list if broken module
-
-
-def get_file_list(filename_template: str | Path) -> list(Path):
+def get_full_file_list(filename_template: str | Path) -> list(Path):
     """Given a template filename, including directory, get a list of all the files\
     using that template.
 
@@ -112,3 +110,22 @@ def module_cooordinates(det_config: TConfig = "10M") -> dict[str, tuple]:
             table[str(n)] = (_x, _y)
             n += 1
     return table
+
+
+# TODO for all of them I need a function that groups all the files relative to the
+# correct module in a list
+# Empty list if broken module
+def assign_files_to_modules(filelist: list[Path | str], det_config: TConfig = "10M"):
+    MOD = define_modules(det_config)
+    files_per_module = {k: [] for k in MOD.keys()}
+    for filename in filelist:
+        with h5py.File(filename) as fh:
+            try:
+                x, y = divmod(fh[event_location_key][1], DIV)
+                for k, v in MOD.items():
+                    if v[1][0] <= x <= v[1][1]:
+                        if v[0][0] <= y <= v[0][1]:
+                            files_per_module[k].append(filename.name)
+            except IndexError:
+                pass
+    return files_per_module

@@ -3,11 +3,6 @@ Run a quick check to diagnose possible asynchronicity between the shutter timest
 """
 from __future__ import annotations
 
-epilog_message = """
-This program checks that there are events recorded after the shutter open signal in the data files.\n
-The results are written to a filename_VALIDEVENTSCHECK.log.
-"""
-
 import argparse
 import glob
 import logging
@@ -22,6 +17,11 @@ from ..command_line import version_parser
 from ..data import cue_id_key, cue_time_key, event_time_key, shutter_close, shutter_open
 from . import diagnostics_log as log
 from .utils import TIME_RES
+
+epilog_message = """
+This program checks that there are events recorded after the shutter open signal in the data files.\n
+The results are written to a filename_VALIDEVENTSCHECK.log.
+"""
 
 # Define a logger
 logger = logging.getLogger("TristanDiagnostics.ValidEventsCheck")

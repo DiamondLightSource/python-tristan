@@ -3,12 +3,6 @@ Check that all files from all detector modules contain valid data.
 """
 from __future__ import annotations
 
-epilog_message = """
-This program runs through all the files written for a Tristan collection and checks that they contain events, \
-as well as that they are assigned to the correct module.\n
-The results are written to a filename_MODULECHECK.log.
-"""
-
 import argparse
 import glob
 import logging
@@ -20,7 +14,13 @@ import h5py
 from ..command_line import version_parser
 from ..data import event_location_key
 from . import diagnostics_log as log
-from .utils import DIV, define_modules
+from .utils import DIV, define_modules, module_cooordinates
+
+epilog_message = """
+This program runs through all the files written for a Tristan collection and checks that they contain events, \
+as well as that they are assigned to the correct module.\n
+The results are written to a filename_MODULECHECK.log.
+"""
 
 # Define a logger
 logger = logging.getLogger("TristanDiagnostics.ModuleCheck")
@@ -83,6 +83,7 @@ def main(args):
     logger.info(f"Found {len(file_list)} files in directory.")
 
     MOD = define_modules(args.num_modules)
+    mod_coord = module_cooordinates(args.num_modules)
     logger.info("Assigning each data file to correct module.\n")
     split = {k: [] for k in MOD.keys()}
     broken = []
@@ -99,12 +100,10 @@ def main(args):
             except IndexError:
                 broken.append(filename.name)
 
-    num = 0
     for k, v in split.items():
-        logger.info(f"--- Module {num} ---")
-        logger.info(f"Position on detector: {k}")
+        logger.info(f"--- Module {k} ---")
+        logger.info(f"Position on detector: {mod_coord[k]}")
         logger.info(f"Number of files found for this module: {len(v)}")
-        num += 1
         if args.list:
             for f in v:
                 logger.info(f"{f}")
