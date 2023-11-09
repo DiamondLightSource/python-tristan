@@ -1,5 +1,8 @@
 # CHANGES
 
+## 0.#.#
+- Tidier diagnostics, possibility to only print out selected trigger information and additional warning in case of missing module files.
+
 ## 0.2.2
 - Fixed the axis dimensions for `images pp`.
 - Added timestamp check and warning on triggers if they happen before/after shutters in `find-tristan-triggers`.

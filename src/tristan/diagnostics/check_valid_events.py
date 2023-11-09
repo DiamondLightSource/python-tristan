@@ -3,13 +3,7 @@ Run a quick check to diagnose possible asynchronicity between the shutter timest
 """
 from __future__ import annotations
 
-epilog_message = """
-This program checks that there are events recorded after the shutter open signal in the data files.\n
-The results are written to a filename_VALIDEVENTSCHECK.log.
-"""
-
 import argparse
-import glob
 import logging
 import multiprocessing as mp
 import time
@@ -19,12 +13,14 @@ import h5py
 import numpy as np
 
 from ..command_line import version_parser
-from ..data import cue_id_key, cue_time_key, event_time_key, shutter_close, shutter_open
+from ..data import event_time_key
 from . import diagnostics_log as log
-from . import timing_resolution_fine
+from .utils import TIME_RES, find_shutter_times, get_full_file_list
 
-# Define a logger
-logger = logging.getLogger("TristanDiagnostics.ValidEventsCheck")
+epilog_message = """
+This program checks that there are events recorded after the shutter open signal in the data files.\n
+The results are written to a filename_VALIDEVENTSCHECK.log.
+"""
 
 # Define parser
 usage = "%(prog)s /path/to/data/dir filename_root [options]"
@@ -59,21 +55,13 @@ parser.add_argument(
     help="The number of processes to use.",
 )
 
+# Define a logger
+logger = logging.getLogger("TristanDiagnostics.ValidEventsCheck")
 
-def find_shutter_times(filelist):
-    sh_open = []
-    sh_close = []
-    for filename in filelist:
-        with h5py.File(filename) as fh:
-            cues = fh[cue_id_key][()]
-            cues_time = fh[cue_time_key]
-            op_idx = np.where(cues == shutter_open)[0]
-            cl_idx = np.where(cues == shutter_close)[0]
-            if len(op_idx) == 1:
-                sh_open.append(cues_time[op_idx[0]] * timing_resolution_fine)
-            if len(cl_idx) == 1:
-                sh_close.append(cues_time[cl_idx[0]] * timing_resolution_fine)
-    return sh_open[0], sh_close[0]
+
+def setup_logging(wdir, filestem):
+    logfile = wdir / (filestem + "_VALIDEVENTSCHECK.log")
+    log.config(logfile.as_posix())
 
 
 def event_timestamp_check(tristanlist):
@@ -94,10 +82,7 @@ def event_timestamp_check(tristanlist):
                 else (shape // chunk_size) + 1
             )
             for j in range(chunk_num):
-                t = (
-                    event_time[j * chunk_size : (j + 1) * chunk_size]
-                    * timing_resolution_fine
-                )
+                t = event_time[j * chunk_size : (j + 1) * chunk_size] * TIME_RES
                 Tmin = np.min(t)
                 Tmax = np.max(t)
                 if Tmax > max_timestamp:
@@ -124,10 +109,7 @@ def main(args):
     base = args.filename + f"_{6*'[0-9]'}.h5"
 
     filename_template = filepath / base
-    file_list = [
-        Path(f).expanduser().resolve()
-        for f in sorted(glob.glob(filename_template.as_posix()))
-    ]
+    file_list = get_full_file_list(filename_template)
 
     L = [file_list[i : i + 10] for i in range(0, len(file_list), 10)]
 
@@ -137,8 +119,7 @@ def main(args):
     else:
         savedir = Path.cwd()
 
-    logfile = savedir / (args.filename + "_VALIDEVENTSCHECK.log")
-    log.config(logfile.as_posix())
+    setup_logging(savedir, args.filename)
 
     # Log some info
     logger.info("Check for valid events between shutter times.")

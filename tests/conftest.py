@@ -14,7 +14,7 @@ random_range = 10
 
 
 @pytest.fixture
-def run_in_tmp_path(tmp_path) -> Path:
+def run_in_tmp_path(tmp_path):
     """
     A fixture to change the working directory for the test to a temporary directory.
 
@@ -52,7 +52,7 @@ def dummy_latrd_data(path_factory):
     np.random.seed(0)
     all_values = np.random.randint(random_range, size=150).reshape(3, 5, 10)
     for i, values in enumerate(all_values, 1):
-        with h5py.File(tmp_path / f"dummy_{i:06d}.h5", "w") as f:
+        with h5py.File(tmp_path / ("dummy_%06d.h5" % i), "w") as f:
             f.update(dict(zip(cue_keys + event_keys, values)))
 
     yield tmp_path
