@@ -9,7 +9,13 @@ from typing import Literal, get_args
 import h5py
 import numpy as np
 
-from ..data import event_location_key, cue_id_key, cue_time_key, shutter_close, shutter_open
+from ..data import (
+    cue_id_key,
+    cue_time_key,
+    event_location_key,
+    shutter_close,
+    shutter_open,
+)
 
 # Define a logger
 logger = logging.getLogger("TristanDiagnostics.Utils")

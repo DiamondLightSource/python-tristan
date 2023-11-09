@@ -331,8 +331,12 @@ def log_only_requested_trigger_info(res: list[dict], trigger_request: list[str])
                 logger.info("TTL")
                 logger.info(f"Found {len(v['TTL re'])} rising edges.\n")
                 if len(v["TTL re"]) > 0:
-                    logger.info(f"First TTL rising edge timestamp: {v['TTL re'][0]:.4f} .")
-                    logger.info(f"Last TTL rising edge timestamp: {v['TTL re'][-1]:.4f} .")
+                    logger.info(
+                        f"First TTL rising edge timestamp: {v['TTL re'][0]:.4f} ."
+                    )
+                    logger.info(
+                        f"Last TTL rising edge timestamp: {v['TTL re'][-1]:.4f} ."
+                    )
                 else:
                     logger.warning("No TTL triggers found!")
             if "SYNC" in trigger_request:
