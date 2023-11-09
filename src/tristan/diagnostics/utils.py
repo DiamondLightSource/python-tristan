@@ -9,7 +9,7 @@ from typing import Literal, get_args
 import h5py
 import numpy as np
 
-from ..data import event_location_key
+from ..data import event_location_key, cue_id_key, cue_time_key, shutter_close, shutter_open
 
 # Define a logger
 logger = logging.getLogger("TristanDiagnostics.Utils")
@@ -112,9 +112,6 @@ def module_cooordinates(det_config: TConfig = "10M") -> dict[str, tuple]:
     return table
 
 
-# TODO for all of them I need a function that groups all the files relative to the
-# correct module in a list
-# Empty list if broken module
 def assign_files_to_modules(filelist: list[Path | str], det_config: TConfig = "10M"):
     MOD = define_modules(det_config)
     files_per_module = {k: [] for k in MOD.keys()}
@@ -130,3 +127,19 @@ def assign_files_to_modules(filelist: list[Path | str], det_config: TConfig = "1
             except IndexError:
                 broken_files.append(filename)
     return files_per_module, broken_files
+
+
+def find_shutter_times(filelist):
+    sh_open = []
+    sh_close = []
+    for filename in filelist:
+        with h5py.File(filename) as fh:
+            cues = fh[cue_id_key][()]
+            cues_time = fh[cue_time_key]
+            op_idx = np.where(cues == shutter_open)[0]
+            cl_idx = np.where(cues == shutter_close)[0]
+            if len(op_idx) == 1:
+                sh_open.append(cues_time[op_idx[0]] * TIME_RES)
+            if len(cl_idx) == 1:
+                sh_close.append(cues_time[cl_idx[0]] * TIME_RES)
+    return sh_open[0], sh_close[0]

@@ -14,9 +14,9 @@ import h5py
 import numpy as np
 
 from ..command_line import version_parser
-from ..data import cue_id_key, cue_time_key, event_time_key, shutter_close, shutter_open
+from ..data import event_time_key
 from . import diagnostics_log as log
-from .utils import TIME_RES
+from .utils import TIME_RES, find_shutter_times
 
 epilog_message = """
 This program checks that there are events recorded after the shutter open signal in the data files.\n
@@ -63,22 +63,6 @@ logger = logging.getLogger("TristanDiagnostics.ValidEventsCheck")
 def setup_logging(wdir, filestem):
     logfile = wdir / (filestem + "_VALIDEVENTSCHECK.log")
     log.config(logfile.as_posix())
-
-
-def find_shutter_times(filelist):
-    sh_open = []
-    sh_close = []
-    for filename in filelist:
-        with h5py.File(filename) as fh:
-            cues = fh[cue_id_key][()]
-            cues_time = fh[cue_time_key]
-            op_idx = np.where(cues == shutter_open)[0]
-            cl_idx = np.where(cues == shutter_close)[0]
-            if len(op_idx) == 1:
-                sh_open.append(cues_time[op_idx[0]] * TIME_RES)
-            if len(cl_idx) == 1:
-                sh_close.append(cues_time[cl_idx[0]] * TIME_RES)
-    return sh_open[0], sh_close[0]
 
 
 def event_timestamp_check(tristanlist):

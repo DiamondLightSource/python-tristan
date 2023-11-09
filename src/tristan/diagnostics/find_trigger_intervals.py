@@ -75,7 +75,7 @@ parser.add_argument(
     "--triggers",
     type=str,
     nargs="+",
-    default=["all"],
+    default="all",
     help="""
     Specify which triggers to look for.
     If not passed, will look at all the available ones for the experiment type.
@@ -162,56 +162,7 @@ def trigger_lookup(tristanlist):
     return D
 
 
-def main(args):
-    filepath = Path(args.visitpath).expanduser().resolve()
-    base = args.filename + f"_{6*'[0-9]'}.h5"
-
-    # Current working directory
-    if args.output:
-        wdir = Path(args.output).expanduser().resolve()
-        wdir.mkdir(exist_ok=True)
-    else:
-        wdir = Path.cwd()
-
-    # Define stream handler
-    setup_logging(wdir, filepath.stem)
-
-    # Start logging
-    logger.info(f"Current working directory: {wdir}")
-    logger.info(f"Collection directory: {filepath}")
-    logger.info(f"Filename root: {args.filename}")
-    filename_template = filepath / base
-    file_list = [
-        Path(f).expanduser().resolve()
-        for f in sorted(glob.glob(filename_template.as_posix()))
-    ]
-    logger.info(f"Found {len(file_list)} files in directory.\n")
-
-    logger.info(
-        f"Look for triggers in cue messages for a Tristan{args.num_modules} {args.expt} collection."
-    )
-
-    nxsfile = filepath / (args.filename + ".nxs")
-    if nxsfile in filepath.iterdir():
-        with h5py.File(nxsfile) as nxs:
-            count_time = nxs["/entry/instrument/detector/count_time"][()]
-        logger.info(f"Total collection time recorded in NeXus file: {count_time} s.\n")
-
-    if args.nproc:
-        nproc = args.nproc
-    else:
-        nproc = mp.cpu_count() - 1
-
-    L, _ = assign_files_to_modules(file_list, args.num_modules)
-    tristanlist = [l + (args.expt,) for l in list(L.items())]  # noqa: E741
-    # tristanlist = list(L.items())
-
-    logger.info(f"Start Pool with {nproc} processes.")
-    with mp.Pool(processes=nproc) as pool:
-        res = pool.map(trigger_lookup, tristanlist)
-    logger.info("\n")
-
-    logger.info("----- SUMMARY -----")
+def log_full_summary(res: list[dict], expt: str):
     for el in res:
         for k, v in el.items():
             logger.info(f"--- {k} ---")
@@ -305,7 +256,7 @@ def main(args):
             else:
                 logger.warning("No TTL triggers found!")
             # If SSX, print out SYNC info.
-            if args.expt == "ssx":
+            if expt == "ssx":
                 logger.info("SYNC")
                 if len(v["SYNC re"]) > 0 and len(v["SYNC fe"]) > 0:
                     logger.info(
@@ -348,7 +299,117 @@ def main(args):
                         logger.warning("No SYNC falling edges found!")
                 elif len(v["SYNC fe"]) == 0:
                     logger.warning("No SYNC falling edges found!")
-        logger.info("\n")
+
+
+def log_only_requested_trigger_info(res: list[dict], trigger_request: list[str]):
+    for el in res:
+        for k, v in el.items():
+            logger.info(f"--- {k} ---")
+            if v["num_files"] == 0:
+                logger.warning(
+                    """
+                    WARNING! There are no files for this module.
+                    """
+                )
+                break
+
+            if "LVDS" in trigger_request:
+                logger.info("LVDS")
+                if len(v["LVDS re"]) > 0 and len(v["LVDS fe"]) > 0:
+                    logger.info(
+                        f"Found {len(v['LVDS re'])} rising edges and {len(v['LVDS fe'])} falling edges."
+                    )
+                    logger.info(f"LVDS rising edge timestamp: {v['LVDS re'][0]:.4f}.")
+                    logger.info(f"LVDS falling edge timestamp: {v['LVDS fe'][0]:.4f}.")
+                else:
+                    logger.warning("Missing LVDS triggers!")
+                    if len(v["LVDS re"]) == 0:
+                        logger.warning("No LVDS rising edges found!")
+                    if len(v["LVDS fe"]) == 0:
+                        logger.warning("No LVDS falling edges found!")
+            if "TTL" in trigger_request:
+                logger.info("TTL")
+                logger.info(f"Found {len(v['TTL re'])} rising edges.\n")
+                if len(v["TTL re"]) > 0:
+                    logger.info(f"First TTL rising edge timestamp: {v['TTL re'][0]:.4f} .")
+                    logger.info(f"Last TTL rising edge timestamp: {v['TTL re'][-1]:.4f} .")
+                else:
+                    logger.warning("No TTL triggers found!")
+            if "SYNC" in trigger_request:
+                logger.info("SYNC")
+                if len(v["SYNC re"]) > 0 and len(v["SYNC fe"]) > 0:
+                    logger.info(
+                        f"Found {len(v['SYNC re'])} rising edges and {len(v['SYNC fe'])} falling edges."
+                    )
+                    logger.info(
+                        f"First SYNC rising edge timestamp: {v['SYNC re'][0]:.4f}."
+                    )
+                    logger.info(
+                        f"Last SYNC falling edge timestamp: {v['SYNC fe'][-1]:.4f}."
+                    )
+                else:
+                    logger.warning("Missing SYNC triggers!")
+                    if len(v["SYNC re"]) == 0:
+                        logger.warning("No SYNC rising edges found!")
+                    if len(v["SYNC fe"]) == 0:
+                        logger.warning("No SYNC falling edges found!")
+
+
+def main(args):
+    filepath = Path(args.visitpath).expanduser().resolve()
+    base = args.filename + f"_{6*'[0-9]'}.h5"
+
+    # Current working directory
+    if args.output:
+        wdir = Path(args.output).expanduser().resolve()
+        wdir.mkdir(exist_ok=True)
+    else:
+        wdir = Path.cwd()
+
+    # Define stream handler
+    setup_logging(wdir, filepath.stem)
+
+    # Start logging
+    logger.info(f"Current working directory: {wdir}")
+    logger.info(f"Collection directory: {filepath}")
+    logger.info(f"Filename root: {args.filename}")
+    filename_template = filepath / base
+    file_list = [
+        Path(f).expanduser().resolve()
+        for f in sorted(glob.glob(filename_template.as_posix()))
+    ]
+    logger.info(f"Found {len(file_list)} files in directory.\n")
+
+    logger.info(
+        f"Look for triggers in cue messages for a Tristan{args.num_modules} {args.expt} collection."
+    )
+
+    nxsfile = filepath / (args.filename + ".nxs")
+    if nxsfile in filepath.iterdir():
+        with h5py.File(nxsfile) as nxs:
+            count_time = nxs["/entry/instrument/detector/count_time"][()]
+        logger.info(f"Total collection time recorded in NeXus file: {count_time} s.\n")
+
+    if args.nproc:
+        nproc = args.nproc
+    else:
+        nproc = mp.cpu_count() - 1
+
+    L, _ = assign_files_to_modules(file_list, args.num_modules)
+    tristanlist = [l + (args.expt,) for l in list(L.items())]  # noqa: E741
+    # tristanlist = list(L.items())
+
+    logger.info(f"Start Pool with {nproc} processes.")
+    with mp.Pool(processes=nproc) as pool:
+        res = pool.map(trigger_lookup, tristanlist)
+    logger.info("\n")
+
+    logger.info("----- SUMMARY -----")
+    if args.triggers == "all":
+        log_full_summary(res, args.expt)
+    else:
+        log_only_requested_trigger_info(res, args.triggers)
+    logger.info("\n")
 
 
 def cli():
