@@ -11,7 +11,7 @@ from pathlib import Path
 
 from ..command_line import version_parser
 from . import diagnostics_log as log
-from .utils import module_cooordinates, assign_files_to_modules
+from .utils import assign_files_to_modules, module_cooordinates
 
 epilog_message = """
 This program runs through all the files written for a Tristan collection and checks that they contain events, \
@@ -41,7 +41,7 @@ parser.add_argument(
     "--output",
     type=str,
     help="""
-    Output directory to save results/log file. 
+    Output directory to save results/log file.
     If not passed, the script will default to current working directory.
     """,
 )
