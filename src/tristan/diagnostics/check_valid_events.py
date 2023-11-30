@@ -140,7 +140,8 @@ def main(args):
         logger.info(
             "No shutter timestamps parsed, searching for them in the datafiles."
         )
-        sh_open, sh_close = find_shutter_times(L[0])
+        shutters = find_shutter_times(L[0])
+        sh_open, sh_close = shutters[0][0], shutters[1][0]
     else:
         sh_open, sh_close = args.shutters
 

@@ -13,8 +13,13 @@ from ..data import (
     cue_id_key,
     cue_time_key,
     event_location_key,
+    lvds_falling,
+    lvds_rising,
     shutter_close,
     shutter_open,
+    sync_falling,
+    sync_rising,
+    ttl_rising,
 )
 
 # Define a logger
@@ -118,7 +123,9 @@ def module_cooordinates(det_config: TConfig = "10M") -> dict[str, tuple]:
     return table
 
 
-def assign_files_to_modules(filelist: list[Path | str], det_config: TConfig = "10M"):
+def assign_files_to_modules(
+    filelist: list[Path | str], det_config: TConfig = "10M"
+) -> tuple(dict, list):
     MOD = define_modules(det_config)
     files_per_module = {k: [] for k in MOD.keys()}
     broken_files = []
@@ -135,7 +142,15 @@ def assign_files_to_modules(filelist: list[Path | str], det_config: TConfig = "1
     return files_per_module, broken_files
 
 
-def find_shutter_times(filelist):
+def find_shutter_times(filelist: list[Path | str]) -> tuple[list]:
+    """Look through a list of tristan files for the shutter open and close timestamps.
+
+    Args:
+        filelist (list[Path  |  str]): List of tristan hdf5 files.
+
+    Returns:
+        tuple[list]: Lists of shutter_open, shutter_close timestamps.
+    """
     sh_open = []
     sh_close = []
     for filename in filelist:
@@ -148,4 +163,59 @@ def find_shutter_times(filelist):
                 sh_open.append(cues_time[op_idx[0]] * TIME_RES)
             if len(cl_idx) == 1:
                 sh_close.append(cues_time[cl_idx[0]] * TIME_RES)
-    return sh_open[0], sh_close[0]
+    return sh_open, sh_close
+
+
+def find_trigger_timestamps(
+    filelist: list(Path | str),
+    triggers: list(str) = ["all"],
+    expt_type: str = "standard",
+) -> tuple[list]:
+    """Look throught a list of tristan files for trigger timestamps.
+
+    Args:
+        filelist (list): List of tristan hdf5 files.
+        triggers (list, optional): List of triggers to look up. Defaults to ["all"].
+        expt_type (str, optional): Experiment type. Allowed values: standard and ssx. Defaults to "standard".
+
+    Returns:
+        tuple[list]: Lists of timestamps in the order:\
+            ttl_re, lvds_re, lvds_fe, sync_re, sync_fe\
+            It not all triggers have been requested, the relative lists will be empty.
+    """
+    ttl_re = []
+    lvds_re = []
+    lvds_fe = []
+    sync_re = []
+    sync_fe = []
+    for filename in filelist:
+        with h5py.File(filename) as fh:
+            cues = fh[cue_id_key][()]
+            cues_time = fh[cue_time_key]
+            # Look for lvds
+            if "all" in triggers or "lvds" in triggers:
+                lvds_up_idx = np.where(cues == lvds_rising)[0]
+                lvds_down_idx = np.where(cues == lvds_falling)[0]
+                if len(lvds_up_idx) > 0:
+                    for i in range(len(lvds_up_idx)):
+                        lvds_re.append(cues_time[lvds_up_idx[i]] * TIME_RES)
+                if len(lvds_down_idx) > 0:
+                    for i in range(len(lvds_down_idx)):
+                        lvds_fe.append(cues_time[lvds_down_idx[i]] * TIME_RES)
+            if "all" in triggers or "ttl" in triggers:
+                ttl_idx = np.where(cues == ttl_rising)[0]
+                if len(ttl_idx) > 0:
+                    for i in range(len(ttl_idx)):
+                        ttl_re.append(cues_time[ttl_idx[i]] * TIME_RES)
+            if expt_type == "ssx":
+                if "all" in triggers or "sync" in triggers:
+                    # Look for sync
+                    sync_up_idx = np.where(cues == sync_rising)[0]
+                    sync_down_idx = np.where(cues == sync_falling)[0]
+                    if len(sync_up_idx) > 0:
+                        for i in range(len(sync_up_idx)):
+                            sync_re.append(cues_time[sync_up_idx[i]] * TIME_RES)
+                    if len(sync_down_idx) > 0:
+                        for i in range(len(sync_down_idx)):
+                            sync_fe.append(cues_time[sync_down_idx[i]] * TIME_RES)
+    return ttl_re, lvds_re, lvds_fe, sync_re, sync_fe

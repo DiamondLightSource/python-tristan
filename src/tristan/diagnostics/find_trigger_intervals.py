@@ -13,19 +13,13 @@ import h5py
 import numpy as np
 
 from ..command_line import version_parser
-from ..data import (  # ttl_falling,
-    cue_id_key,
-    cue_time_key,
-    lvds_falling,
-    lvds_rising,
-    shutter_close,
-    shutter_open,
-    sync_falling,
-    sync_rising,
-    ttl_rising,
-)
 from . import diagnostics_log as log
-from .utils import TIME_RES, assign_files_to_modules, get_full_file_list
+from .utils import (
+    assign_files_to_modules,
+    find_shutter_times,
+    find_trigger_timestamps,
+    get_full_file_list,
+)
 
 epilog_message = """
 This program looks for shutter open and close signals and checks their timestamps.\n
@@ -100,51 +94,18 @@ def setup_logging(wdir, filestem):
 
 
 def trigger_lookup(tristanlist):
-    mod_number, filelist, expt = tristanlist
-    sh_open = []
-    sh_close = []
-    ttl_re = []
-    lvds_re = []
-    lvds_fe = []
-    sync_re = []
-    sync_fe = []
-    for filename in filelist:
-        with h5py.File(filename) as fh:
-            cues = fh[cue_id_key][()]
-            cues_time = fh[cue_time_key]
-            # Look for shutters
-            op_idx = np.where(cues == shutter_open)[0]
-            cl_idx = np.where(cues == shutter_close)[0]
-            if len(op_idx) > 0:
-                for i in range(len(op_idx)):
-                    sh_open.append(cues_time[op_idx[i]] * TIME_RES)
-            if len(cl_idx) > 0:
-                for i in range(len(cl_idx)):
-                    sh_close.append(cues_time[cl_idx[i]] * TIME_RES)
-            # Look for lvds
-            lvds_up_idx = np.where(cues == lvds_rising)[0]
-            lvds_down_idx = np.where(cues == lvds_falling)[0]
-            if len(lvds_up_idx) > 0:
-                for i in range(len(lvds_up_idx)):
-                    lvds_re.append(cues_time[lvds_up_idx[i]] * TIME_RES)
-            if len(lvds_down_idx) > 0:
-                for i in range(len(lvds_down_idx)):
-                    lvds_fe.append(cues_time[lvds_down_idx[i]] * TIME_RES)
-            # Look for ttl
-            ttl_idx = np.where(cues == ttl_rising)[0]
-            if len(ttl_idx) > 0:
-                for i in range(len(ttl_idx)):
-                    ttl_re.append(cues_time[ttl_idx[i]] * TIME_RES)
-            if expt == "ssx":
-                # Look for sync
-                sync_up_idx = np.where(cues == sync_rising)[0]
-                sync_down_idx = np.where(cues == sync_falling)[0]
-                if len(sync_up_idx) > 0:
-                    for i in range(len(sync_up_idx)):
-                        sync_re.append(cues_time[sync_up_idx[i]] * TIME_RES)
-                if len(sync_down_idx) > 0:
-                    for i in range(len(sync_down_idx)):
-                        sync_fe.append(cues_time[sync_down_idx[i]] * TIME_RES)
+    mod_number, filelist, expt, triggers = tristanlist
+
+    # Look for the shutters
+    sh_open, sh_close = find_shutter_times(filelist)
+
+    if isinstance(triggers, str) and triggers == "all":
+        triggers = ["all"]
+
+    # Look for triggers
+    ttl_re, lvds_re, lvds_fe, sync_re, sync_fe = find_trigger_timestamps(
+        filelist, triggers, expt
+    )
 
     D = {
         f"Module {mod_number}": {
@@ -396,7 +357,9 @@ def main(args):
         nproc = mp.cpu_count() - 1
 
     L, _ = assign_files_to_modules(file_list, args.num_modules)
-    tristanlist = [l + (args.expt,) for l in list(L.items())]  # noqa: E741
+    tristanlist = [
+        l + (args.expt, args.triggers) for l in list(L.items())
+    ]  # noqa: E741
     # tristanlist = list(L.items())
 
     logger.info(f"Start Pool with {nproc} processes.")
