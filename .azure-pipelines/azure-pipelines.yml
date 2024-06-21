@@ -84,7 +84,7 @@ stages:
         python310:
           PYTHON_VERSION: 3.10
         python311:
-          PYTHON_VERSION: 3.11
+          PYTHON_VERSION: 3.11.7
     steps:
     - template: ci.yml
 
