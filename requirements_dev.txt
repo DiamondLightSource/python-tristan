@@ -1,11 +1,11 @@
-dask==2022.11.1
-distributed==2022.11.1
+dask==2023.3.2
+distributed==2023.3.2
 h5py==3.8.0
 hdf5plugin==4.0.1
 nexgen==0.9.1
-numpy==1.23.5
-pandas==1.5.2
-Pint==0.20.1
+numpy==1.26.4
+pandas==2.1.4
+Pint==0.23
 pytest==7.2.0
 pytest-cov==4.0.0
 zarr==2.13.3
