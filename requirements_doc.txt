@@ -2,7 +2,7 @@ dask==2023.3.2
 distributed==2023.3.2
 h5py==3.8.0
 hdf5plugin==4.0.1
-nexgen==0.9.1
+nexgen==0.9.3
 numpy==1.26.4
 pandas==2.1.4
 Pint==0.23
