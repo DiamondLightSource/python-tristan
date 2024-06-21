@@ -19,7 +19,7 @@ from dask import dataframe as dd
 from dask.diagnostics import ProgressBar
 from dask.distributed import Client
 from hdf5plugin import Bitshuffle
-from nexgen.nxs_copy import CopyTristanNexus
+from nexgen.nxs_copy import copy_tristan_nexus
 
 from .. import clock_frequency, compute_with_progress
 from ..binning import (
@@ -59,7 +59,7 @@ from . import (
 
 def determine_image_size(nexus_file: Path) -> tuple[int, int]:
     """Find the image size from metadata."""
-    recommend = f"Please specify the detector dimensions in (x, y) with '--image-size'."
+    recommend = "Please specify the detector dimensions in (x, y) with '--image-size'."
     try:
         with h5py.File(nexus_file) as f:
             # For the sake of some functions like zarr.create, ensure that the image
@@ -75,7 +75,7 @@ def determine_image_size(nexus_file: Path) -> tuple[int, int]:
 
 def exposure(
     start: int, end: int, exposure_time: pint.Quantity = None, num_images: int = None
-) -> (pint.Quantity, int, int):
+) -> tuple(pint.Quantity, int, int):
     """
     Find the exposure time or number of images.
 
@@ -115,7 +115,7 @@ def single_image_cli(args):
     if input_nexus.exists():
         try:
             # Write output NeXus file if we have an input NeXus file.
-            output_nexus = CopyTristanNexus.single_image_nexus(
+            output_nexus = copy_tristan_nexus.single_image_nexus(
                 output_file, input_nexus, write_mode=write_mode
             )
         except FileExistsError:
@@ -222,7 +222,7 @@ def multiple_images_cli(args):
     if input_nexus.exists():
         try:
             # Write output NeXus file if we have an input NeXus file.
-            output_nexus = CopyTristanNexus.multiple_images_nexus(
+            output_nexus = copy_tristan_nexus.multiple_images_nexus(
                 output_file,
                 input_nexus,
                 nbins=num_images,
@@ -309,7 +309,7 @@ def pump_probe_cli(args):
     if input_nexus.exists():
         try:
             # Write output NeXus file if we have an input NeXus file.
-            output_nexus = CopyTristanNexus.single_image_nexus(
+            output_nexus = copy_tristan_nexus.single_image_nexus(
                 output_file,
                 input_nexus,
                 write_mode=write_mode,
@@ -441,7 +441,7 @@ def multiple_sequences_cli(args):
         output_nexus_pattern = out_file_pattern.with_suffix(".nxs")
         for output_file in output_files:
             try:
-                CopyTristanNexus.multiple_images_nexus(
+                copy_tristan_nexus.multiple_images_nexus(
                     output_file,
                     input_nexus,
                     nbins=num_images,
@@ -616,7 +616,7 @@ def gated_images_cli(args):
     if input_nexus.exists():
         try:
             # Write output NeXus file if we have an input NeXus file.
-            output_nexus = CopyTristanNexus.serial_images_nexus(
+            output_nexus = copy_tristan_nexus.serial_images_nexus(
                 output_file,
                 input_nexus,
                 nbins=num_images,
