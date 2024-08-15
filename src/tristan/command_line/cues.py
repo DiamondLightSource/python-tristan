@@ -42,13 +42,15 @@ def main(args=None):
             avg_diff = time_diffs.mean()
 
             print(
-                f"""
-{cue_description}:
-Found {cue_times_sel.size} instances.
-Found {deduplicated.size} de-duplicated instances with
-\tsmallest time difference: {min_diff} cycles ({seconds(min_diff):.3g~#P}),
-\tlargest time difference: {max_diff} cycles ({seconds(max_diff):.3g~#P}),
-\tmean time difference: {avg_diff:.2f} cycles ({seconds(avg_diff):.3g~#P})."""
+                f"{cue_description}:\n"
+                f"Found {cue_times_sel.size} instances.\n"
+                f"Found {deduplicated.size} de-duplicated instances with\n"
+                f"\tsmallest time difference: {min_diff} cycles "
+                f"({seconds(min_diff):.3g~#P}),\n"
+                f"\tlargest time difference: {max_diff} cycles "
+                f"({seconds(max_diff):.3g~#P}),\n"
+                f"\tmean time difference: {avg_diff:.2f} cycles "
+                f"({seconds(avg_diff):.3g~#P})."
             )
         elif cue_times_sel.size > 1:
             n = cue_times_sel.size
