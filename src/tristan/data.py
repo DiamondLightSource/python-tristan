@@ -17,6 +17,12 @@ from pint import Quantity
 
 from . import clock_frequency, ureg
 
+# The pixel coordinates of an event on a Tristan detector are encoded in a 32-bit
+# integer location message (the event_id) with (2 × n) bits of useful information.
+# The y coordinate is stored in the n least significant bits and the x coordinate
+# in the n next least significant bits.
+pixel_coord_bit_depth = 13
+
 # Regex for the names of data sets, in the time slice metadata file, representing the
 # distribution of time slices across raw data files for each module.
 ts_key_regex = re.compile(r"ts_qty_module\d{2}")
@@ -216,15 +222,13 @@ def pixel_index(location: ArrayLike, image_size: tuple[int, int]) -> ArrayLike:
     """
     Extract pixel coordinate information from an event location (event_id) message.
 
-    Translate a Tristan event location message to the index of the corresponding
-    pixel in the flattened image array (i.e. numbered from zero, in row-major order).
+    Translate a Tristan event location message to the index of the corresponding pixel
+    in the flattened image array (i.e. numbered from zero, in row-major order).
 
-    The pixel coordinates of an event on a Tristan detector are encoded in a 32-bit
-    integer location message (the event_id) with 26 bits of useful information.
-    Extract the y coordinate (the 13 least significant bits) and the x coordinate
-    (the 13 next least significant bits).  Find the corresponding pixel index in the
-    flattened image array by multiplying the y value by the size of the array in x,
-    and adding the x value.
+    Extract the y coordinate (the n least significant bits) and the x coordinate (the n
+    next least significant bits) from the 2n significant bits of the event_id. Find the
+    corresponding pixel index in the flattened image array by multiplying the y value by
+    the size of the array in x, and adding the x value.
 
     This function calls the Python built-in divmod and so can be broadcast over
     array-like data structures.
@@ -236,7 +240,7 @@ def pixel_index(location: ArrayLike, image_size: tuple[int, int]) -> ArrayLike:
     Returns:
         Index in the flattened image array of the pixel where the event occurred.
     """
-    x, y = divmod(location, np.uint32(0x2000))
+    x, y = divmod(location, np.uint32(1 << pixel_coord_bit_depth))
     # The following is equivalent to, but a little simpler than,
     # return da.ravel_multi_index((y, x), image_size)
     return x + y * image_size[1]
