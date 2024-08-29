@@ -24,6 +24,8 @@ logger = logging.getLogger("TristanDiagnostics.Utils")
 TIME_RES = 1.5625e-9  # timing resolution fine
 DIV = np.uint32(0x2000)
 
+FileChecker = Literal["cues", "events"]
+
 # Tristan 10M specs
 TConfig = Literal["1M", "2M", "10M"]
 tristan_config = {"10M": (2, 5), "2M": (1, 2), "1M": (1, 1)}  # (H, V) -.> (fast, slow)
@@ -32,7 +34,7 @@ gap_size = (117, 45)  # slow, fast
 image_size = (3043, 4183)  # slow, fast
 
 
-def get_full_file_list(filename_template: str | Path) -> list(Path):
+def get_full_file_list(filename_template: str | Path) -> list[Path]:
     """Given a template filename, including directory, get a list of all the files\
     using that template.
 
@@ -118,24 +120,67 @@ def module_cooordinates(det_config: TConfig = "10M") -> dict[str, tuple]:
     return table
 
 
-def assign_files_to_modules(filelist: list[Path | str], det_config: TConfig = "10M"):
+def _check_for_cues(filename: Path) -> bool:
+    try:
+        with h5py.File(filename) as fh:
+            _ = fh[cue_id_key][1]
+            _ = fh[cue_time_key][1]
+        return True
+    except IndexError:
+        return False
+
+
+def assign_files_to_modules(
+    filelist: list[Path], det_config: TConfig = "10M", check_for: FileChecker = "events"
+):
+    """ Assign each file to the correct module after having checked that it has valid events/cues in it.
+    While the files should be in order i.e. for module 0 we'll have file numbers 000001-000010, for module 1 \
+    file numbers 000011-000020 and so on, when checking for events an additional check will be done on the \
+    event id when assigning to each module.
+
+    Args:
+        filelist (list[Path]): List of input tristan files.
+        det_config (TConfig, optional): Specify how many physical modules make up the Tristan \
+            detector currently in use. Available configurations: 1M, 2M, 10M.\
+            Defaults to "10M".
+        check_for (FileChecker, optional): Specify whether to check for valid events or cues. \
+            Defaults to "cues".
+
+    Returns:
+        files_per_module(dict[str, list(Path)]): List of files assigned to each module.
+    """
     MOD = define_modules(det_config)
     files_per_module = {k: [] for k in MOD.keys()}
     broken_files = []
-    for filename in filelist:
-        with h5py.File(filename) as fh:
-            try:
-                x, y = divmod(fh[event_location_key][1], DIV)
-                for k, v in MOD.items():
-                    if v[1][0] <= x <= v[1][1]:
-                        if v[0][0] <= y <= v[0][1]:
-                            files_per_module[k].append(filename)
-            except IndexError:
-                broken_files.append(filename)
+    match check_for:
+        case "events":
+            for filename in filelist:
+                try:
+                    with h5py.File(filename) as fh:
+                        x, y = divmod(fh[event_location_key][1], DIV)
+                        # Assign file to correct module depending on coordinates.
+                        # Should be irrelevant as they go in order but still good to check for now
+                        for k, v in MOD.items():
+                            if v[1][0] <= x <= v[1][1]:
+                                if v[0][0] <= y <= v[0][1]:
+                                    files_per_module[k].append(filename)
+                except IndexError:
+                    broken_files.append(filename)
+        case "cues":
+            for filename in filelist:
+                has_cues = _check_for_cues(filename)
+                if has_cues:
+                    # Assign to module based on filename
+                    filenum = int(filename.stem.split("_")[-1]) - 1
+                    mod_num = str(filenum // int(det_config.strip("M")))
+                    files_per_module[mod_num].append(filename)
+                else:
+                    broken_files.append(filename)
     return files_per_module, broken_files
 
 
 def find_shutter_times(filelist):
+    """Find shutter open and close timestamps."""
     sh_open = []
     sh_close = []
     for filename in filelist:

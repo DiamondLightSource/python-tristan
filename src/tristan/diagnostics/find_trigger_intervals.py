@@ -395,9 +395,8 @@ def main(args):
     else:
         nproc = mp.cpu_count() - 1
 
-    L, _ = assign_files_to_modules(file_list, args.num_modules)
+    L, _ = assign_files_to_modules(file_list, args.num_modules, "cues")
     tristanlist = [l + (args.expt,) for l in list(L.items())]  # noqa: E741
-    # tristanlist = list(L.items())
 
     logger.info(f"Start Pool with {nproc} processes.")
     with mp.Pool(processes=nproc) as pool:
