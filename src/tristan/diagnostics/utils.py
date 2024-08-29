@@ -167,6 +167,8 @@ def assign_files_to_modules(
                 except IndexError:
                     broken_files.append(filename)
         case "cues":
+            # NOTE This is to check for triggers when dealing with dark field collections which
+            # sometimes have datasets with no events.
             for filename in filelist:
                 has_cues = _check_for_cues(filename)
                 if has_cues:
