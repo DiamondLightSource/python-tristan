@@ -45,29 +45,27 @@ def test_data_files(dummy_data_transient):
     """Test the utility for discovering Tristan data file paths."""
     # Expected file paths.
     stem = "dummy"
-    meta_file = dummy_data_transient / f"{stem}_meta.h5"
+    nxs_file = (dummy_data_transient / stem).with_suffix(".nxs")
     raw_files = sorted(dummy_data_transient.iterdir())
 
-    # Check that the absence of the metadata file raises an error.
-    with pytest.raises(
-        SystemExit, match="Could not find the expected detector metadata file:"
-    ):
-        data_files(dummy_data_transient, stem)
+    # Check that the absence of the NeXus file results in correct inference of the
+    # number of raw data files.
+    assert data_files(dummy_data_transient, stem) == raw_files
 
-    # Check that a metadata file with a valid (or missing) frame-processors-per-module
+    # Check that a NeXus file with a valid (or missing) frame-processors-per-module
     # metadatum results in the correct file paths being determined.
     for fp_per_module in ((), (1, 1, 1), (3,)):
-        with h5py.File(meta_file, "w") as f:
-            f["fp_per_module"] = fp_per_module
+        with h5py.File(nxs_file, "w") as f:
+            f["entry/data/meta_file/fp_per_module"] = fp_per_module
 
-        assert data_files(dummy_data_transient, stem) == (raw_files, meta_file)
+        assert data_files(dummy_data_transient, stem) == raw_files
 
     # Check that missing raw files, as determined from the fp-per-module metadatum,
     # raise an error.
     fp_per_module = (4,)
     missing_file = f"{dummy_data_transient / stem}_000004.h5"
-    with h5py.File(meta_file, "w") as f:
-        f["fp_per_module"] = fp_per_module
+    with h5py.File(nxs_file, "w") as f:
+        f["entry/data/meta_file/fp_per_module"] = fp_per_module
     with pytest.raises(
         SystemExit,
         match=f"The following expected data files are missing:\n\t{missing_file}",
