@@ -18,7 +18,7 @@ def main(args=None):
     """Print a human-readable summary of the cue messages in a LATRD data set."""
     args = parser.parse_args(args)
 
-    raw_files, _ = data_files(args.data_dir, args.stem)
+    raw_files = data_files(args.data_dir, args.stem)
 
     with latrd_data(raw_files, keys=cue_keys) as data:
         relevant = (data.cue_id > 0) & (data.cue_id != reserved)

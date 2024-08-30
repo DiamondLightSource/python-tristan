@@ -111,7 +111,7 @@ def check_multiple_output_files(
     unless instructed to overwrite.
 
     Args:
-        quantity:  THe number of output files to be generated.
+        quantity:  The number of output files to be generated.
         out_file:  A suggested output file path.
         stem:  A file name stem to use if out_file is not provided.
         suffix:  A suffix to append to stem when constructing the output file name.
@@ -144,7 +144,7 @@ def check_multiple_output_files(
         return out_files, out_file_pattern
 
 
-def data_files(data_dir: Path, stem: str, n_dig: int = 6) -> (list[Path], Path):
+def data_files(data_dir: Path, stem: str, n_dig: int = 6) -> list[Path]:
     """
     Extract information about the files containing raw cues and events data.
 
@@ -154,15 +154,15 @@ def data_files(data_dir: Path, stem: str, n_dig: int = 6) -> (list[Path], Path):
         n_dig:    Number of digits in the raw file number, e.g. six in '_000001.h5'.
 
     Returns:
-        - Lexicographically sorted list of raw file paths.
-        - File path of the time slice metadata file.
+        A lexicographically sorted list of raw file paths.
     """
-    meta_file = data_dir / f"{stem}_meta.h5"
-    if not meta_file.exists():
-        sys.exit(f"Could not find the expected detector metadata file:\n\t{meta_file}")
-
-    with h5py.File(meta_file) as f:
-        n_files = np.sum(f.get("fp_per_module", default=()))
+    nxs_file = (data_dir / stem).with_suffix(".nxs")
+    if nxs_file.exists():
+        with h5py.File(nxs_file) as f:
+            n_files = sum(f.get("entry/data/meta_file/fp_per_module", default=()))
+    else:
+        print(f"Could not find the expected NeXus file:\n\t{nxs_file}")
+        n_files = 0
 
     if n_files:
         raw_files = [data_dir / f"{stem}_{n + 1:0{n_dig}d}.h5" for n in range(n_files)]
@@ -178,7 +178,7 @@ def data_files(data_dir: Path, stem: str, n_dig: int = 6) -> (list[Path], Path):
         search_path = str(data_dir / f"{stem}_{n_dig * '[0-9]'}.h5")
         raw_files = [Path(path_str) for path_str in sorted(glob.glob(search_path))]
 
-    return raw_files, meta_file
+    return raw_files
 
 
 # A simple version parser.  Print the version and exit.

@@ -134,7 +134,7 @@ def single_image_cli(args):
 
     image_size = args.image_size or determine_image_size(input_nexus)
 
-    raw_files, _ = data_files(args.data_dir, args.stem)
+    raw_files = data_files(args.data_dir, args.stem)
 
     print("Finding detector shutter open and close times.")
     with latrd_data(raw_files, keys=cue_keys) as data, ProgressBar():
@@ -179,7 +179,7 @@ def multiple_images_cli(args):
 
     image_size = args.image_size or determine_image_size(input_nexus)
 
-    raw_files, _ = data_files(args.data_dir, args.stem)
+    raw_files = data_files(args.data_dir, args.stem)
 
     with latrd_data(raw_files, keys=cue_keys) as data:
         print("Finding detector shutter open and close times.")
@@ -285,7 +285,7 @@ def pump_probe_cli(args):
 
     image_size = args.image_size or determine_image_size(input_nexus)
 
-    raw_files, _ = data_files(args.data_dir, args.stem)
+    raw_files = data_files(args.data_dir, args.stem)
 
     trigger_type = triggers.get(args.trigger_type)
 
@@ -383,7 +383,7 @@ def multiple_sequences_cli(args):
 
     image_size = args.image_size or determine_image_size(input_nexus)
 
-    raw_files, _ = data_files(args.data_dir, args.stem)
+    raw_files = data_files(args.data_dir, args.stem)
 
     trigger_type = triggers.get(args.trigger_type)
 
@@ -549,7 +549,7 @@ def gated_images_cli(args):
 
     image_size = args.image_size or determine_image_size(input_nexus)
 
-    raw_files, _ = data_files(args.data_dir, args.stem)
+    raw_files = data_files(args.data_dir, args.stem)
 
     # If gate_close isn't specified, default to the complementary signal to gate_open.
     gate_open = triggers.get(args.gate_open)
