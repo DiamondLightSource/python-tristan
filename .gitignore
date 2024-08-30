@@ -67,3 +67,4 @@ target/
 *.swp
 *~
 .idea/
+.vscode/
