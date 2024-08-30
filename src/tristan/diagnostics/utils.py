@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import glob
 import logging
+from enum import Enum
 from pathlib import Path
 from typing import Literal, get_args
 
@@ -24,7 +25,11 @@ logger = logging.getLogger("TristanDiagnostics.Utils")
 TIME_RES = 1.5625e-9  # timing resolution fine
 DIV = np.uint32(0x2000)
 
-FileChecker = Literal["cues", "events"]
+
+class FileChecker(str, Enum):
+    CUES = "cues"
+    EVENTS = "events"
+
 
 # Tristan 10M specs
 TConfig = Literal["1M", "2M", "10M"]
@@ -153,7 +158,7 @@ def assign_files_to_modules(
     files_per_module = {k: [] for k in MOD.keys()}
     broken_files = []
     match check_for:
-        case "events":
+        case FileChecker.EVENTS:
             for filename in filelist:
                 try:
                     with h5py.File(filename) as fh:
@@ -166,7 +171,7 @@ def assign_files_to_modules(
                                     files_per_module[k].append(filename)
                 except IndexError:
                     broken_files.append(filename)
-        case "cues":
+        case FileChecker.CUES:
             # NOTE This is to check for triggers when dealing with dark field collections which
             # sometimes have datasets with no events.
             for filename in filelist:
