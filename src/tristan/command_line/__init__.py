@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import SupportsFloat, SupportsInt
 
 import h5py
-import numpy as np
 import pint.errors
 
 from .. import __version__, ureg
