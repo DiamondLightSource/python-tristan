@@ -88,6 +88,9 @@ parser.add_argument(
     type=str,
     help="Number of detector modules.",
 )
+parser.add_argument(
+    "-nxs", "--nexus", type=str, help="Nexus filename if different from filename.nxs."
+)
 
 
 # Define a logger object
@@ -384,20 +387,23 @@ def main(args):
         f"Look for triggers in cue messages for a Tristan{args.num_modules} {args.expt} collection."
     )
 
-    nxsfile = filepath / (args.filename + ".nxs")
+    nxsfile = (
+        filepath / (args.filename + ".nxs") if not args.nexus else filepath / args.nexus
+    )
     if nxsfile in filepath.iterdir():
         with h5py.File(nxsfile) as nxs:
             count_time = nxs["/entry/instrument/detector/count_time"][()]
-        logger.info(f"Total collection time recorded in NeXus file: {count_time} s.\n")
+        logger.info(
+            f"Total collection time recorded in NeXus file ({nxsfile.name}): {count_time} s.\n"
+        )
 
     if args.nproc:
         nproc = args.nproc
     else:
         nproc = mp.cpu_count() - 1
 
-    L, _ = assign_files_to_modules(file_list, args.num_modules)
+    L, _ = assign_files_to_modules(file_list, args.num_modules, "cues")
     tristanlist = [l + (args.expt,) for l in list(L.items())]  # noqa: E741
-    # tristanlist = list(L.items())
 
     logger.info(f"Start Pool with {nproc} processes.")
     with mp.Pool(processes=nproc) as pool:
