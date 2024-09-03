@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 import re
-from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import Iterable
 
-import dask
-import h5py
 import numpy as np
+import xarray as xr
 from dask import array as da
 from dask import dataframe as dd
 from numpy.typing import ArrayLike
 from pint import Quantity
 
-from . import clock_frequency, ureg
+from . import clock_frequency
 
 # Regex for the names of data sets, in the time slice metadata file, representing the
 # distribution of time slices across raw data files for each module.
@@ -77,48 +75,45 @@ cue_keys = cue_id_key, cue_time_key
 event_keys = event_location_key, event_time_key, event_energy_key
 
 nx_size_key = "entry/instrument/detector/module/data_size"
+# Tristan data contain some junk data sets.  Ignore them when reading data files.
+ignored_datasets = ["data", "image", "raw_data"]
 
 
-@contextmanager
-def latrd_data(
-    raw_file_paths: Iterable[str | Path],
-    keys: Iterable[str] = cue_keys + event_keys,
-) -> dd.DataFrame | dict[str, da.Array]:
+def latrd_data(path: str | Path, keys: Iterable[str]) -> dd.DataFrame:
     """
-    A context manager to read LATRD data sets from multiple files.
+    Read LATRD data sets from a file of raw Tristan events data.
 
-    The yielded DataFrame has a column for each of the specified LATRD data keys.
-    Each key must be a valid LATRD data key and the chosen data sets must all have the
-    same length.  The data will be rechunked into partitions approximately the size of
-    the default Dask array chunk size, but with chunk boundaries aligned with HDF5
-    file boundaries.
+    The returned DataFrame has a column for each of the specified LATRD data keys. Each
+    key must be a valid LATRD data key and the corresponding data sets must all have the
+    same length.
 
     Args:
-        raw_file_paths:  The paths of the raw LATRD data files.
-        keys:  The set of LATRD data keys to be read.
+        paths:  The path to the raw LATRD data file.
+        keys:   The set of LATRD data keys to read.
 
-    Yields:
+    Returns:
         The data from all the files.
     """
-    with ExitStack() as stack:
-        files = [stack.enter_context(h5py.File(p, swmr=True)) for p in raw_file_paths]
+    data = xr.open_dataset(path, drop_variables=ignored_datasets)
+    return data[list(keys)].unify_chunks().to_dask_dataframe(set_index=True)
 
-        # Determine an appropriate block size for a Dask DataFrame of these data,
-        # remembering to leave room for a 64-bit index.
-        row_size = sum(files[0][k].dtype.itemsize for k in keys)
-        block_size = ureg.Quantity(dask.config.get("array.chunk-size"))
-        block_length = int(block_size.m_as("B") / row_size)
 
-        # Construct a single Dask DataFrame from the specified keys.
-        data = {
-            k: da.concatenate([da.from_array(f[k], chunks=block_length) for f in files])
-            for k in keys
-        }
-        data = dd.concat(
-            [dd.from_dask_array(v, columns=k) for k, v in data.items()], axis=1
-        )
+def latrd_mf_data(paths: Iterable[str | Path], keys: Iterable[str]) -> dd.DataFrame:
+    """
+    Read LATRD data sets from multiple files of raw Tristan events data.
 
-        yield data
+    The returned DataFrame has a column for each of the specified LATRD data keys. Each
+    key must be a valid LATRD data key and the corresponding data sets must all have the
+    same length.
+
+    Args:
+        paths:  The paths to the raw LATRD data files.
+        keys:   The set of LATRD data keys to read.
+
+    Returns:
+        The data from all the files.
+    """
+    return dd.concat([latrd_data(path, keys) for path in paths], axis="index")
 
 
 def first_cue_time(
