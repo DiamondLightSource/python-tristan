@@ -22,21 +22,17 @@ ureg = pint.UnitRegistry()
 clock_frequency = ureg.Quantity(6.4e8, "Hz").to_compact()
 
 
-def compute_with_progress(collection):
+def compute_with_progress(*collection, gather=False):
     """
-    Compute a Dask collection, showing the progress of the top layer of the task graph.
+    Compute Dask collections, showing a progress bar, assuming a distributed client.
 
     Args:
-        collection:  A single Dask collection.
+        collection:  A Dask object or built-in collection of objects.
+        gather:      If true, return the computed result.
     """
-    (collection,) = dask.persist(collection)
-
-    # View progress only of the top layer of the task graph, which consists
-    # of the rate limiting make_images tasks, to avoid giving a false sense
-    # of rapid progress from the quick execution of the large number of
-    # other, cheaper tasks.
-    *_, top_layer = collection.dask.layers.values()
-    futures = list(top_layer.values())
-    print(progress(futures) or "")
+    collection = dask.persist(*collection)
+    print(progress(collection) or "")
 
     wait(collection)
+
+    return dask.compute(*collection, sync=True) if gather else None
