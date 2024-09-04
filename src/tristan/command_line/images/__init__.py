@@ -75,7 +75,7 @@ def determine_image_size(nexus_file: Path) -> tuple[int, int]:
 
 def exposure(
     start: int, end: int, exposure_time: pint.Quantity = None, num_images: int = None
-) -> tuple(pint.Quantity, int, int):
+) -> tuple[pint.Quantity, int, int]:
     """
     Find the exposure time or number of images.
 
@@ -390,7 +390,6 @@ def multiple_sequences_cli(args):
     print("Finding trigger signal times.")
 
     with latrd_data(raw_files, keys=cue_keys) as cues_data:
-
         trigger_times = cue_times(cues_data, trigger_type)
         with ProgressBar():
             trigger_times = trigger_times.astype(int).compute()
