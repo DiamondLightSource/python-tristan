@@ -52,7 +52,7 @@ parser_multiple.add_argument(
     "effects in the data before and after a single trigger pulse.",
     choices=triggers.keys(),
 )
-parser_multiple.set_defaults(func=multiple_images_cli)
+parser_multiple.set_defaults(func=multiple_images_cli.main)
 
 parser_pump_probe = subparsers.add_parser(
     "pump-probe",
@@ -69,7 +69,7 @@ parser_pump_probe = subparsers.add_parser(
         exposure_parser,
     ],
 )
-parser_pump_probe.set_defaults(func=pump_probe_cli)
+parser_pump_probe.set_defaults(func=pump_probe_cli.main)
 
 parser_multiple_sequences = subparsers.add_parser(
     "sequences",

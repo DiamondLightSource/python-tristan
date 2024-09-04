@@ -1,0 +1,127 @@
+import sys
+
+import h5py
+import numpy as np
+import zarr
+from dask.diagnostics import ProgressBar
+from dask.distributed import Client
+from hdf5plugin import Bitshuffle
+from nexgen.nxs_copy import copy_tristan_nexus
+
+from ... import compute_with_progress
+from ...binning import align_bins, create_cache, events_to_images, find_start_end
+from ...data import (
+    cue_keys,
+    cues,
+    event_location_key,
+    event_time_dtype,
+    event_time_key,
+    first_cue_time,
+    latrd_data,
+)
+from .. import check_output_file, data_files, triggers
+from . import determine_image_size, exposure
+
+
+def main(args):
+    """
+    Utility for making multiple images from event-mode data.
+
+    The time between the start and end of the data collection is subdivided into a
+    number of exposures of equal duration, providing a chronological stack of images.
+    """
+    write_mode = "w" if args.force else "x"
+    output_file = check_output_file(args.output_file, args.stem, "images", args.force)
+
+    input_nexus = args.data_dir / f"{args.stem}.nxs"
+    if not input_nexus.exists():
+        print(
+            "Could not find a NeXus file containing experiment metadata.\n"
+            "Resorting to writing raw image data without accompanying metadata."
+        )
+
+    image_size = args.image_size or determine_image_size(input_nexus)
+
+    raw_files = data_files(args.data_dir, args.stem)
+
+    with latrd_data(raw_files, keys=cue_keys) as data:
+        print("Finding detector shutter open and close times.")
+        with ProgressBar():
+            start, end = map(int, find_start_end(data))
+        exposure_time, exposure_cycles, num_images = exposure(
+            start, end, args.exposure_time, args.num_images
+        )
+
+        if args.align_trigger:
+            trigger_type = triggers[args.align_trigger]
+            print(
+                f"Image start and end times will be chosen such that the first "
+                f"'{cues[trigger_type]}' after the detector shutter open signal is "
+                f"aligned with an image boundary."
+            )
+            # Note we are assuming that the first trigger time is after shutter open.
+            trigger_time = first_cue_time(data, trigger_type, after=start)
+            if trigger_time is None:
+                sys.exit(
+                    f"Could not find a '{cues[trigger_type]}' signal after the "
+                    f"detector shutter open signal."
+                )
+            trigger_time = int(trigger_time.compute())
+
+            if args.exposure_time:
+                # Adjust the start time to align a bin edge with the trigger time.
+                n_bins_before = (trigger_time - start) // exposure_cycles
+                start = trigger_time - n_bins_before * exposure_cycles
+                num_images = (end - start) // exposure_cycles
+            # It is assumed that start ≤ trigger_time ≤ end.
+            else:
+                start, exposure_cycles = align_bins(
+                    start, trigger_time, end, num_images
+                )
+
+        end = start + num_images * exposure_cycles
+        bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
+
+    if input_nexus.exists():
+        try:
+            # Write output NeXus file if we have an input NeXus file.
+            output_nexus = copy_tristan_nexus.multiple_images_nexus(
+                output_file,
+                input_nexus,
+                nbins=num_images,
+                write_mode=write_mode,
+            )
+        except FileExistsError:
+            sys.exit(
+                f"This output file already exists:\n\t"
+                f"{output_file.with_suffix('.nxs')}\n"
+                "Use '-f' to override, "
+                "or specify a different output file path with '-o'."
+            )
+    else:
+        output_nexus = None
+
+    print(
+        f"Binning events into {num_images} images with an exposure time of "
+        f"{exposure_time:.3g~#P}."
+    )
+
+    # Make a cache for the images.
+    images = create_cache(output_file, num_images, image_size)
+
+    with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
+        data = events_to_images(data, bins, image_size, images)
+
+        print("Computing the binned images.")
+        # Use multi-threading, rather than multi-processing.
+        with Client(processes=False):
+            compute_with_progress(data)
+
+    print("Transferring the images to the output file.")
+    with h5py.File(output_file, write_mode) as f:
+        zarr.copy_all(zarr.open(images.store), f, **Bitshuffle())
+
+    # Delete the Zarr store.
+    images.store.clear()
+
+    print(f"Images written to\n\t{output_nexus or output_file}")
