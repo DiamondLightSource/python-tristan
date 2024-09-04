@@ -90,7 +90,7 @@ parser_multiple_sequences = subparsers.add_parser(
         interval_parser,
     ],
 )
-parser_multiple_sequences.set_defaults(func=multiple_sequences_cli)
+parser_multiple_sequences.set_defaults(func=multiple_sequences_cli.main)
 
 parser_serial = subparsers.add_parser(
     "serial",
@@ -100,7 +100,7 @@ parser_serial = subparsers.add_parser(
     "next 'gate-close' signal is taken as the end of the exposure.",
     parents=[version_parser, input_parser, image_output_parser, gate_parser],
 )
-parser_serial.set_defaults(func=gated_images_cli)
+parser_serial.set_defaults(func=gated_images_cli.main)
 
 
 def main(args=None):
