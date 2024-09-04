@@ -34,7 +34,7 @@ parser_single = subparsers.add_parser(
     ),
     parents=[version_parser, input_parser, image_output_parser],
 )
-parser_single.set_defaults(func=single_image_cli)
+parser_single.set_defaults(func=single_image_cli.main)
 
 parser_multiple = subparsers.add_parser(
     "multiple",
