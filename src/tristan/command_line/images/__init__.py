@@ -21,8 +21,8 @@ from dask.distributed import Client
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import copy_tristan_nexus
 
-from .. import clock_frequency, compute_with_progress
-from ..binning import (
+from ... import clock_frequency, compute_with_progress
+from ...binning import (
     align_bins,
     create_cache,
     events_to_images,
@@ -30,7 +30,7 @@ from ..binning import (
     find_time_bins,
     make_images,
 )
-from ..data import (
+from ...data import (
     cue_keys,
     cue_times,
     cues,
@@ -42,7 +42,7 @@ from ..data import (
     seconds,
     valid_events,
 )
-from . import (
+from .. import (
     check_multiple_output_files,
     check_output_file,
     data_files,
