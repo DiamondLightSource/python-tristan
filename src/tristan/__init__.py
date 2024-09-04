@@ -13,13 +13,34 @@ __email__ = "dataanalysis@diamond.ac.uk"
 __version__ = "0.3.2"
 __version_tuple__ = tuple(int(x) for x in __version__.split("."))
 
+from contextlib import ContextDecorator
+
 import dask
 import pint
-from dask.distributed import progress, wait
+from dask.distributed import Client, progress, wait
 
 ureg = pint.UnitRegistry()
 
 clock_frequency = ureg.Quantity(6.4e8, "Hz").to_compact()
+
+
+class WithLocalDistributedCluster(Client, ContextDecorator):
+    """
+    A decorator to run a function in a distributed.Client context.
+
+    Example:
+        Using this decorator like so
+
+        >>> @WithLocalDistributedCluster(processes=False)
+        ... def foo(*args):
+        ...     ...
+
+        is equivalent to
+
+        >>> def foo(*args):
+        ...     with Client(processes=False):
+        ...         ...
+    """
 
 
 def compute_with_progress(*collection, gather=False):
