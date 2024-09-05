@@ -124,6 +124,6 @@ def cli():
     wdir = Path(args.output).expanduser().resolve() if args.output else None
 
     run_file_check(filepath, args.filename, wdir, args.num_modules, args.list)
-    # main(args)
+
     toc = time.time()
     logger.debug(f"Total time taken: {toc - tic:.4f} s.")
