@@ -15,7 +15,12 @@ import numpy as np
 from ..command_line import version_parser
 from ..data import event_time_key
 from . import diagnostics_log as log
-from .utils import TIME_RES, find_shutter_times, get_full_file_list
+from .utils import (
+    TIME_RES,
+    find_shutter_times,
+    get_filename_template,
+    get_full_file_list,
+)
 
 epilog_message = """
 This program checks that there are events recorded after the shutter open signal in the data files.\n
@@ -104,45 +109,50 @@ def event_timestamp_check(tristanlist):
     return T
 
 
-def main(args):
-    filepath = Path(args.visitpath).expanduser().resolve()
-    base = args.filename + f"_{6*'[0-9]'}.h5"
+def run_valid_events_check(
+    filepath: Path,
+    filename_root: str,
+    outdir: Path | None = None,
+    shutters: list[float, float] | None = None,
+    **kwargs,
+):
+    filename_template = get_filename_template(filepath, filename_root)
 
-    filename_template = filepath / base
     file_list = get_full_file_list(filename_template)
 
     L = [file_list[i : i + 10] for i in range(0, len(file_list), 10)]
 
-    if args.output:
-        savedir = Path(args.output).expanduser().resolve()
-        savedir.mkdir(exist_ok=True)
+    # Current working directory
+    if outdir:
+        outdir.mkdir(exist_ok=True, parents=True)
     else:
-        savedir = Path.cwd()
+        outdir = Path.cwd()
 
-    setup_logging(savedir, args.filename)
+    # Set up logger
+    setup_logging(outdir, filename_root)
 
     # Log some info
     logger.info("Check for valid events between shutter times.")
-    logger.info(f"Current working directory: {savedir}")
+    logger.info(f"Current working directory: {outdir}")
     logger.info(f"Collection directory: {filepath}")
-    logger.info(f"Filename root: {args.filename}")
+    logger.info(f"Filename root: {filename_root}")
 
     logger.info(
         f"Tristan{len(L)}M collection. Found {len(file_list)} files in directory.\n"
     )
 
-    if args.nproc:
-        nproc = args.nproc
+    if "nproc" in kwargs.keys() and kwargs["nproc"]:
+        nproc = kwargs["nproc"]
     else:
         nproc = mp.cpu_count() - 1
 
-    if not args.shutters:
+    if not shutters:
         logger.info(
             "No shutter timestamps parsed, searching for them in the datafiles."
         )
         sh_open, sh_close = find_shutter_times(L[0])
     else:
-        sh_open, sh_close = args.shutters
+        sh_open, sh_close = shutters
 
     logger.info(f"Interval: {sh_open} {sh_close}")
 
@@ -167,7 +177,14 @@ def main(args):
 def cli():
     tic = time.time()
     args = parser.parse_args()
-    main(args)
+
+    filepath = Path(args.visitpath).expanduser().resolve()
+    wdir = Path(args.output).expanduser().resolve() if args.output else None
+
+    run_valid_events_check(
+        filepath, args.filename, wdir, args.shutters, nproc=args.nproc
+    )
+
     toc = time.time()
     logger.debug(f"Total time taken: {toc - tic:4f} s.")
     logger.info("~~~ EOF ~~~")
