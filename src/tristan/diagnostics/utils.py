@@ -48,6 +48,12 @@ GAP_SIZE = (117, 45)  # slow, fast
 IMAGE_SIZE_10M = (3043, 4183)  # slow, fast
 
 
+def get_filename_template(filepath: Path, filename_root: str) -> Path:
+    base = f"{filename_root}_{6*'[0-9]'}.h5"
+    filename_template = filepath / base
+    return filename_template
+
+
 def get_full_file_list(filename_template: str | Path) -> list[Path]:
     """Given a template filename, including directory, get a list of all the files\
     using that template.

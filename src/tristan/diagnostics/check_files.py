@@ -10,7 +10,13 @@ from pathlib import Path
 
 from ..command_line import version_parser
 from . import diagnostics_log as log
-from .utils import assign_files_to_modules, get_full_file_list, module_cooordinates
+from .utils import (
+    TristanConfig,
+    assign_files_to_modules,
+    get_filename_template,
+    get_full_file_list,
+    module_cooordinates,
+)
 
 epilog_message = """
 This program runs through all the files written for a Tristan collection and checks that they contain events, \
@@ -57,34 +63,38 @@ parser.add_argument(
 logger = logging.getLogger("TristanDiagnostics.ModuleCheck")
 
 
-def setup_logging(wdir, filestem):
+def setup_logging(wdir: Path, filestem: str):
     logfile = wdir / (filestem + "_MODULECHECK.log")
     log.config(logfile.as_posix())
 
 
-def main(args):
-    filepath = Path(args.visitpath).expanduser().resolve()
-    base = args.filename + f"_{6*'[0-9]'}.h5"
+def run_file_check(
+    filepath: Path,
+    filename_root: str,
+    outdir: Path | None = None,
+    det_config: TristanConfig = "10M",
+    print_list: bool = False,
+):
+    filename_template = get_filename_template(filepath, filename_root)
 
-    if args.output:
-        savedir = Path(args.output).expanduser().resolve()
-        savedir.mkdir(exist_ok=True)
+    # Current working directory
+    if outdir:
+        outdir.mkdir(exist_ok=True, parents=True)
     else:
-        savedir = Path.cwd()
+        outdir = Path.cwd()
 
-    setup_logging(savedir, filepath.stem)
+    setup_logging(outdir, filepath.stem)
 
-    logger.info(f"Quick data check for Tristan {args.num_modules} modules.")
+    logger.info(f"Quick data check for Tristan {det_config} modules.")
     logger.info(f"Collection directory: {filepath}")
-    logger.info(f"Filename root: {args.filename}")
+    logger.info(f"Filename root: {filename_root}")
 
-    filename_template = filepath / base
     file_list = get_full_file_list(filename_template)
     logger.info(f"Found {len(file_list)} files in directory.")
 
-    mod_coord = module_cooordinates(args.num_modules)
+    mod_coord = module_cooordinates(det_config)
     logger.info("Assigning each data file to correct module.\n")
-    split, broken = assign_files_to_modules(file_list, args.num_modules)
+    split, broken = assign_files_to_modules(file_list, det_config)
     split = {k: [val.name for val in v] for k, v in split.items()}
     broken = [b.name for b in broken]
 
@@ -92,7 +102,7 @@ def main(args):
         logger.info(f"--- Module {k} ---")
         logger.info(f"Position on detector: {mod_coord[k]}")
         logger.info(f"Number of files found for this module: {len(v)}")
-        if args.list:
+        if print_list:
             for f in v:
                 logger.info(f"{f}")
         logger.info("\n")
@@ -109,6 +119,11 @@ def main(args):
 def cli():
     tic = time.time()
     args = parser.parse_args()
-    main(args)
+
+    filepath = Path(args.visitpath).expanduser().resolve()
+    wdir = Path(args.output).expanduser().resolve() if args.output else None
+
+    run_file_check(filepath, args.filename, wdir, args.num_modules, args.list)
+    # main(args)
     toc = time.time()
     logger.debug(f"Total time taken: {toc - tic:.4f} s.")

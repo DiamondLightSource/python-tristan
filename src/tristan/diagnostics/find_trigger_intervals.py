@@ -26,7 +26,13 @@ from ..data import (  # ttl_falling,
     ttl_rising,
 )
 from . import diagnostics_log as log
-from .utils import TIME_RES, TristanConfig, assign_files_to_modules, get_full_file_list
+from .utils import (
+    TIME_RES,
+    TristanConfig,
+    assign_files_to_modules,
+    get_filename_template,
+    get_full_file_list,
+)
 
 epilog_message = """
 This program looks for shutter open and close signals and checks their timestamps.\n
@@ -322,8 +328,7 @@ def run_trigger_lookup(
     **kwargs,
 ):
     # Filename template
-    base = f"{filename_root}_{6*'[0-9]'}.h5"
-    filename_template = filepath / base
+    filename_template = get_filename_template(filepath, filename_root)
 
     # Current working directory
     if outdir:
