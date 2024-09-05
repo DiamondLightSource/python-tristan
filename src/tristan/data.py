@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from typing import Iterable
 
+import dask
 import numpy as np
 import xarray as xr
 from dask import array as da
@@ -94,8 +95,8 @@ def latrd_data(path: str | Path, keys: Iterable[str]) -> dd.DataFrame:
     Returns:
         The data from all the files.
     """
-    data = xr.open_dataset(path, drop_variables=ignored_datasets)
-    return data[list(keys)].unify_chunks().to_dask_dataframe(set_index=True)
+    data = xr.open_dataset(path, chunks="auto", drop_variables=ignored_datasets)
+    return data[list(keys)].unify_chunks().to_dask_dataframe()[list(keys)]
 
 
 def latrd_mf_data(paths: Iterable[str | Path], keys: Iterable[str]) -> dd.DataFrame:
@@ -113,7 +114,10 @@ def latrd_mf_data(paths: Iterable[str | Path], keys: Iterable[str]) -> dd.DataFr
     Returns:
         The data from all the files.
     """
-    return dd.concat([latrd_data(path, keys) for path in paths], axis="index")
+    dataframes = [latrd_data(path, keys) for path in paths]
+    return dd.concat(
+        dataframes, axis="index", interleave_partitions=True, ignore_order=True
+    )
 
 
 def first_cue_time(
