@@ -7,6 +7,7 @@ import argparse
 import logging
 import multiprocessing as mp
 import time
+from enum import Enum
 from pathlib import Path
 
 import h5py
@@ -25,7 +26,7 @@ from ..data import (  # ttl_falling,
     ttl_rising,
 )
 from . import diagnostics_log as log
-from .utils import TIME_RES, assign_files_to_modules, get_full_file_list
+from .utils import TIME_RES, TristanConfig, assign_files_to_modules, get_full_file_list
 
 epilog_message = """
 This program looks for shutter open and close signals and checks their timestamps.\n
@@ -35,70 +36,19 @@ Additionally, it calculates the time interval between rising and falling edge of
 The results are written to a filename_TRIGGERCHECK.log.
 """
 
-# Define parser
 usage = "%(prog)s /path/to/data/dir filename_root [options]"
-parser = argparse.ArgumentParser(
-    usage=usage,
-    formatter_class=argparse.RawTextHelpFormatter,
-    description=__doc__,
-    epilog=epilog_message,
-    parents=[version_parser],
-)
-parser.add_argument("visitpath", type=str, help="Visit directory")
-parser.add_argument("filename", type=str, help="Filename")
-parser.add_argument(
-    "-e",
-    "--expt",
-    type=str,
-    choices=["standard", "ssx"],
-    default="standard",
-    help="Specify the type of collection. Defaults to standard.",
-)
-parser.add_argument(
-    "-o",
-    "--output",
-    type=str,
-    help="""
-    Output directory to save results
-    If not passed, the script will default to current working directory.
-    """,
-)
-parser.add_argument(
-    "-n",
-    "--nproc",
-    type=int,
-    help="The number of processes to use.",
-)
-parser.add_argument(
-    "-trig",
-    "--triggers",
-    type=str,
-    nargs="+",
-    default="all",
-    help="""
-    Specify which triggers to look for.
-    If not passed, will look at all the available ones for the experiment type.
-    """,
-)
-parser.add_argument(
-    "-m",
-    "--num-modules",
-    choices=["1M", "2M", "10M"],
-    default="10M",
-    type=str,
-    help="Number of detector modules.",
-)
-parser.add_argument(
-    "-nxs", "--nexus", type=str, help="Nexus filename if different from filename.nxs."
-)
-
 
 # Define a logger object
 logger = logging.getLogger("TristanDiagnostics.TriggerTimes")
 
 
-def setup_logging(wdir, filestem):
-    logfile = wdir / (filestem + "_TRIGGERCHECK.log")
+class ExperimentType(str, Enum):
+    STANDARD = "standard"
+    SSX = "ssx"
+
+
+def setup_logging(wdir: Path, filestem: str):
+    logfile = wdir / f"{filestem}_TRIGGERCHECK.log"
     log.config(logfile.as_posix())
 
 
@@ -361,35 +311,43 @@ def log_only_requested_trigger_info(res: list[dict], trigger_request: list[str])
                         logger.warning("No SYNC falling edges found!")
 
 
-def main(args):
-    filepath = Path(args.visitpath).expanduser().resolve()
-    base = args.filename + f"_{6*'[0-9]'}.h5"
+def run_trigger_lookup(
+    filepath: Path,
+    filename_root: str,
+    outdir: Path | None = None,
+    det_config: TristanConfig = "10M",
+    expt_type: ExperimentType = "standard",
+    triggers: list[str] | str = "all",
+    nxs_file: Path | None = None,
+    **kwargs,
+):
+    # Filename template
+    base = f"{filename_root}_{6*'[0-9]'}.h5"
+    filename_template = filepath / base
 
     # Current working directory
-    if args.output:
-        wdir = Path(args.output).expanduser().resolve()
-        wdir.mkdir(exist_ok=True)
+    if outdir:
+        outdir.mkdir(exist_ok=True, parents=True)
     else:
-        wdir = Path.cwd()
+        outdir = Path.cwd()
 
-    # Define stream handler
-    setup_logging(wdir, filepath.stem)
+    # Set up logger
+    setup_logging(outdir, filepath.stem)
 
     # Start logging
-    logger.info(f"Current working directory: {wdir}")
+    logger.info(f"Current working directory: {outdir}")
     logger.info(f"Collection directory: {filepath}")
-    logger.info(f"Filename root: {args.filename}")
-    filename_template = filepath / base
+    logger.info(f"Filename root: {filename_root}")
+
+    # Get file list
     file_list = get_full_file_list(filename_template)
     logger.info(f"Found {len(file_list)} files in directory.\n")
 
     logger.info(
-        f"Look for triggers in cue messages for a Tristan{args.num_modules} {args.expt} collection."
+        f"Look for triggers in cue messages for a Tristan{det_config} {expt_type} collection."
     )
 
-    nxsfile = (
-        filepath / (args.filename + ".nxs") if not args.nexus else filepath / args.nexus
-    )
+    nxsfile = filepath / f"{filename_root}.nxs" if not nxs_file else filepath / nxs_file
     if nxsfile in filepath.iterdir():
         with h5py.File(nxsfile) as nxs:
             count_time = nxs["/entry/instrument/detector/count_time"][()]
@@ -397,13 +355,13 @@ def main(args):
             f"Total collection time recorded in NeXus file ({nxsfile.name}): {count_time} s.\n"
         )
 
-    if args.nproc:
-        nproc = args.nproc
+    if "nproc" in kwargs.keys() and kwargs["nproc"]:
+        nproc = kwargs["nproc"]
     else:
         nproc = mp.cpu_count() - 1
 
-    L, _ = assign_files_to_modules(file_list, args.num_modules, "cues")
-    tristanlist = [l + (args.expt,) for l in list(L.items())]  # noqa: E741
+    L, _ = assign_files_to_modules(file_list, det_config, "cues")
+    tristanlist = [l + (expt_type,) for l in list(L.items())]  # noqa: E741
 
     logger.info(f"Start Pool with {nproc} processes.")
     with mp.Pool(processes=nproc) as pool:
@@ -411,17 +369,88 @@ def main(args):
     logger.info("\n")
 
     logger.info("----- SUMMARY -----")
-    if args.triggers == "all":
-        log_full_summary(res, args.expt)
+    if triggers == "all":
+        log_full_summary(res, expt_type)
     else:
-        log_only_requested_trigger_info(res, args.triggers)
+        log_only_requested_trigger_info(res, triggers)
     logger.info("\n")
+
+
+# Define parser
+parser = argparse.ArgumentParser(
+    usage=usage,
+    formatter_class=argparse.RawTextHelpFormatter,
+    description=__doc__,
+    epilog=epilog_message,
+    parents=[version_parser],
+)
+parser.add_argument("visitpath", type=str, help="Visit directory")
+parser.add_argument("filename", type=str, help="Filename")
+parser.add_argument(
+    "-e",
+    "--expt",
+    type=str,
+    choices=["standard", "ssx"],
+    default="standard",
+    help="Specify the type of collection. Defaults to standard.",
+)
+parser.add_argument(
+    "-o",
+    "--output",
+    type=str,
+    help="""
+    Output directory to save results
+    If not passed, the script will default to current working directory.
+    """,
+)
+parser.add_argument(
+    "-n",
+    "--nproc",
+    type=int,
+    help="The number of processes to use.",
+)
+parser.add_argument(
+    "-trig",
+    "--triggers",
+    type=str,
+    nargs="+",
+    default="all",
+    help="""
+    Specify which triggers to look for.
+    If not passed, will look at all the available ones for the experiment type.
+    """,
+)
+parser.add_argument(
+    "-m",
+    "--num-modules",
+    choices=["1M", "2M", "10M"],
+    default="10M",
+    type=str,
+    help="Number of detector modules.",
+)
+parser.add_argument(
+    "-nxs", "--nexus", type=str, help="Nexus filename if different from filename.nxs."
+)
 
 
 def cli():
     tic = time.time()
     args = parser.parse_args()
-    main(args)
+
+    filepath = Path(args.visitpath).expanduser().resolve()
+    wdir = Path(args.output).expanduser().resolve() if args.output else None
+
+    run_trigger_lookup(
+        filepath,
+        args.filename,
+        wdir,
+        args.num_modules,
+        args.expt,
+        args.triggers,
+        args.nexus,
+        nproc=args.nproc,
+    )
+
     toc = time.time()
     logger.debug(f"Total time taken: {toc - tic:4f} s.")
     logger.info("~~~ EOF ~~~")
