@@ -210,8 +210,7 @@ class _InputFileAction(argparse.Action):
         """
         Resolve the input file name into a directory and a file name stem.
 
-        The file name stem is the file name stem stripped of any trailing '_meta' or
-        '_<digits>'.
+        The file name stem is stripped of any trailing '_meta' or '_<digits>'.
 
         Args:
             in_file:  The input file path.
