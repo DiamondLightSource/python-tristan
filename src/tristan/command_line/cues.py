@@ -7,8 +7,7 @@ import argparse
 import numpy as np
 from dask.distributed import Client
 
-from tristan import compute_with_progress
-
+from .. import compute_with_progress
 from ..data import cue_keys, cue_time_key, cues, latrd_mf_data, reserved, seconds
 from . import data_files, input_parser, version_parser
 
