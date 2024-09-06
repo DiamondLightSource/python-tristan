@@ -24,7 +24,7 @@ from .data import (
 )
 
 
-def find_start_end(data: dd.DataFrame) -> (int, int):
+def find_start_end(data: dd.DataFrame) -> tuple[int, int]:
     """
     Find the shutter open and shutter close timestamps.
 
@@ -43,7 +43,7 @@ def find_start_end(data: dd.DataFrame) -> (int, int):
     return start, end
 
 
-def align_bins(start: int, align: int, end: int, n_bins: int) -> (int, int):
+def align_bins(start: int, align: int, end: int, n_bins: int) -> tuple[int, int]:
     """
     Divide an interval into a specified number of bins, aligning with a given value.
 
