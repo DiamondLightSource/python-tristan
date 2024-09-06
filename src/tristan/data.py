@@ -114,10 +114,7 @@ def latrd_mf_data(paths: Iterable[str | Path], keys: Iterable[str]) -> dd.DataFr
     Returns:
         The data from all the files.
     """
-    dataframes = [latrd_data(path, keys) for path in paths]
-    return dd.concat(
-        dataframes, axis="index", interleave_partitions=True, ignore_order=True
-    )
+    return dd.concat([latrd_data(path, keys) for path in paths], axis="index")
 
 
 def first_cue_time(
