@@ -80,7 +80,7 @@ def main(args):
                 )
 
         end = start + num_images * exposure_cycles
-        bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
+        bins = np.linspace(start, end, num_images + 1, dtype=event_time_dtype)
 
     if input_nexus.exists():
         try:

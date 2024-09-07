@@ -1,4 +1,5 @@
 """General utilities for the diagnostic tools."""
+
 from __future__ import annotations
 
 import glob
@@ -12,6 +13,7 @@ import numpy as np
 from ..data import (
     cue_id_key,
     cue_time_key,
+    event_id_dtype,
     event_location_key,
     shutter_close,
     shutter_open,
@@ -22,7 +24,7 @@ logger = logging.getLogger("TristanDiagnostics.Utils")
 
 # Some constants
 TIME_RES = 1.5625e-9  # timing resolution fine
-DIV = np.uint32(0x2000)
+DIV = event_id_dtype(0x2000)
 
 
 class FileChecker(str, Enum):

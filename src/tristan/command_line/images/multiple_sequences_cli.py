@@ -78,7 +78,9 @@ def main(args):
         0, intervals_end, args.interval, args.num_sequences
     )
     # Find the bins denoting to which image sequence each event belongs.
-    interval_bins = np.linspace(0, intervals_end, num_intervals + 1, dtype=np.uint64)
+    interval_bins = np.linspace(
+        0, intervals_end, num_intervals + 1, dtype=event_time_dtype
+    )
 
     output_files, out_file_pattern = check_multiple_output_files(
         num_intervals, args.output_file, args.stem, "images", args.force
@@ -88,7 +90,7 @@ def main(args):
         start, end, args.exposure_time, args.num_images
     )
     # Find the bins denoting images within a sequence.
-    bins = np.linspace(start, end, num_images + 1, dtype=np.uint64)
+    bins = np.linspace(start, end, num_images + 1, dtype=event_time_dtype)
 
     print(
         f"Using '{cues[trigger_type]}' as the pump signal,\n"

@@ -16,26 +16,30 @@ from pint import Quantity
 
 from . import clock_frequency
 
-# Regex for the names of data sets, in the time slice metadata file, representing the
-# distribution of time slices across raw data files for each module.
-ts_key_regex = re.compile(r"ts_qty_module\d{2}")
+# Types of the raw data.
+cue_dtype = np.uint16
+event_id_dtype = np.uint32
+event_time_dtype = np.uint64
+
+# Type for binned image data.
+image_dtype = np.uint32
 
 # Translations of the basic cue_id messages.
-padding = np.uint16(0)
-extended_timestamp = np.uint16(0x800)
-shutter_open = np.uint16(0x840)
-shutter_close = np.uint16(0x880)
-fem_falling = np.uint16(0x8C1)
-fem_rising = np.uint16(0x8E1)
-ttl_falling = np.uint16(0x8C9)
-ttl_rising = np.uint16(0x8E9)
-lvds_falling = np.uint16(0x8CA)
-lvds_rising = np.uint16(0x8EA)
-tzero_falling = np.uint16(0x8CB)
-tzero_rising = np.uint16(0x8EB)
-sync_falling = np.uint16(0x8CC)
-sync_rising = np.uint16(0x8EC)
-reserved = np.uint16(0xF00)
+padding = cue_dtype(0)
+extended_timestamp = cue_dtype(0x800)
+shutter_open = cue_dtype(0x840)
+shutter_close = cue_dtype(0x880)
+fem_falling = cue_dtype(0x8C1)
+fem_rising = cue_dtype(0x8E1)
+ttl_falling = cue_dtype(0x8C9)
+ttl_rising = cue_dtype(0x8E9)
+lvds_falling = cue_dtype(0x8CA)
+lvds_rising = cue_dtype(0x8EA)
+tzero_falling = cue_dtype(0x8CB)
+tzero_rising = cue_dtype(0x8EB)
+sync_falling = cue_dtype(0x8CC)
+sync_rising = cue_dtype(0x8EC)
+reserved = cue_dtype(0xF00)
 cues = {
     padding: "Padding",
     extended_timestamp: "Extended time stamp, global synchronisation",
@@ -51,8 +55,8 @@ cues = {
     tzero_rising: "Clock trigger TZERO input, rising edge",
     sync_falling: "Clock trigger SYNC input, falling edge",
     sync_rising: "Clock trigger SYNC input, rising edge",
-    np.uint16(0xBC6): "Error: messages out of sync",
-    np.uint16(0xBCA): "Error: messages out of sync",
+    cue_dtype(0xBC6): "Error: messages out of sync",
+    cue_dtype(0xBCA): "Error: messages out of sync",
     reserved: "Reserved",
     **{
         basic + n: f"{name} time stamp, sensor module {n}"
@@ -61,7 +65,7 @@ cues = {
             (shutter_open, "Shutter open"),
             (shutter_close, "Shutter close"),
         )
-        for n in np.arange(1, 64, dtype=np.uint16)
+        for n in np.arange(1, 64, dtype=cue_dtype)
     },
 }
 
@@ -71,11 +75,25 @@ cue_time_key = "cue_timestamp_zero"
 event_location_key = "event_id"
 event_time_key = "event_time_offset"
 event_energy_key = "event_energy"
+# Key for pixel index data, converted from event_id to index in flattened image array.
+pixel_index_key = "pixel_index"
 
 cue_keys = cue_id_key, cue_time_key
 event_keys = event_location_key, event_time_key, event_energy_key
 
+# The event_id represents the coordinates of the pixel at which the event was recorded.
+# The n least significant bits represent the y coordinate and the n next least
+# significant bits represent the x coordinate.  Record the value of n here as
+# coordinate_bitdepth.
+coordinate_bitdepth = 13
+
+# Key for the image shape data set in the input NeXus file.
 nx_size_key = "entry/instrument/detector/module/data_size"
+
+# Regex for the names of data sets, in the time slice metadata file, representing the
+# distribution of time slices across raw data files for each module.
+ts_key_regex = re.compile(r"ts_qty_module\d{2}")
+
 # Tristan data contain some junk data sets.  Ignore them when reading data files.
 ignored_datasets = ["data", "image", "raw_data"]
 
@@ -232,7 +250,7 @@ def pixel_index(location: ArrayLike, image_size: tuple[int, int]) -> ArrayLike:
     Returns:
         Index in the flattened image array of the pixel where the event occurred.
     """
-    x, y = divmod(location, np.uint32(0x2000))
+    x, y = divmod(data[event_location_key], event_id_dtype(1 << coordinate_bitdepth))
     # The following is equivalent to, but a little simpler than,
     # return da.ravel_multi_index((y, x), image_size)
     return x + y * image_size[1]

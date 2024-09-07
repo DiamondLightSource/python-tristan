@@ -64,7 +64,7 @@ def main(args):
     end = da.diff(trigger_times).min()
     exposure_time, num_images = args.exposure_time, args.num_images
     exposure_time, _, num_images = exposure(0, end, exposure_time, num_images)
-    bins = np.linspace(0, end, num_images + 1, dtype=np.uint64)
+    bins = np.linspace(0, end, num_images + 1, dtype=event_time_dtype)
 
     if input_nexus.exists():
         try:
