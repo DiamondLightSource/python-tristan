@@ -6,12 +6,10 @@ import re
 from pathlib import Path
 from typing import Iterable
 
-import dask
 import numpy as np
 import xarray as xr
 from dask import array as da
 from dask import dataframe as dd
-from numpy.typing import ArrayLike
 from pint import Quantity
 
 from . import clock_frequency
@@ -226,31 +224,36 @@ def valid_events(data: dd.DataFrame, start: int, end: int) -> dd.DataFrame:
     return data[valid]
 
 
-def pixel_index(location: ArrayLike, image_size: tuple[int, int]) -> ArrayLike:
+def pixel_index(data: dd.DataFrame, image_size: tuple[int, int]) -> dd.DataFrame:
     """
     Extract pixel coordinate information from an event location (event_id) message.
 
-    Translate a Tristan event location message to the index of the corresponding
-    pixel in the flattened image array (i.e. numbered from zero, in row-major order).
+    Translate a Tristan event location message to the index of the corresponding pixel
+    in the flattened image array (i.e. numbered from zero, in row-major order).
 
     The pixel coordinates of an event on a Tristan detector are encoded in a 32-bit
-    integer location message (the event_id) with 26 bits of useful information.
-    Extract the y coordinate (the 13 least significant bits) and the x coordinate
-    (the 13 next least significant bits).  Find the corresponding pixel index in the
-    flattened image array by multiplying the y value by the size of the array in x,
-    and adding the x value.
+    integer location message (the event_id) with 2n bits of useful information. Extract
+    the y coordinate (the n least significant bits) and the x coordinate (the n next
+    least significant bits).  The value of n is recorded as
+    ``tristan.data.coordinate_bitdepth`` and is usually 13. Find the corresponding pixel
+    index in the flattened image array by multiplying the y value by the size of the
+    array in x, and adding the x value.
 
-    This function calls the Python built-in divmod and so can be broadcast over
-    array-like data structures.
+    In the resulting dataframe, the ``"event_id""`` column is replaced with a column
+    named ``"pixel_index"``, with values, encoding the positions of each pixel in the
+    flattened image array.
 
     Args:
-        location:    Event location message (an integer).
+        data:        A Dask DataFrame, having a column named ``event_location_key``.
         image_size:  Shape of the image array in (y, x), i.e. (slow, fast).
 
     Returns:
-        Index in the flattened image array of the pixel where the event occurred.
+        A Dask DataFrame like the input ``data`` but having the new ``"pixel_index"``
+        column in place of the old ``"event_id"`` column.
     """
     x, y = divmod(data[event_location_key], event_id_dtype(1 << coordinate_bitdepth))
     # The following is equivalent to, but a little simpler than,
-    # return da.ravel_multi_index((y, x), image_size)
-    return x + y * image_size[1]
+    # data[event_location_key] = da.ravel_multi_index((y, x), image_size)
+    data[event_location_key] = x + y * image_size[1]
+
+    return data.rename(columns={event_location_key: pixel_index_key})
