@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 from . import diagnostics_log as log
+from .check_files import run_file_check
 from .find_trigger_intervals import run_trigger_lookup
 
 usage = "%(prog)s /path/to/dir/to/monitor nexus_filename [options]"
@@ -50,7 +51,6 @@ class TristanCollectionMonitor:
 def run_monitor(args, start_time):
     log.config()  # Just stream handler
     root_visit = Path(args.visit_dir).expanduser().resolve()
-    # outdir = "/dls/i19-2/data/2024/cm37267-4/processing/tristan/trigger_check"
     outdir = args.outdir if args.outdir else root_visit / "processing/trigger_check"
     checked_files = []
     monitor = TristanCollectionMonitor(root_visit, args.num)
@@ -73,8 +73,16 @@ def run_monitor(args, start_time):
             new_nxs = monitor.scan_collection_for_nexus_file(collection_dir)
             if new_nxs and (collection_dir / new_nxs) not in checked_files:
                 print(f"Found new nexus file {new_nxs}")
-                print("Kicking off tristan triggering")
                 filename_root = new_nxs.stem.replace(f"_w%0{3}d", "")
+                print("kicking off file check")
+                run_file_check(
+                    collection_dir,
+                    filename_root,
+                    outdir,
+                    "10M",
+                )
+                print("Kicking off tristan triggering")
+                # NOTE this filename here changed for reasons
                 run_trigger_lookup(
                     collection_dir,
                     filename_root,
@@ -96,7 +104,21 @@ def cli():
     parser.add_argument("visit_dir", type=str, help="The visit directory")
     parser.add_argument("num", type=str, help="Collection number")
     parser.add_argument(
-        "-o", "--outdir", type=str, help="Output directory for tristan tools."
+        "-o",
+        "--outdir",
+        type=str,
+        help="""
+        Output directory for tristan tools.
+        If not passed, it will default to the current working directory.
+        """,
+    )
+    parser.add_argument(
+        "-e",
+        "--expt",
+        type=str,
+        choices=["standard", "ssx"],
+        default="standard",
+        help="Specify the type of collection. Defaults to standard.",
     )
     args = parser.parse_args()
     start_time = time.time()

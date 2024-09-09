@@ -381,64 +381,65 @@ def run_trigger_lookup(
     logger.info("\n")
 
 
-# Define parser
-parser = argparse.ArgumentParser(
-    usage=usage,
-    formatter_class=argparse.RawTextHelpFormatter,
-    description=__doc__,
-    epilog=epilog_message,
-    parents=[version_parser],
-)
-parser.add_argument("visitpath", type=str, help="Visit directory")
-parser.add_argument("filename", type=str, help="Filename")
-parser.add_argument(
-    "-e",
-    "--expt",
-    type=str,
-    choices=["standard", "ssx"],
-    default="standard",
-    help="Specify the type of collection. Defaults to standard.",
-)
-parser.add_argument(
-    "-o",
-    "--output",
-    type=str,
-    help="""
-    Output directory to save results
-    If not passed, the script will default to current working directory.
-    """,
-)
-parser.add_argument(
-    "-n",
-    "--nproc",
-    type=int,
-    help="The number of processes to use.",
-)
-parser.add_argument(
-    "-trig",
-    "--triggers",
-    type=str,
-    nargs="+",
-    default="all",
-    help="""
-    Specify which triggers to look for.
-    If not passed, will look at all the available ones for the experiment type.
-    """,
-)
-parser.add_argument(
-    "-m",
-    "--num-modules",
-    choices=["1M", "2M", "10M"],
-    default="10M",
-    type=str,
-    help="Number of detector modules.",
-)
-parser.add_argument(
-    "-nxs", "--nexus", type=str, help="Nexus filename if different from filename.nxs."
-)
-
-
 def cli():
+    # Define parser
+    parser = argparse.ArgumentParser(
+        usage=usage,
+        formatter_class=argparse.RawTextHelpFormatter,
+        description=__doc__,
+        epilog=epilog_message,
+        parents=[version_parser],
+    )
+    parser.add_argument("visitpath", type=str, help="Visit directory")
+    parser.add_argument("filename", type=str, help="Filename")
+    parser.add_argument(
+        "-e",
+        "--expt",
+        type=str,
+        choices=["standard", "ssx"],
+        default="standard",
+        help="Specify the type of collection. Defaults to standard.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        help="""
+        Output directory to save results
+        If not passed, the script will default to current working directory.
+        """,
+    )
+    parser.add_argument(
+        "-n",
+        "--nproc",
+        type=int,
+        help="The number of processes to use.",
+    )
+    parser.add_argument(
+        "-trig",
+        "--triggers",
+        type=str,
+        nargs="+",
+        default="all",
+        help="""
+        Specify which triggers to look for.
+        If not passed, will look at all the available ones for the experiment type.
+        """,
+    )
+    parser.add_argument(
+        "-m",
+        "--num-modules",
+        choices=["1M", "2M", "10M"],
+        default="10M",
+        type=str,
+        help="Number of detector modules.",
+    )
+    parser.add_argument(
+        "-nxs",
+        "--nexus",
+        type=str,
+        help="Nexus filename if different from filename.nxs.",
+    )
     tic = time.time()
     args = parser.parse_args()
 
