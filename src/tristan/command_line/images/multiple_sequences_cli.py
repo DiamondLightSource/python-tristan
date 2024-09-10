@@ -23,6 +23,7 @@ from ...data import (
     event_time_key,
     latrd_data,
     pixel_index,
+    time_bin_key,
     valid_events,
 )
 from .. import check_multiple_output_files, data_files, triggers
@@ -150,13 +151,13 @@ def main(args):
             events_data[event_location_key], image_size
         )
 
-        columns = event_location_key, "time_bin"
+        columns = event_location_key, time_bin_key
         dtypes = events_data.dtypes
-        dtypes["time_bin"] = dtypes.pop(event_time_key)
+        dtypes[time_bin_key] = dtypes.pop(event_time_key)
         meta = pd.DataFrame(columns=columns).astype(dtype=dtypes)
         # Enumerate the image in the stack to which each event belongs.
         events_data = events_data.map_partitions(find_time_bins, bins=bins, meta=meta)
-        events_data["time_bin"] += sequence * num_images
+        events_data[time_bin_key] += sequence * num_images
         events_data = events_data[valid]
 
         # Bin to images, partition by partition.

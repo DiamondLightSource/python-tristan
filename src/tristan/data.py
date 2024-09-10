@@ -23,6 +23,7 @@ event_time_key = "event_time_offset"
 event_energy_key = "event_energy"
 # Key for pixel index data, converted from event_id to index in flattened image array.
 pixel_index_key = "pixel_index"
+time_bin_key = "time_bin"
 
 cue_keys = cue_id_key, cue_time_key
 event_keys = event_location_key, event_time_key, event_energy_key

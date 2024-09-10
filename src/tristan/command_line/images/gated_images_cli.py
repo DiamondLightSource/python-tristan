@@ -23,6 +23,7 @@ from ...data import (
     event_time_key,
     latrd_data,
     pixel_index,
+    time_bin_key,
     valid_events,
 )
 from .. import check_output_file, data_files, triggers
@@ -147,14 +148,14 @@ def main(args):
         # Convert the event IDs to a form that is suitable for a NumPy bincount.
         data[event_location_key] = pixel_index(data[event_location_key], image_size)
 
-        columns = event_location_key, "time_bin"
+        columns = event_location_key, time_bin_key
         dtypes = data.dtypes
-        dtypes["time_bin"] = dtypes.pop(event_time_key)
+        dtypes[time_bin_key] = dtypes.pop(event_time_key)
 
         meta = pd.DataFrame(columns=columns).astype(dtype=dtypes)
         # Enumerate the image in the stack to which each event belongs
         data = data.map_partitions(find_time_bins, bins=bins, meta=meta)
-        data["time_bin"] = open_index
+        data[time_bin_key] = open_index
         data = data[valid]
 
         # Bin to images, partition by partition.

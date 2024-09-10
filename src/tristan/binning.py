@@ -20,8 +20,10 @@ from .data import (
     event_time_key,
     image_dtype,
     pixel_index,
+    pixel_index_key,
     shutter_close,
     shutter_open,
+    time_bin_key,
     valid_events,
 )
 from .storage import IAddArray
@@ -146,7 +148,7 @@ def find_time_bins(data: pd.DataFrame, bins: Sequence[int]):
     elif num_images:
         data[event_time_key] = 0
 
-    return data.rename(columns={event_time_key: "time_bin"})
+    return data.rename(columns={event_time_key: time_bin_key})
 
 
 def make_images(coords: ArrayLike, shape: tuple[int, ...]) -> sparse.COO:
@@ -257,7 +259,8 @@ def events_to_images(
     # Convert the event IDs to a form that is suitable for a NumPy bincount.
     data[event_location_key] = pixel_index(data[event_location_key], image_size)
 
-    columns = event_location_key, "time_bin"
+    # Metadata for mapping find_time_bins across partitions.
+    columns = pixel_index_key, time_bin_key
     dtypes = data.dtypes
     dtypes["time_bin"] = dtypes.pop(event_time_key)
     meta = pd.DataFrame(columns=columns).astype(dtype=dtypes)
