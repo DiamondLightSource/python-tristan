@@ -1,14 +1,13 @@
 import sys
+from logging import ERROR
 
 import h5py
 import numpy as np
 import zarr
-from dask.diagnostics import ProgressBar
-from dask.distributed import Client
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import copy_tristan_nexus
 
-from ... import compute_with_progress
+from ... import WithLocalDistributedCluster, compute_with_progress
 from ...binning import align_bins, create_cache, events_to_images, find_start_end
 from ...data import (
     cue_keys,
@@ -17,12 +16,15 @@ from ...data import (
     event_time_dtype,
     event_time_key,
     first_cue_time,
-    latrd_data,
+    latrd_mf_data,
 )
 from .. import check_output_file, data_files, triggers
 from . import determine_image_size, exposure
 
 
+@WithLocalDistributedCluster(
+    processes=False, silence_logs=ERROR, dashboard_address=None
+)
 def main(args):
     """
     Utility for making multiple images from event-mode data.
@@ -44,43 +46,40 @@ def main(args):
 
     raw_files = data_files(args.data_dir, args.stem)
 
-    with latrd_data(raw_files, keys=cue_keys) as data:
-        print("Finding detector shutter open and close times.")
-        with ProgressBar():
-            start, end = map(int, find_start_end(data))
-        exposure_time, exposure_cycles, num_images = exposure(
-            start, end, args.exposure_time, args.num_images
+    cues_data = latrd_mf_data(raw_files, keys=cue_keys)
+
+    start, end = map(int, find_start_end(cues_data))
+    exposure_time, exposure_cycles, num_images = exposure(
+        start, end, args.exposure_time, args.num_images
+    )
+
+    if args.align_trigger:
+        trigger_type = triggers[args.align_trigger]
+        print(
+            f"Image start and end times will be chosen such that the first "
+            f"'{cues[trigger_type]}' after the detector shutter open signal is "
+            f"aligned with an image boundary."
         )
-
-        if args.align_trigger:
-            trigger_type = triggers[args.align_trigger]
-            print(
-                f"Image start and end times will be chosen such that the first "
-                f"'{cues[trigger_type]}' after the detector shutter open signal is "
-                f"aligned with an image boundary."
+        # Note we are assuming that the first trigger time is after shutter open.
+        trigger_time = first_cue_time(cues_data, trigger_type, after=start)
+        if trigger_time is None:
+            sys.exit(
+                f"Could not find a '{cues[trigger_type]}' signal after the "
+                f"detector shutter open signal."
             )
-            # Note we are assuming that the first trigger time is after shutter open.
-            trigger_time = first_cue_time(data, trigger_type, after=start)
-            if trigger_time is None:
-                sys.exit(
-                    f"Could not find a '{cues[trigger_type]}' signal after the "
-                    f"detector shutter open signal."
-                )
-            trigger_time = int(trigger_time.compute())
+        trigger_time = int(trigger_time.compute())
 
-            if args.exposure_time:
-                # Adjust the start time to align a bin edge with the trigger time.
-                n_bins_before = (trigger_time - start) // exposure_cycles
-                start = trigger_time - n_bins_before * exposure_cycles
-                num_images = (end - start) // exposure_cycles
-            # It is assumed that start ≤ trigger_time ≤ end.
-            else:
-                start, exposure_cycles = align_bins(
-                    start, trigger_time, end, num_images
-                )
+        if args.exposure_time:
+            # Adjust the start time to align a bin edge with the trigger time.
+            n_bins_before = (trigger_time - start) // exposure_cycles
+            start = trigger_time - n_bins_before * exposure_cycles
+            num_images = (end - start) // exposure_cycles
+        # It is assumed that start ≤ trigger_time ≤ end.
+        else:
+            start, exposure_cycles = align_bins(start, trigger_time, end, num_images)
 
-        end = start + num_images * exposure_cycles
-        bins = np.linspace(start, end, num_images + 1, dtype=event_time_dtype)
+    end = start + num_images * exposure_cycles
+    bins = np.linspace(start, end, num_images + 1, dtype=event_time_dtype)
 
     if input_nexus.exists():
         try:
@@ -107,21 +106,17 @@ def main(args):
     )
 
     # Make a cache for the images.
-    images = create_cache(output_file, num_images, image_size)
+    shape = num_images, *image_size
+    cache = create_cache(output_file, shape)
 
-    with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
-        data = events_to_images(data, bins, image_size, images)
+    events_data = latrd_mf_data(raw_files, keys=(event_location_key, event_time_key))
+    images = events_to_images(events_data, bins, shape, cache)
 
-        print("Computing the binned images.")
-        # Use multi-threading, rather than multi-processing.
-        with Client(processes=False):
-            compute_with_progress(data)
+    print("Computing the binned images.")
+    compute_with_progress(images)
 
     print("Transferring the images to the output file.")
     with h5py.File(output_file, write_mode) as f:
-        zarr.copy_all(zarr.open(images.store), f, **Bitshuffle())
-
-    # Delete the Zarr store.
-    images.store.clear()
+        zarr.copy_all(zarr.open(cache.store), f, **Bitshuffle())
 
     print(f"Images written to\n\t{output_nexus or output_file}")
