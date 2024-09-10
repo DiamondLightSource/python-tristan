@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Iterable
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 from dask import array as da
 from dask import dataframe as dd
@@ -14,10 +15,24 @@ from pint import Quantity
 
 from . import clock_frequency
 
+# Keys of cues and events data in the HDF5 file structure.
+cue_id_key = "cue_id"
+cue_time_key = "cue_timestamp_zero"
+event_location_key = "event_id"
+event_time_key = "event_time_offset"
+event_energy_key = "event_energy"
+# Key for pixel index data, converted from event_id to index in flattened image array.
+pixel_index_key = "pixel_index"
+
+cue_keys = cue_id_key, cue_time_key
+event_keys = event_location_key, event_time_key, event_energy_key
+
 # Types of the raw data.
 cue_dtype = np.uint16
+cue_time_dtype = np.uint64
 event_id_dtype = np.uint32
 event_time_dtype = np.uint64
+event_energy_dtype = np.uint32
 
 # Type for binned image data.
 image_dtype = np.uint32
@@ -66,18 +81,6 @@ cues = {
         for n in np.arange(1, 64, dtype=cue_dtype)
     },
 }
-
-# Keys of cues and events data in the HDF5 file structure.
-cue_id_key = "cue_id"
-cue_time_key = "cue_timestamp_zero"
-event_location_key = "event_id"
-event_time_key = "event_time_offset"
-event_energy_key = "event_energy"
-# Key for pixel index data, converted from event_id to index in flattened image array.
-pixel_index_key = "pixel_index"
-
-cue_keys = cue_id_key, cue_time_key
-event_keys = event_location_key, event_time_key, event_energy_key
 
 # The event_id represents the coordinates of the pixel at which the event was recorded.
 # The n least significant bits represent the y coordinate and the n next least
@@ -154,13 +157,13 @@ def first_cue_time(
     if after:
         message_incidences &= data[cue_time_key] >= after
     first_index = message_incidences.idxmax().compute()
-    if first_index or data[cue_id_key].loc[0].compute().values == message:
+    if first_index or data[cue_id_key].head(1).item() == message:
         return data[cue_time_key].loc[first_index]
 
 
 def cue_times(
     data: dd.DataFrame,
-    message: int,
+    message: cue_dtype,
     after: int | None = None,
     before: int | None = None,
 ) -> da.Array:
@@ -224,7 +227,9 @@ def valid_events(data: dd.DataFrame, start: int, end: int) -> dd.DataFrame:
     return data[valid]
 
 
-def pixel_index(data: dd.DataFrame, image_size: tuple[int, int]) -> dd.DataFrame:
+def pixel_index(
+    data: pd.DataFrame | dd.DataFrame, image_size: tuple[int, int]
+) -> pd.DataFrame | dd.DataFrame:
     """
     Extract pixel coordinate information from an event location (event_id) message.
 
