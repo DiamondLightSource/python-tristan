@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 import sparse
 import zarr
-from dask import array as da
 from dask import dataframe as dd
 from numpy.typing import ArrayLike
 
@@ -173,7 +172,7 @@ def make_images(coords: ArrayLike, shape: tuple[int, ...]) -> sparse.COO:
         shape:   The shape of the image or image stack.
     """
     # Get the shape of the image stack with the image axes flattened.
-    *slower_dims, x, y = shape
+    *slower_dims, y, x = shape
     flattened_shape = *slower_dims, x * y
     # Assign these events to pixels in the image stack, with the image axes flattened.
     image_data = sparse.COO(coords=coords, data=image_dtype(1), shape=flattened_shape)
