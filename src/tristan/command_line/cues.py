@@ -49,8 +49,8 @@ def main(args=None):
 
             print(
                 f"{cue_description}:"
-                f"Found {selection["size"].sum()} instances."
-                f"Found {selection["size"].count()} de-duplicated instances with"
+                f"Found {selection['size'].sum()} instances."
+                f"Found {selection['size'].count()} de-duplicated instances with"
                 f"\tsmallest time difference: {min_diff} cycles "
                 f"({seconds(min_diff):.3g~#P}),"
                 f"\tlargest time difference: {max_diff} cycles "
