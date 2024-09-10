@@ -138,7 +138,7 @@ def latrd_mf_data(paths: Iterable[str | Path], keys: Iterable[str]) -> dd.DataFr
 
 
 def first_cue_time(
-    data: dd.DataFrame, message: int, after: int | None = None
+    data: dd.DataFrame, message: cue_dtype, after: cue_time_dtype | None = None
 ) -> dd.DataFrame | None:
     """
     Find the timestamp of the first instance of a cue message in a Tristan data set.
