@@ -1,6 +1,7 @@
 """
 Run a quick check to diagnose possible asynchronicity between the shutter timestamps and events timestamps.
 """
+
 from __future__ import annotations
 
 import argparse

@@ -1,6 +1,7 @@
 """
 Check that all files from all detector modules contain valid data.
 """
+
 from __future__ import annotations
 
 import argparse

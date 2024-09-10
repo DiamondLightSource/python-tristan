@@ -1,6 +1,7 @@
 """
 Run a quick check on trigger signals recorded in a Tristan collection.
 """
+
 from __future__ import annotations
 
 import argparse
