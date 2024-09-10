@@ -1,26 +1,29 @@
 import sys
+from logging import ERROR
 from operator import mul
 
 import h5py
-import numpy as np
 from dask import array as da
-from dask.diagnostics import ProgressBar
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import copy_tristan_nexus
 
-from tristan.binning import find_start_end
-from tristan.command_line import check_output_file, data_files
-from tristan.command_line.images import determine_image_size
-from tristan.data import (
+from ... import WithLocalDistributedCluster, compute_with_progress
+from ...binning import find_start_end
+from ...data import (
     cue_keys,
     event_location_key,
     event_time_key,
-    latrd_data,
+    image_dtype,
+    latrd_mf_data,
     pixel_index,
+    pixel_index_key,
     valid_events,
 )
+from .. import check_output_file, data_files
+from . import determine_image_size
 
 
+@WithLocalDistributedCluster(processes=False, silence_logs=ERROR)
 def main(args):
     """Utility for making a single image from event-mode data."""
     write_mode = "w" if args.force else "x"
@@ -52,25 +55,30 @@ def main(args):
 
     raw_files = data_files(args.data_dir, args.stem)
 
-    print("Finding detector shutter open and close times.")
-    with latrd_data(raw_files, keys=cue_keys) as data, ProgressBar():
-        start, end = find_start_end(data)
+    cues_data = latrd_mf_data(raw_files, keys=cue_keys)
+    start, end = find_start_end(cues_data)
+
+    events_data = latrd_mf_data(raw_files, keys=(event_location_key, event_time_key))
+    # Select only those events happening between shutter open and  shutter close.
+    events_data = valid_events(events_data, start, end)
+    # Convert each event_id to the index of the pixel in the flattened image array.
+    events_data = pixel_index(events_data, image_size)
+    # Bin to a single image
+    image = da.bincount(events_data[pixel_index_key], minlength=mul(*image_size))
 
     print("Binning events into a single image.")
-    with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
-        data = valid_events(data, start, end)
-        data[event_location_key] = pixel_index(data[event_location_key], image_size)
-        image = da.bincount(data[event_location_key], minlength=mul(*image_size))
-        image = image.astype(np.uint32).reshape(1, *image_size)
+    (image,) = compute_with_progress(image, gather=True)
+    image = image.reshape(image_size).astype(image_dtype)
 
-        with ProgressBar(), h5py.File(output_file, write_mode) as f:
-            data_set = f.require_dataset(
-                "data",
-                shape=image.shape,
-                dtype=image.dtype,
-                chunks=image.chunksize,
-                **Bitshuffle(),
-            )
-            image.store(data_set)
+    image_stack_shape = (1, *image_size)
+    with h5py.File(output_file, write_mode) as f:
+        f.require_dataset(
+            "data",
+            shape=image_stack_shape,
+            dtype=image.dtype,
+            chunks=image_stack_shape,
+            **Bitshuffle(),
+        )
+        f["data"][()] = image
 
     print(f"Image written to\n\t{output_nexus or output_file}")
