@@ -9,7 +9,6 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 import xarray as xr
-from dask import array as da
 from dask import dataframe as dd
 from pint import Quantity
 
@@ -175,7 +174,7 @@ def cue_times(
     message: cue_dtype,
     after: int | None = None,
     before: int | None = None,
-) -> da.Array:
+) -> np.ndarray:
     """
     Find the timestamps of all instances of a cue message in a Tristan data set.
 
