@@ -13,42 +13,15 @@ from dask import array as da
 from dask import dataframe as dd
 from numpy.typing import ArrayLike
 
-from . import compute_with_progress
 from .data import (
-    cue_id_key,
     event_time_key,
     image_dtype,
     pixel_index,
     pixel_index_key,
-    shutter_close,
-    shutter_open,
     time_bin_key,
     valid_events,
 )
 from .storage import IAddArray
-
-
-def find_start_end(data: dd.DataFrame) -> tuple[int, int]:
-    """
-    Find the shutter open and shutter close timestamps.
-
-    Args:
-        data:  LATRD data.  Must contain one 'cue_id' entry and one
-               'cue_timestamp_zero' entry.  The two arrays are assumed to have the
-               same length.
-
-    Returns:
-        The shutter open and shutter close timestamps, in clock cycles.
-    """
-    selection = (data[cue_id_key] == shutter_open) | (data[cue_id_key] == shutter_close)
-    shutter_times = data[selection]
-    print("Finding detector shutter open and close times.")
-    (shutter_times,) = compute_with_progress(shutter_times, gather=True)
-    shutter_times.drop_duplicates(inplace=True)
-    shutter_times.set_index(cue_id_key, inplace=True)
-    start, end = shutter_times.loc[[shutter_open, shutter_close]].values
-
-    return start, end
 
 
 def align_bins(start: int, align: int, end: int, n_bins: int) -> tuple[int, int]:

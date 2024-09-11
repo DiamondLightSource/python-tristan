@@ -7,13 +7,14 @@ from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import copy_tristan_nexus
 
 from ... import WithLocalDistributedCluster, compute_with_progress
-from ...binning import align_bins, create_cache, events_to_images, find_start_end
+from ...binning import align_bins, create_cache, events_to_images
 from ...data import (
     cue_keys,
     cues,
     event_location_key,
     event_time_dtype,
     event_time_key,
+    find_start_end,
     first_cue_time,
     latrd_mf_data,
 )
