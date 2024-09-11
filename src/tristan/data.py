@@ -217,7 +217,7 @@ def find_start_end(data: dd.DataFrame) -> tuple[int, int]:
     (shutter_times,) = compute_with_progress(shutter_times, gather=True)
     shutter_times.drop_duplicates(inplace=True)
     shutter_times.set_index(cue_id_key, inplace=True)
-    start, end = shutter_times.loc[[shutter_open, shutter_close]].values
+    start, end = shutter_times.loc[[shutter_open, shutter_close]].values.squeeze()
 
     return start, end
 
