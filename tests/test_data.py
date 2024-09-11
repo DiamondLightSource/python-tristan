@@ -7,6 +7,7 @@ import pandas as pd
 import pint
 import pytest
 from dask import dataframe as dd
+from dask.distributed import Client
 
 from tristan.data import (
     cue_dtype,
@@ -38,19 +39,14 @@ def test_first_cue_time(dummy_data):
     """Test the utility for finding the first timestamp of a given cue."""
     data = latrd_mf_data(sorted(dummy_data.iterdir()), cue_keys)
     # Check that we can find the correct timestamp for a given cue message.
-    assert (first_cue_time(data, 0) == 6).compute().bool
+    with Client(processes=False, dashboard_address=None):
+        assert first_cue_time(data, 0) == 2
 
-    # first_cue_time uses da.argmax, which can return zero either if the first
-    # entry in a boolean array is True, or if no entry is.  We must check that we
-    # distinguish these cases.
-    # First, check that the timestamp is found correctly even if the first
-    # instance of the desired cue message is the very first cue in the data.
-    first_cue_message = data[cue_id_key].head(1).item()
-    assert (first_cue_time(data, first_cue_message) == 7).compute().bool
-    # Next, check that searching for a cue message that does not appear in the data
-    # results in no returned timestamp.
+    # Check that searching for a cue message that does not appear in the data results in
+    # no returned timestamp.
     assert random_range not in data.cue_id.values.compute()
-    assert first_cue_time(data, random_range) is None
+    with Client(processes=False, dashboard_address=None):
+        assert first_cue_time(data, random_range) is None
 
 
 def test_cue_times(dummy_data):

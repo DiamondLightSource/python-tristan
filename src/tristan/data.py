@@ -13,7 +13,7 @@ from dask import array as da
 from dask import dataframe as dd
 from pint import Quantity
 
-from . import clock_frequency
+from . import clock_frequency, compute_with_progress
 
 # Keys of cues and events data in the HDF5 file structure.
 cue_id_key = "cue_id"
@@ -139,7 +139,7 @@ def latrd_mf_data(paths: Iterable[str | Path], keys: Iterable[str]) -> dd.DataFr
 
 def first_cue_time(
     data: dd.DataFrame, message: cue_dtype, after: cue_time_dtype | None = None
-) -> dd.DataFrame | None:
+) -> cue_time_dtype | None:
     """
     Find the timestamp of the first instance of a cue message in a Tristan data set.
 
@@ -157,9 +157,17 @@ def first_cue_time(
     message_incidences = data[cue_id_key] == message
     if after:
         message_incidences &= data[cue_time_key] >= after
-    first_index = message_incidences.idxmax().compute()
-    if first_index or data[cue_id_key].head(1).item() == message:
-        return data[cue_time_key].loc[first_index]
+    cue_times = data[cue_time_key][message_incidences]
+
+    print(f"Finding first incidence of {cues.get(message, message)}.")
+    (cue_times,) = compute_with_progress(cue_times, gather=True)
+
+    cue_times.sort_values(inplace=True)
+    first_cue_time = cue_times.head(1)
+    if not first_cue_time.empty:
+        return first_cue_time.item()
+    else:
+        return None
 
 
 def cue_times(
