@@ -1,5 +1,4 @@
 import sys
-from logging import ERROR
 from operator import mul
 
 import h5py
@@ -23,9 +22,7 @@ from .. import check_output_file, data_files
 from . import determine_image_size
 
 
-@WithLocalDistributedCluster(
-    processes=False, silence_logs=ERROR, dashboard_address=None
-)
+@WithLocalDistributedCluster()
 def main(args):
     """Utility for making a single image from event-mode data."""
     write_mode = "w" if args.force else "x"

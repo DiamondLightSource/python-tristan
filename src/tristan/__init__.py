@@ -8,6 +8,8 @@ Source.
 
 from __future__ import annotations
 
+from logging import ERROR
+
 __author__ = "Diamond Light Source — Data Analysis Group"
 __email__ = "dataanalysis@diamond.ac.uk"
 __version__ = "0.3.2"
@@ -24,14 +26,14 @@ ureg = pint.UnitRegistry()
 clock_frequency = ureg.Quantity(6.4e8, "Hz").to_compact()
 
 
-class WithLocalDistributedCluster(Client, ContextDecorator):
+class WithLocalDistributedCluster(ContextDecorator):
     """
     A decorator to run a function in a distributed.Client context.
 
     Example:
         Using this decorator like so
 
-        >>> @WithLocalDistributedCluster(processes=False)
+        >>> @WithLocalDistributedCluster()
         ... def foo(*args):
         ...     ...
 
@@ -41,6 +43,20 @@ class WithLocalDistributedCluster(Client, ContextDecorator):
         ...     with Client(processes=False):
         ...         ...
     """
+
+    def __init__(self):
+        self._client = None
+        super().__init__()
+
+    def __enter__(self):
+        self._client = Client(
+            processes=False, silence_logs=ERROR, dashboard_address=None
+        )
+        self._client.__enter__()
+
+    def __exit__(self):
+        if self._client:
+            self._client.__exit__()
 
 
 def compute_with_progress(*collection, gather=False):

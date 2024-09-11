@@ -1,5 +1,4 @@
 import sys
-from logging import ERROR
 
 import h5py
 import numpy as np
@@ -22,9 +21,7 @@ from .. import check_output_file, data_files, triggers
 from . import determine_image_size, exposure
 
 
-@WithLocalDistributedCluster(
-    processes=False, silence_logs=ERROR, dashboard_address=None
-)
+@WithLocalDistributedCluster()
 def main(args):
     """
     Utility for making multiple images from event-mode data.
@@ -67,7 +64,7 @@ def main(args):
                 f"Could not find a '{cues[trigger_type]}' signal after the "
                 f"detector shutter open signal."
             )
-        trigger_time = int(trigger_time.compute())
+        trigger_time = int(trigger_time)
 
         if args.exposure_time:
             # Adjust the start time to align a bin edge with the trigger time.
