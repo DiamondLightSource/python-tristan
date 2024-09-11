@@ -196,7 +196,8 @@ def cue_times(
         index &= data[cue_time_key] >= after
     if before:
         index &= data[cue_time_key] <= before
-    return da.unique(data[cue_time_key][index].values)
+    (cue_times,) = compute_with_progress(data[cue_time_key][index], gather=True)
+    return np.unique(cue_times.values)
 
 
 def find_start_end(data: dd.DataFrame) -> tuple[int, int]:
