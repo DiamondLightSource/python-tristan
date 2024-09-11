@@ -109,7 +109,7 @@ def main(args):
     shape = num_images, *image_size
     cache = create_cache(output_file, shape)
 
-    events_data = latrd_mf_data(raw_files, keys=(event_location_key, event_time_key))
+    events_data = latrd_mf_data(raw_files, keys=(event_time_key, event_location_key))
     images = events_to_images(events_data, bins, shape, cache)
 
     print("Computing the binned images.")
