@@ -68,14 +68,11 @@ def dummy_latrd_data(path_factory):
         event_time_key: event_time_dtype,
         event_energy_key: event_energy_dtype,
     }
-    all_values = [
-        {
+    for i in range(1, 4):
+        values = {
             key: np.random.randint(random_range, size=10, dtype=dtype)
             for key, dtype in dtypes.items()
         }
-        for _ in range(3)
-    ]
-    for i, values in enumerate(all_values, 1):
         with h5py.File(tmp_path / (f"dummy_{i:06d}.h5"), "w") as f:
             f.update(values)
 
