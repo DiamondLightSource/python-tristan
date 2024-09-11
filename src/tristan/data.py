@@ -154,12 +154,12 @@ def first_cue_time(
         The timestamp, measured in clock cycles from the global synchronisation signal.
         If the message doesn't exist in the data set, this returns None.
     """
-    message_incidences = data[cue_id_key] == message
+    message_instances = data[cue_id_key] == message
     if after:
-        message_incidences &= data[cue_time_key] >= after
-    cue_times = data[cue_time_key][message_incidences]
+        message_instances &= data[cue_time_key] >= after
+    cue_times = data[cue_time_key][message_instances]
 
-    print(f"Finding first incidence of {cues.get(message, message)}.")
+    print(f"Finding first instance of {cues.get(message, message)}.")
     (cue_times,) = compute_with_progress(cue_times, gather=True)
 
     cue_times.sort_values(inplace=True)
