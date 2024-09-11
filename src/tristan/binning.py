@@ -16,7 +16,6 @@ from numpy.typing import ArrayLike
 from . import compute_with_progress
 from .data import (
     cue_id_key,
-    cue_time_key,
     event_time_key,
     image_dtype,
     pixel_index,
@@ -42,10 +41,12 @@ def find_start_end(data: dd.DataFrame) -> tuple[int, int]:
         The shutter open and shutter close timestamps, in clock cycles.
     """
     selection = (data[cue_id_key] == shutter_open) | (data[cue_id_key] == shutter_close)
-    shutter_times = data[cue_time_key][selection].drop_duplicates()
+    shutter_times = data[selection]
     print("Finding detector shutter open and close times.")
     (shutter_times,) = compute_with_progress(shutter_times, gather=True)
-    start, end = sorted(shutter_times.values)
+    shutter_times.drop_duplicates(inplace=True)
+    shutter_times.set_index(cue_id_key, inplace=True)
+    start, end = shutter_times.loc[[shutter_open, shutter_close]].values
 
     return start, end
 
