@@ -1,3 +1,11 @@
+"""
+Bin events into images, gated with trigger signals.
+
+Events will be binned into as many images as there are gate signals, one image per gate.
+Each 'gate-open' signal is taken as the start of an exposure and the next 'gate-close'
+signal is taken as the end of the exposure.
+"""
+
 import sys
 
 import dask

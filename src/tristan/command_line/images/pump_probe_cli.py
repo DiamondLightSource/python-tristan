@@ -1,3 +1,11 @@
+"""
+Bin events into images representing different pump-probe delays.
+
+With LATRD data from a pump-probe experiment, where the pump signal has a fairly
+constant repeat rate, bin events into a stack of images spanning the range of pump-probe
+delay times, from shortest to longest.
+"""
+
 import sys
 
 import h5py

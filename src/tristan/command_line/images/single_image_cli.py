@@ -1,3 +1,7 @@
+"""
+Aggregate all the events from a LATRD Tristan data collection into a single image.
+"""
+
 import sys
 from operator import mul
 

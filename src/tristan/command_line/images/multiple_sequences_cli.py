@@ -1,3 +1,14 @@
+"""
+Bin events into several sequences of images, each corresponding to a different
+pump-probe delay time interval.
+
+With LATRD data from a pump-probe experiment, where the pump signal has a fairly
+constant repeat rate, the recorded events are separated into groups corresponding to the
+time elapsed since the most recent pump trigger signal.  Each group is binned into a
+sequence of chronological images.  Each sequence is saved to a separate output file,
+numbered from the shortest pump-probe delay to the longest.
+"""
+
 import sys
 from contextlib import ExitStack
 

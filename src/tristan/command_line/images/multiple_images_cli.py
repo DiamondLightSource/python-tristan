@@ -1,3 +1,5 @@
+"""Bin the events from a LATRD Tristan data collection into multiple images."""
+
 import sys
 
 import h5py
