@@ -29,7 +29,10 @@ def determine_image_size(nexus_file: Path) -> tuple[int, int]:
 
 
 def exposure(
-    start: int, end: int, exposure_time: pint.Quantity = None, num_images: int = None
+    start: int,
+    end: int,
+    exposure_time: pint.Quantity | None = None,
+    num_images: int | None = None,
 ) -> tuple[pint.Quantity, int, int]:
     """
     Find the exposure time or number of images.
