@@ -57,6 +57,7 @@ def main(args):
     cues_data = latrd_mf_data(raw_files, keys=cue_keys)
     print("Finding trigger signal times.")
     trigger_times = cue_times(cues_data, trigger_type)
+    trigger_times = trigger_times.astype(np.int64)
 
     if not trigger_times.size:
         sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
@@ -102,7 +103,6 @@ def main(args):
     events_data = latrd_mf_data(raw_files, keys=keys)
     # Measure the event time as time elapsed since the most recent trigger signal.
     events_data = events_data.astype({event_time_key: np.int64})
-    trigger_times = trigger_times.astype(np.int64)
     events_data[event_time_key] -= events_data[event_time_key].map_partitions(
         find_preceding_bin_edge, bins=trigger_times, meta=(event_time_key, np.int64)
     )
