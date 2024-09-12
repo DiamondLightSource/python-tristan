@@ -9,6 +9,8 @@ sequence of chronological images.  Each sequence is saved to a separate output f
 numbered from the shortest pump-probe delay to the longest.
 """
 
+from __future__ import annotations
+
 import sys
 from contextlib import ExitStack
 from pathlib import Path

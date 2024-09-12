@@ -2,6 +2,8 @@
 Aggregate all the events from a LATRD Tristan data collection into a single image.
 """
 
+from __future__ import annotations
+
 import sys
 from operator import mul
 

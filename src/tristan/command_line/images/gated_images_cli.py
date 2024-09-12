@@ -6,6 +6,8 @@ Each 'gate-open' signal is taken as the start of an exposure and the next 'gate-
 signal is taken as the end of the exposure.
 """
 
+from __future__ import annotations
+
 import sys
 
 import dask

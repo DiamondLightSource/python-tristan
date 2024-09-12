@@ -6,6 +6,8 @@ constant repeat rate, bin events into a stack of images spanning the range of pu
 delay times, from shortest to longest.
 """
 
+from __future__ import annotations
+
 import sys
 
 import h5py
