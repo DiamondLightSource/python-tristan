@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from typing import Iterable
 
+import dask
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -98,6 +99,9 @@ ts_key_regex = re.compile(r"ts_qty_module\d{2}")
 # Tristan data contain some junk data sets.  Ignore them when reading data files.
 ignored_datasets = ["data", "image", "raw_data"]
 
+# Dask chunksize.  Always work with chunks that can accommodate a 64-bit (8-byte) type.
+chunksize = int(Quantity(dask.config.get("array.chunk-size")).to_base_units().m / 8)
+
 
 def latrd_data(path: str | Path, keys: Iterable[str]) -> dd.DataFrame:
     """
@@ -114,8 +118,8 @@ def latrd_data(path: str | Path, keys: Iterable[str]) -> dd.DataFrame:
     Returns:
         The data from all the files.
     """
-    data = xr.open_dataset(path, chunks="auto", drop_variables=ignored_datasets)
-    return data[list(keys)].unify_chunks().to_dask_dataframe()[list(keys)]
+    data = xr.open_dataset(path, chunks=chunksize, drop_variables=ignored_datasets)
+    return data[list(keys)].to_dask_dataframe()[list(keys)]
 
 
 def latrd_mf_data(paths: Iterable[str | Path], keys: Iterable[str]) -> dd.DataFrame:
