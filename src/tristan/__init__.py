@@ -49,8 +49,7 @@ class WithLocalDistributedCluster(ContextDecorator):
 
     def __enter__(self, *args, **kwargs):
         self._client = Client(
-            processes=False,
-            silence_logs=ERROR,  # dashboard_address=None
+            processes=False, silence_logs=ERROR, dashboard_address=None
         )
         self._client.__enter__(*args, **kwargs)
 
