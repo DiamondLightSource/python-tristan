@@ -127,9 +127,9 @@ def find_time_bins(data: pd.DataFrame, bins: Sequence[int]):
 
     # Find the index of the image to which each event belongs.
     if num_images > 1:
-        data[event_time_key] = np.digitize(data[event_time_key], bins) - 1
+        data.loc[:, event_time_key] = np.digitize(data[event_time_key], bins) - 1
     elif num_images:
-        data[event_time_key] = 0
+        data.loc[:, event_time_key] = 0
 
     return data.rename(columns={event_time_key: time_bin_key})
 
