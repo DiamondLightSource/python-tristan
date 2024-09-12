@@ -92,6 +92,23 @@ def create_cache(output_file: Path | str, shape: tuple[int, ...]) -> zarr.Array:
     return IAddArray(store=array.store, path=array.path)
 
 
+def find_preceding_bin_edge_index(a: NDArray, bins: NDArray) -> NDArray:
+    """
+    From sorted bin edges, find the index of the bin edge preceding each value in an
+    array.
+
+    Args:
+        a:     An array of values for which we seek the the indices in ``bin`` of the
+               preceding bin edges.
+        bins:  A sorted array of bin edges.
+
+    Returns:
+        An array with the same length as ``a``.  Each entry is the index in ``bins`` of
+        the bin edge immediately preceding the corresponding entry in ``a``.
+    """
+    return np.digitize(a, bins) - 1
+
+
 def find_preceding_bin_edge(a: NDArray, bins: NDArray) -> NDArray:
     """
     From sorted bin edges, find the bin edge preceding each value in an array.
@@ -105,7 +122,7 @@ def find_preceding_bin_edge(a: NDArray, bins: NDArray) -> NDArray:
         An array with the same length as ``a``.  Each entry is the bin edge immediately
         preceding the corresponding entry in ``a``.
     """
-    return bins[np.digitize(a, bins) - 1]
+    return bins[find_preceding_bin_edge_index(a, bins)]
 
 
 def find_time_bins(data: pd.DataFrame, bins: Sequence[int]):

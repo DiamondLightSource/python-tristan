@@ -11,20 +11,27 @@ numbered from the shortest pump-probe delay to the longest.
 
 import sys
 from contextlib import ExitStack
+from pathlib import Path
+from typing import Literal
 
-import dask
 import h5py
 import numpy as np
 import pandas as pd
+import sparse
+import zarr
 from dask import array as da
-from dask import dataframe as dd
 from dask.diagnostics import ProgressBar
-from dask.distributed import Client
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import copy_tristan_nexus
 
-from ... import compute_with_progress
-from ...binning import create_cache, find_time_bins, make_images
+from ... import WithLocalDistributedCluster, compute_with_progress
+from ...binning import (
+    create_cache,
+    event_block_to_image_cache,
+    find_preceding_bin_edge,
+    find_preceding_bin_edge_index,
+    find_time_bins,
+)
 from ...data import (
     cue_keys,
     cue_times,
@@ -33,8 +40,10 @@ from ...data import (
     event_time_dtype,
     event_time_key,
     find_start_end,
-    latrd_data,
+    image_dtype,
+    latrd_mf_data,
     pixel_index,
+    pixel_index_key,
     time_bin_key,
     valid_events,
 )
@@ -43,6 +52,11 @@ from . import determine_image_size, exposure
 
 
 def main(args):
+    transfer_to_hdf5(*bin_image_sequences(args))
+
+
+@WithLocalDistributedCluster()
+def bin_image_sequences(args):
     """
     Utility for making multiple image sequences from a pump-probe data collection.
 
@@ -68,25 +82,19 @@ def main(args):
 
     trigger_type = triggers.get(args.trigger_type)
 
+    cues_data = latrd_mf_data(raw_files, keys=cue_keys)
     print("Finding trigger signal times.")
+    trigger_times = cue_times(cues_data, trigger_type)
+    trigger_times = trigger_times.astype(int)
 
-    with latrd_data(raw_files, keys=cue_keys) as cues_data:
-        trigger_times = cue_times(cues_data, trigger_type)
-        with ProgressBar():
-            trigger_times = trigger_times.astype(int).compute()
+    if not trigger_times.size:
+        sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
+    elif not trigger_times.size > 1:
+        sys.exit(f"Only one '{cues[trigger_type]}' signal found.  Two or more needed.")
 
-        if not trigger_times.size:
-            sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
-        elif not trigger_times.size > 1:
-            sys.exit(
-                f"Only one '{cues[trigger_type]}' signal found.  Two or more needed."
-            )
+    start, end = find_start_end(cues_data)
 
-        print("Finding detector shutter open and close times.")
-        with ProgressBar():
-            start, end = find_start_end(cues_data)
-
-    intervals_end = da.diff(trigger_times).min()
+    intervals_end = np.diff(trigger_times).min()
     interval_time, _, num_intervals = exposure(
         0, intervals_end, args.interval, args.num_sequences
     )
@@ -140,78 +148,89 @@ def main(args):
     else:
         output_nexus_pattern = None
 
-    # Make a cache for the images.
-    images = create_cache(out_file_pattern, num_intervals * num_images, image_size)
-
     # Get the events data.
-    events_keys = (event_location_key, event_time_key)
-    with latrd_data(raw_files, keys=events_keys) as events_data:
-        events_data = valid_events(events_data, start, end)
+    events_keys = event_time_key, event_location_key
+    events_data = latrd_mf_data(raw_files, keys=events_keys)
 
-        # Find the time elapsed since the most recent trigger signal.
-        event_time = events_data[event_time_key].astype(np.int64).values
-        trigger_index = da.digitize(event_time, trigger_times) - 1
-        pump_probe_time = event_time - da.take(trigger_times, trigger_index)
-        # Enumerate the sequence to which each event belongs.
-        sequence = da.digitize(pump_probe_time, interval_bins) - 1
-        # Eliminate invalid sequence numbers (negative, or ≥ num_intervals).
-        valid = (0 <= sequence) & (sequence < num_intervals)
-        valid = dd.from_dask_array(valid, index=events_data.index)
+    # Consider only those events that occur between the start and end times.
+    events_data = valid_events(events_data, bins[0], bins[-1])
+    # Convert the event IDs to a form that is suitable for a NumPy bincount.
+    events_data = pixel_index(events_data, image_size)
 
-        # Convert the event IDs to a form that is suitable for a NumPy bincount.
-        events_data[event_location_key] = pixel_index(
-            events_data[event_location_key], image_size
-        )
+    # Find the time elapsed since the most recent trigger signal.
+    events_data = events_data.astype({event_time_key: int})
+    pump_time = events_data[event_time_key].map_partitions(
+        find_preceding_bin_edge, bins=trigger_times, meta=(event_time_key, int)
+    )
+    pump_probe_time = events_data[event_time_key] - pump_time
+    # Enumerate the image sequence in the stack to which each event belongs.
+    events_data["sequence"] = pump_probe_time.map_partitions(
+        find_preceding_bin_edge_index, bins=interval_bins, meta=(event_time_key, int)
+    )
+    # Eliminate invalid sequence numbers (negative, or ≥ num_intervals).
+    valid_sequence = 0 <= events_data["sequence"]
+    valid_sequence &= events_data["sequence"] < num_intervals
+    events_data = events_data[valid_sequence]
 
-        columns = event_location_key, time_bin_key
-        dtypes = events_data.dtypes
-        dtypes[time_bin_key] = dtypes.pop(event_time_key)
-        meta = pd.DataFrame(columns=columns).astype(dtype=dtypes)
-        # Enumerate the image in the stack to which each event belongs.
-        events_data = events_data.map_partitions(find_time_bins, bins=bins, meta=meta)
-        events_data[time_bin_key] += sequence * num_images
-        events_data = events_data[valid]
+    # Metadata for mapping find_time_bins across partitions.
+    columns = [time_bin_key, pixel_index_key, "sequence"]
+    dtypes = events_data.dtypes
+    dtypes[time_bin_key] = dtypes.pop(event_time_key)
+    meta = pd.DataFrame(columns=columns).astype(dtype=dtypes)
+    # Determine the image within each stack to which each event belongs.
+    events_data = events_data.map_partitions(find_time_bins, bins=bins, meta=meta)
 
-        # Bin to images, partition by partition.
-        events_data = dd.map_partitions(
-            make_images,
-            events_data,
-            image_size,
-            images,
-            meta=meta,
-            enforce_metadata=False,
-        )
-        print("Computing the binned images.")
-        # Use multi-threading, rather than multi-processing.
-        with Client(processes=False):
-            compute_with_progress(events_data)
+    # Make a cache for the image sequence stack.
+    shape = num_intervals, num_images, *image_size
+    cache = create_cache(out_file_pattern, shape=shape)
 
-    print("Transferring the images to the output files.")
-    store = images.store
-    images = da.from_zarr(images)
-    stack_shape = num_intervals, num_images, *image_size
-    # Silence a large chunks warning, since we immediately rechunk to one-image chunks.
-    with dask.config.set(**{"array.slicing.split_large_chunks": False}):
-        images = images.reshape(stack_shape).rechunk((1, 1, *image_size))
-    images = list(images)
+    # Dummy metadata for dask.array.map_blocks.
+    empty_coords = np.empty(shape=(len(shape), 0), dtype=int)
+    empty_coo = sparse.COO(empty_coords, data=image_dtype(()), shape=shape)
+
+    # Set column order for binning.
+    columns = ["sequence", time_bin_key, pixel_index_key]
+
+    # Bin to images, partition by partition.
+    coords = events_data[columns].values.T
+    images = coords.map_blocks(
+        event_block_to_image_cache, shape=shape, cache=cache, meta=empty_coo
+    )
+    print("Computing the binned images.")
+    compute_with_progress(images)
+
+    return cache, output_files, output_nexus_pattern or out_file_pattern, write_mode
+
+
+def transfer_to_hdf5(
+    cache: zarr.Array,
+    output_files: list[Path | str],
+    output_pattern: Path | str,
+    write_mode: Literal["w"] | Literal["x"],
+):
+    """
+    Transfer the contents of the cached image stack into several HDF5 files, one per
+    image sequence.
+
+    This must be done outside the context of a ``dask.distributed.Client``, since it
+    requires the use of ``h5py.File`` objects, which cannot be serialised.
+    """
+    shape = cache.shape
+    dtype = cache.dtype
+    chunks = cache.chunks
+    separate_arrays = list(da.from_zarr(cache))
 
     # Multi-threaded copy from Zarr to HDF5.
     with ExitStack() as stack:
         files = (stack.enter_context(h5py.File(f, write_mode)) for f in output_files)
         dsets = [
             f.require_dataset(
-                "data",
-                shape=images[0].shape,
-                dtype=images[0].dtype,
-                chunks=images[0].chunksize,
-                **Bitshuffle(),
+                "data", shape=shape[1:], dtype=dtype, chunks=chunks[1:], **Bitshuffle()
             )
             for f in files
         ]
+        print("Transferring the images to the output files.")
         with ProgressBar():
-            da.store(images, dsets)
+            da.store(separate_arrays, dsets)
 
-    # Delete the Zarr store.
-    store.clear()
-
-    print(f"Images written to\n\t{output_nexus_pattern or out_file_pattern}")
+    print(f"Images written to\n\t{output_pattern}")
