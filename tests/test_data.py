@@ -60,14 +60,14 @@ def test_cue_times(dummy_data):
         data[cue_time_key][index].compute(), cue_time_dtype([7, 8, 0, 4, 2, 0])
     )
     # Check that cue_times finds and de-duplicates these timestamps.
-    np.testing.assert_array_equal(
-        cue_times(data, message).compute(), cue_time_dtype([0, 2, 4, 7, 8])
-    )
+    with Client(processes=False, dashboard_address=None):
+        message_times = cue_times(data, message)
+    np.testing.assert_array_equal(message_times, cue_time_dtype([0, 2, 4, 7, 8]))
 
     # Check that searching for a cue message that does not appear in the data
     # results in an empty array being returned.
-    times_of_absent_cue = cue_times(data, cue_dtype(random_range))
-    times_of_absent_cue.compute_chunk_sizes()
+    with Client(processes=False, dashboard_address=None):
+        times_of_absent_cue = cue_times(data, cue_dtype(random_range))
     assert not times_of_absent_cue.size
 
 
