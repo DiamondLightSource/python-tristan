@@ -99,8 +99,8 @@ ts_key_regex = re.compile(r"ts_qty_module\d{2}")
 # Tristan data contain some junk data sets.  Ignore them when reading data files.
 ignored_datasets = ["data", "image", "raw_data"]
 
-# Dask chunksize.  Always work with chunks that can accommodate a 64-bit (8-byte) type.
-chunksize = int(Quantity(dask.config.get("array.chunk-size")).to_base_units().m / 8)
+# Dask chunksize.  Work with chunks that can accommodate eight 64-bit (8-byte) types.
+chunksize = int(Quantity(dask.config.get("array.chunk-size")).to_base_units().m / 64)
 
 
 def latrd_data(path: str | Path, keys: Iterable[str]) -> dd.DataFrame:
