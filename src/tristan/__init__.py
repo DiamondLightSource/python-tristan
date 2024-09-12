@@ -44,19 +44,20 @@ class WithLocalDistributedCluster(ContextDecorator):
         ...         ...
     """
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         self._client = None
-        super().__init__()
+        super().__init__(*args, **kwargs)
 
-    def __enter__(self):
+    def __enter__(self, *args, **kwargs):
         self._client = Client(
-            processes=False, silence_logs=ERROR, dashboard_address=None
+            processes=False,
+            silence_logs=ERROR,  # dashboard_address=None
         )
-        self._client.__enter__()
+        self._client.__enter__(*args, **kwargs)
 
-    def __exit__(self):
+    def __exit__(self, *args, **kwargs):
         if self._client:
-            self._client.__exit__()
+            self._client.__exit__(*args, **kwargs)
 
 
 def compute_with_progress(*collection, gather=False):
