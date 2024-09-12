@@ -11,27 +11,24 @@ import sys
 import h5py
 import numpy as np
 import zarr
-from dask import array as da
-from dask.diagnostics import ProgressBar
-from dask.distributed import Client
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import copy_tristan_nexus
 
-from ... import compute_with_progress
-from ...binning import create_cache, events_to_images
+from ... import WithLocalDistributedCluster, compute_with_progress
+from ...binning import create_cache, events_to_images, find_preceding_bin_edge
 from ...data import (
     cue_keys,
     cue_times,
     cues,
     event_location_key,
-    event_time_dtype,
     event_time_key,
-    latrd_data,
+    latrd_mf_data,
 )
 from .. import check_output_file, data_files, triggers
 from . import determine_image_size, exposure
 
 
+@WithLocalDistributedCluster()
 def main(args):
     """
     Utility for making multiple images from a pump-probe data collection.
@@ -57,22 +54,19 @@ def main(args):
 
     trigger_type = triggers.get(args.trigger_type)
 
-    with latrd_data(raw_files, keys=cue_keys) as cues_data:
-        print("Finding trigger signal times.")
-        trigger_times = cue_times(cues_data, trigger_type)
-        with ProgressBar():
-            # Assumes the trigger times can be held in memory.
-            trigger_times = trigger_times.astype(int).compute()
+    cues_data = latrd_mf_data(raw_files, keys=cue_keys)
+    print("Finding trigger signal times.")
+    trigger_times = cue_times(cues_data, trigger_type)
 
     if not trigger_times.size:
         sys.exit(f"Could not find a '{cues[trigger_type]}' signal.")
     elif not trigger_times.size > 1:
         sys.exit(f"Only one '{cues[trigger_type]}' signal found.  Two or more needed.")
 
-    end = da.diff(trigger_times).min()
+    end = np.diff(trigger_times).min()
     exposure_time, num_images = args.exposure_time, args.num_images
     exposure_time, _, num_images = exposure(0, end, exposure_time, num_images)
-    bins = np.linspace(0, end, num_images + 1, dtype=event_time_dtype)
+    bins = np.linspace(0, end, num_images + 1, dtype=np.int64)
 
     if input_nexus.exists():
         try:
@@ -100,30 +94,27 @@ def main(args):
     )
 
     # Make a cache for the images.
-    images = create_cache(output_file, num_images, image_size)
+    shape = num_images, *image_size
+    images = create_cache(output_file, shape)
 
     # Get the events data.
-    keys = (event_location_key, event_time_key)
-    with latrd_data(raw_files, keys=keys) as events_data:
-        # Measure the event time as time elapsed since the most recent trigger signal.
-        events_data = events_data.astype({event_time_key: np.int64})
-        event_times = events_data[event_time_key].values
-        trigger_index = da.digitize(event_times, trigger_times) - 1
-        events_data[event_time_key] -= da.take(trigger_times, trigger_index)
+    keys = event_time_key, event_location_key
+    events_data = latrd_mf_data(raw_files, keys=keys)
+    # Measure the event time as time elapsed since the most recent trigger signal.
+    events_data = events_data.astype({event_time_key: np.int64})
+    trigger_times = trigger_times.astype(np.int64)
+    events_data[event_time_key] -= events_data[event_time_key].map_partitions(
+        find_preceding_bin_edge, bins=trigger_times, meta=(event_time_key, np.int64)
+    )
 
-        # Bin the events into images.
-        events_data = events_to_images(events_data, bins, image_size, images)
+    # Bin the events into images.
+    events_data = events_to_images(events_data, bins, shape, images)
 
-        print("Computing the binned images.")
-        # Use multi-threading, rather than multi-processing.
-        with Client(processes=False):
-            compute_with_progress(events_data)
+    print("Computing the binned images.")
+    compute_with_progress(events_data)
 
     print("Transferring the images to the output file.")
     with h5py.File(output_file, write_mode) as f:
         zarr.copy_all(zarr.open(images.store), f, **Bitshuffle())
-
-    # Delete the Zarr store.
-    images.store.clear()
 
     print(f"Images written to\n\t{output_nexus or output_file}")
