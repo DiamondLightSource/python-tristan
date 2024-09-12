@@ -10,20 +10,19 @@ from __future__ import annotations
 
 import sys
 
-import dask
 import h5py
 import numpy as np
-import pandas as pd
+import sparse
 import zarr
-from dask import array as da
-from dask import dataframe as dd
-from dask.diagnostics import ProgressBar
-from dask.distributed import Client
 from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import copy_tristan_nexus
 
-from ... import compute_with_progress
-from ...binning import create_cache, find_time_bins, make_images
+from ... import WithLocalDistributedCluster, compute_with_progress
+from ...binning import (
+    create_cache,
+    event_block_to_image_cache,
+    find_preceding_bin_edge_index,
+)
 from ...data import (
     cue_keys,
     cue_times,
@@ -32,7 +31,8 @@ from ...data import (
     event_time_dtype,
     event_time_key,
     find_start_end,
-    latrd_data,
+    image_dtype,
+    latrd_mf_data,
     pixel_index,
     time_bin_key,
     valid_events,
@@ -41,6 +41,7 @@ from .. import check_output_file, data_files, triggers
 from . import determine_image_size
 
 
+@WithLocalDistributedCluster()
 def main(args):
     """Utility to bin events into a sequence of images according to a gating signal."""
     write_mode = "w" if args.force else "x"
@@ -61,26 +62,20 @@ def main(args):
     gate_open = triggers.get(args.gate_open)
     gate_close = triggers.get(args.gate_close) or gate_open ^ (1 << 5)
 
-    with latrd_data(raw_files, keys=cue_keys) as cues_data:
-        print("Finding detector shutter open and close times.")
-        with ProgressBar():
-            start, end = find_start_end(cues_data)
+    cues_data = latrd_mf_data(raw_files, keys=cue_keys)
+    start, end = find_start_end(cues_data)
 
-        print("Finding gate signal times.")
-        # Here we assume no synchronization issues:
-        # falling edges always recorded after rising edges.
-        open_times = cue_times(cues_data, gate_open, after=start)
-        close_times = cue_times(cues_data, gate_close, before=end)
-        with ProgressBar():
-            open_times, close_times = dask.compute(open_times, close_times)
+    print("Finding gate signal times.")
+    # Here we assume no synchronization issues:
+    # falling edges always recorded after rising edges.
+    open_times = cue_times(cues_data, gate_open, after=start)
+    close_times = cue_times(cues_data, gate_close, before=end)
+    num_images = open_times.size
 
     if not open_times.size:
         sys.exit(f"Could not find a '{cues[gate_open]}' signal.")
     if not close_times.size:
         sys.exit(f"Could not find a '{cues[gate_close]}' signal.")
-
-    open_times = np.sort(open_times)
-    close_times = np.sort(close_times)
 
     if not open_times.size == close_times.size:
         # If size difference is just one, look for missing one right before/after
@@ -116,9 +111,6 @@ def main(args):
                     f"Number of '{cues[gate_close]}' signals: {close_times.size}\n"
                 )
 
-    num_images = open_times.size
-    bins = np.linspace(0, num_images, num_images + 1, dtype=event_time_dtype)
-
     if input_nexus.exists():
         try:
             # Write output NeXus file if we have an input NeXus file.
@@ -128,6 +120,7 @@ def main(args):
                 nbins=num_images,
                 write_mode=write_mode,
             )
+            pass
         except FileExistsError:
             sys.exit(
                 f"This output file already exists:\n\t"
@@ -141,49 +134,46 @@ def main(args):
     print(f"Binning events into {num_images} images.")
 
     # Make a cache for the images.
-    images = create_cache(output_file, num_images, image_size)
+    shape = num_images, *image_size
+    cache = create_cache(output_file, shape)
 
-    with latrd_data(raw_files, keys=(event_location_key, event_time_key)) as data:
-        # Consider only those events that occur between the start and end times.
-        data = valid_events(data, start, end)
+    events_data = latrd_mf_data(raw_files, keys=(event_time_key, event_location_key))
+    # Consider only those events that occur between the start and end times.
+    events_data = valid_events(events_data, start, end)
 
-        # Gate the events.
-        event_times = data[event_time_key].astype(np.int64).values
-        open_index = da.digitize(event_times, open_times) - 1
-        close_index = da.digitize(event_times, close_times)
-        # Look for events that happen after gate open and before gate close
-        # Eliminate invalid events by looking at the open and close index
-        valid = open_index == close_index
-        valid = dd.from_dask_array(valid, index=data.index)
+    # Gate the events.
+    event_times = events_data[event_time_key].astype(event_time_dtype)
+    meta = (event_time_key, event_time_dtype)
+    open_index = event_times.map_partitions(
+        find_preceding_bin_edge_index, bins=open_times, meta=meta
+    )
+    close_index = event_times.map_partitions(np.digitize, bins=close_times, meta=meta)
+    events_data = events_data.rename(columns={event_time_key: time_bin_key})
+    events_data[time_bin_key] = open_index
 
-        # Convert the event IDs to a form that is suitable for a NumPy bincount.
-        data[event_location_key] = pixel_index(data[event_location_key], image_size)
+    # Look for events that happen after gate open and before gate close
+    # Eliminate invalid events by looking at the open and close index
+    valid = open_index == close_index
+    events_data = events_data[valid]
 
-        columns = event_location_key, time_bin_key
-        dtypes = data.dtypes
-        dtypes[time_bin_key] = dtypes.pop(event_time_key)
+    # Convert the event IDs to indices of pixels in the flattened array.
+    events_data = pixel_index(events_data, image_size)
 
-        meta = pd.DataFrame(columns=columns).astype(dtype=dtypes)
-        # Enumerate the image in the stack to which each event belongs
-        data = data.map_partitions(find_time_bins, bins=bins, meta=meta)
-        data[time_bin_key] = open_index
-        data = data[valid]
+    # Dummy metadata for dask.array.map_blocks.
+    empty_coords = np.empty(shape=(len(shape), 0), dtype=int)
+    empty_coo = sparse.COO(empty_coords, data=image_dtype(()), shape=shape)
 
-        # Bin to images, partition by partition.
-        data = dd.map_partitions(
-            make_images, data, image_size, images, meta=meta, enforce_metadata=False
-        )
+    # Bin to images, partition by partition.
+    coords = events_data.values.T
+    events_data = coords.map_blocks(
+        event_block_to_image_cache, shape=shape, cache=cache, meta=empty_coo
+    )
 
-        print("Computing the binned images.")
-        # Use multi-threading, rather than multi-processing.
-        with Client(processes=False):
-            compute_with_progress(data)
+    print("Computing the binned images.")
+    compute_with_progress(events_data)
 
     print("Transferring the images to the output file.")
     with h5py.File(output_file, write_mode) as f:
-        zarr.copy_all(zarr.open(images.store), f, **Bitshuffle())
-
-    # Delete the Zarr store.
-    images.store.clear()
+        zarr.copy_all(zarr.open(cache.store), f, **Bitshuffle())
 
     print(f"Images written to\n\t{output_nexus or output_file}")
