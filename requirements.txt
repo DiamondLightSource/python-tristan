@@ -1,6 +1,7 @@
 dask==2024.8.2
 h5py==3.11.0
 hdf5plugin==5.0.0
+netcdf4==1.7.1
 nexgen==0.9.6
 numcodecs==0.13.0
 numpy==2.0.2
