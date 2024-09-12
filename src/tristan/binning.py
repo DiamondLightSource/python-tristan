@@ -11,7 +11,7 @@ import sparse
 import zarr
 from dask import array as da
 from dask import dataframe as dd
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 
 from .data import event_time_key, image_dtype, pixel_index, time_bin_key, valid_events
 from .storage import IAddArray
@@ -90,6 +90,22 @@ def create_cache(output_file: Path | str, shape: tuple[int, ...]) -> zarr.Array:
         synchronizer=zarr.ThreadSynchronizer(),
     )
     return IAddArray(store=array.store, path=array.path)
+
+
+def find_preceding_bin_edge(a: NDArray, bins: NDArray) -> NDArray:
+    """
+    From sorted bin edges, find the bin edge preceding each value in an array.
+
+    Args:
+        a:     An array of values for which corresponding preceding bin edges are
+               sought.
+        bins:  A sorted array of bin edges.
+
+    Returns:
+        An array with the same length as ``a``.  Each entry is the bin edge immediately
+        preceding the corresponding entry in ``a``.
+    """
+    return bins[np.digitize(a, bins) - 1]
 
 
 def find_time_bins(data: pd.DataFrame, bins: Sequence[int]):
