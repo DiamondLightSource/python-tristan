@@ -156,7 +156,7 @@ def bin_image_sequences(args):
 
     # Consider only those events that occur between the start and end times.
     events_data = valid_events(events_data, bins[0], bins[-1])
-    # Convert the event IDs to a form that is suitable for a NumPy bincount.
+    # Convert the event IDs to indices of pixels in the flattened array.
     events_data = pixel_index(events_data, image_size)
 
     # Find the time elapsed since the most recent trigger signal.
