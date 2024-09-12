@@ -178,7 +178,7 @@ def cue_times(
     """
     Find the timestamps of all instances of a cue message in a Tristan data set.
 
-    The found timestamps are de-duplicated.
+    The found timestamps are de-duplicated and sorted.
 
     Args:
         data:     A DataFrame of LATRD data.  Must contain one column for cue id
@@ -188,7 +188,7 @@ def cue_times(
 
     Returns:
         The timestamps, measured in clock cycles from the global synchronisation
-        signal, de-duplicated.
+        signal, de-duplicated and sorted in ascending order.
     """
     index = data[cue_id_key] == message
     if after:
