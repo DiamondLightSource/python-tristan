@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 from typing import Sequence
 
@@ -78,10 +79,15 @@ def create_cache(output_file: Path | str, shape: tuple[int, ...]) -> zarr.Array:
     Returns:
         The Zarr array.
     """
+    # Store in a zarr.TempStore, which will be torn down at exit.
     output_file = Path(output_file)
+    unique = uuid.uuid4()
+    prefix = f"{output_file.stem}-{unique}"
+    store = zarr.TempStore(prefix=prefix, suffix=".zarr", dir=".")
+
     chunks = *(1,) * len(shape[:-2]), *shape[-2:]
     array = zarr.zeros(
-        store=output_file.with_suffix(".zarr"),
+        store=store,
         path="data",
         shape=shape,
         chunks=chunks,
