@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import partial
+
 import numpy as np
 import pandas as pd
 import pint
@@ -100,7 +102,9 @@ def test_pixel_index():
 
 
 @pytest.mark.parametrize(
-    "pd_or_dd", (pd.DataFrame, dd.DataFrame.from_dict), ids=("Pandas", "Dask Dataframe")
+    "pd_or_dd",
+    (pd.DataFrame, partial(dd.from_dict, npartitions=1)),
+    ids=("Pandas", "Dask Dataframe"),
 )
 def test_single_pixel_index(pd_or_dd):
     """Test that pixel_index can decode a single pixel coordinate from an integer."""
