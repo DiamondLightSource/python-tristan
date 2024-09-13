@@ -110,9 +110,9 @@ def find_time_bins(data: pd.DataFrame, bins: Sequence[int]):
 
     # Find the index of the image to which each event belongs.
     if num_images > 1:
-        data.loc[:, event_time_key] = np.digitize(data[event_time_key], bins) - 1
+        data[event_time_key] = np.digitize(data[event_time_key], bins) - 1
     elif num_images:
-        data.loc[:, event_time_key] = 0
+        data[event_time_key] = 0
 
     return data.rename(columns={event_time_key: time_bin_key})
 
@@ -241,6 +241,6 @@ def events_to_images(
 
     # Bin to images, partition by partition.
     coords = data.values.T
-    return da.map_blocks(
-        event_block_to_image_cache, coords, shape=shape, cache=cache, meta=empty_coo
+    return coords.map_blocks(
+        event_block_to_image_cache, shape=shape, cache=cache, meta=empty_coo
     )
