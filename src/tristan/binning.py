@@ -1,49 +1,21 @@
 """Tools for binning events to images."""
+
 from __future__ import annotations
 
-from operator import mul
-from pathlib import Path
 from typing import Sequence
 
 import numpy as np
 import pandas as pd
-import zarr
+import sparse
+from dask import array as da
 from dask import dataframe as dd
-from dask import distributed
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 
-from .data import (
-    cue_id_key,
-    cue_time_key,
-    event_location_key,
-    event_time_key,
-    pixel_index,
-    shutter_close,
-    shutter_open,
-    valid_events,
-)
+from .data import event_time_key, image_dtype, pixel_index, time_bin_key, valid_events
+from .storage import IAddArray
 
 
-def find_start_end(data: dd.DataFrame) -> (int, int):
-    """
-    Find the shutter open and shutter close timestamps.
-
-    Args:
-        data:  LATRD data.  Must contain one 'cue_id' entry and one
-               'cue_timestamp_zero' entry.  The two arrays are assumed to have the
-               same length.
-
-    Returns:
-        The shutter open and shutter close timestamps, in clock cycles.
-    """
-    indices = (data[cue_id_key] == shutter_open) | (data[cue_id_key] == shutter_close)
-    times = data[cue_time_key][indices]
-    start, end = np.unique(times.compute())
-
-    return start, end
-
-
-def align_bins(start: int, align: int, end: int, n_bins: int) -> (int, int):
+def align_bins(start: int, align: int, end: int, n_bins: int) -> tuple[int, int]:
     """
     Divide an interval into a specified number of bins, aligning with a given value.
 
@@ -86,29 +58,37 @@ def align_bins(start: int, align: int, end: int, n_bins: int) -> (int, int):
     return start, bin_width
 
 
-def create_cache(
-    output_file: Path | str, num_images: int, image_size: tuple[int, int]
-) -> zarr.Array:
+def find_preceding_bin_edge_index(a: NDArray, bins: NDArray) -> NDArray:
     """
-    Make a Zarr array of zeros, suitable for using as an image binning cache.
-
-    The array will have shape (num_images, *image_size) and will be chunked by image,
-    i.e. the chunk shape will be (1, *image_size).
+    From sorted bin edges, find the index of the bin edge preceding each value in an
+    array.
 
     Args:
-        output_file:  Output file name.  Any file extension will be replaced with .zarr.
-        num_images:   The number of images in the array.
-        image_size:   The size of an image in the array.
+        a:     An array of values for which we seek the the indices in ``bin`` of the
+               preceding bin edges.
+        bins:  A sorted array of bin edges.
 
     Returns:
-
+        An array with the same length as ``a``.  Each entry is the index in ``bins`` of
+        the bin edge immediately preceding the corresponding entry in ``a``.
     """
-    shape = num_images, *image_size
-    chunks = 1, *image_size
-    output = Path(output_file).with_suffix(".zarr")
-    return zarr.zeros(
-        shape, chunks=chunks, dtype=np.int32, overwrite=True, store=output, path="data"
-    )
+    return np.digitize(a, bins) - 1
+
+
+def find_preceding_bin_edge(a: NDArray, bins: NDArray) -> NDArray:
+    """
+    From sorted bin edges, find the bin edge preceding each value in an array.
+
+    Args:
+        a:     An array of values for which corresponding preceding bin edges are
+               sought.
+        bins:  A sorted array of bin edges.
+
+    Returns:
+        An array with the same length as ``a``.  Each entry is the bin edge immediately
+        preceding the corresponding entry in ``a``.
+    """
+    return bins[find_preceding_bin_edge_index(a, bins)]
 
 
 def find_time_bins(data: pd.DataFrame, bins: Sequence[int]):
@@ -123,8 +103,8 @@ def find_time_bins(data: pd.DataFrame, bins: Sequence[int]):
                timestamps).
 
     Returns:
-        A DataFrame which matches the input data except that the
-        ``event_time_offset`` column is replaced with a column of ``time_bin`` indices.
+        A DataFrame which matches the input data except that the ``event_time_offset``
+        column is replaced with a column of ``time_bin`` indices.
     """
     num_images = len(bins) - 1
 
@@ -134,86 +114,133 @@ def find_time_bins(data: pd.DataFrame, bins: Sequence[int]):
     elif num_images:
         data[event_time_key] = 0
 
-    return data.rename(columns={event_time_key: "time_bin"})
+    return data.rename(columns={event_time_key: time_bin_key})
 
 
-def make_images(data: pd.DataFrame, image_size: tuple[int, int], cache: ArrayLike):
+def make_images(coords: ArrayLike, shape: tuple[int, ...]) -> sparse.COO:
     """
     Bin LATRD events data into images of event counts.
 
-    Given a collection of events data, a known image shape and an array of the
-    desired time bin edges, make an image for each time bin, representing the number
-    of events recorded at each pixel.  Add the binned images to an array representing
-    the full image stack.
+    Given an array of events data, and a known shape of the image or stack of images to
+    which the events should be binned, bin the events to images, with pixel intensities
+    recording the number of events recorded at each pixel.
+
+    ``shape`` should have length ``n_dims`` ≥ 2, representing the dimensions of the
+    image or stack of images.  Events will first be binned into a (stack of) flattened
+    image(s), i.e. having dimensions ``(*shape[:-2], shape[-2] * shape[-1])`` before
+    being reshaped to ``shape``.
+
+    ``coords`` should have shape ``(n_dims - 1, n_events)``, where ``n_events`` is the
+    number of events.  The last column, ``coords[-1]``, should contain each event's
+    pixel index in the flattened array of the image (i.e. for a 20px × 30px image, the
+    values would run from 0 to 599).
 
     Args:
-        data:        LATRD data.  Must have an ``event_id`` column and an
-                    ``image_index`` column.
-        image_size:  The (y, x), i.e. (slow, fast) dimensions (number of pixels) of
-                     the image.
-        cache:       Array representing the image stack, to which the binned events
-                     should be added.  This might be a Zarr array, in which case it
-                     functions as an on-disk cache of the binned images.
+        coords:  The coordinates of each event.
+        shape:   The shape of the image or image stack.
     """
-    # Construct a stack of images using dask.array.bincount and add them to the cache.
-    for image_index in data["time_bin"].unique():
-        image_index = int(image_index)  # Convert to a serialisable type.
-        locations = data[event_location_key][data["time_bin"] == image_index]
-        pixel_counts = np.bincount(locations, minlength=mul(*image_size))
-        pixel_counts = pixel_counts.astype(np.uint32).reshape(image_size)
-        with distributed.Lock(image_index):
-            # Beware!  When the cache is a Zarr array, using inplace addition (+=)
-            # here means the locking fails to prevent the race condition of multiple
-            # make_images calls in separate threads accessing the same chunk of the
-            # cache simultaneously.  Presumably this is due to Zarr releasing the GIL
-            # before it has finished flushing the result of the inplace addition to
-            # disk.
-            cache[image_index] = cache[image_index] + pixel_counts
+    # Get the shape of the image stack with the image axes flattened.
+    *slower_dims, y, x = shape
+    flattened_shape = *slower_dims, x * y
+    # Assign these events to pixels in the image stack, with the image axes flattened.
+    image_data = sparse.COO(coords=coords, data=image_dtype(1), shape=flattened_shape)
+    # Reshape the image data to the true shape of the image stack.
+    return image_data.reshape(shape)
 
-    return pd.DataFrame(columns=data.columns)
+
+def cache_array(array: ArrayLike | sparse.COO, cache: ArrayLike) -> None:
+    """
+    Cache the contents of ``array`` in ``cache`` by addition.
+
+    If ``array`` is a ``sparse.COO``, write to the cache more efficiently by writing
+    only the non-null data.
+
+    Args:
+        array:  Array to be added to the cache.  This may be sparse.
+        cache:  Cache to which ``array`` should be added.  This must be dense.  This may
+                be a Zarr array or HDF5 dataset, if an on-disk cache is necessary.  If a
+                tristan.storage.IAddArray, the inplace addition sycnhronisation method
+                will be used.
+    """
+    # If cache is an IAddArray, use thread-safe inplace addition.
+    if isinstance(array, sparse.COO):
+        index = tuple(array.coords)
+        array = array.data
+        if isinstance(cache, IAddArray):
+            cache.iadd_coordinate_selection(index, array)
+        else:
+            cache[index] += array
+    else:
+        cache[...] += array
+
+    return None
+
+
+def event_block_to_image_cache(
+    coords: ArrayLike, shape: tuple[int, ...], cache: ArrayLike
+):
+    """
+    Bin a chunk of events to a partial image or image stack and cache the result.
+
+    Args:
+        coords:  The coordinates of each event.
+        shape:   The shape of the image or image stack.
+        cache:   Cache to which ``array`` should be added.  This must be dense.  This may
+                 be a Zarr array or HDF5 dataset, if an on-disk cache is necessary.  If a
+                 tristan.storage.IAddArray, the inplace addition sycnhronisation method
+                 will be used.
+    """
+    return cache_array(make_images(coords, shape), cache)
 
 
 def events_to_images(
-    data: dd.DataFrame,
-    bins: Sequence[int],
-    image_size: tuple[int, int],
-    cache: ArrayLike,
-) -> dd.DataFrame:
+    data: dd.DataFrame, bins: Sequence[int], shape: tuple[int, ...], cache: ArrayLike
+) -> da.Array:
     """
     Construct a stack of images from events data.
 
-    From a sequence of LATRD events data, bin the events to images and store the
-    binned images in a cache array.  The cache may be backed with on-disk storage,
-    as in the case of a Zarr array, or may be a simple in-memory object, like a NumPy
-    array.
+    From a sequence of LATRD events data, bin the events to images and store the binned
+    images in a cache array.  The cache may be backed with on-disk storage, as in the
+    case of a Zarr array, or may be a simple in-memory object, like a NumPy array.
 
     Args:
-        data:        LATRD events data.  Must have an ``event_time_offset`` column
-                     and an ``event_id`` column.
-        bins:        The time bin edges of the images (in clock cycles, to match the
-                     event timestamps).
-        image_size:  The size of each image.
-        cache:       An array representing the eventual image stack, having shape
-                     ``(len(bins) - 1, *image_size)``, to which the pixel counts from
-                     this binning operation will be added.
+        data:   LATRD events data.  Must have columns ``event_id`` and
+                ``event_time_offset``.  Column order must be the order of dimensions in
+                the resulting image array, i.e. ``(..., event_time_offset, event_id)``
+                where ``...`` are optional extra columns.  The number of columns should
+                be one fewer than the length of ``shape`` becasue ``event_id`` is
+                decoded into two dimensions, the slow and fast axes of the image.
+        bins:   The time bin edges of the images (in clock cycles, to match the event
+                timestamps).
+        shape:  The shape of the image stack.
+        cache:  An array representing the eventual image stack, having shape
+                ``(len(bins) - 1, *image_size)``, to which the pixel counts from this
+                binning operation will be added.
 
     Returns:
         A Dask collection representing the lazy image binning computation.
     """
     # Consider only those events that occur between the start and end times.
     data = valid_events(data, bins[0], bins[-1])
-    # Convert the event IDs to a form that is suitable for a NumPy bincount.
-    data[event_location_key] = pixel_index(data[event_location_key], image_size)
+    # Convert the event IDs to indices of pixels in the flattened array.
+    data = pixel_index(data, shape[-2:])
 
-    columns = event_location_key, "time_bin"
+    # Metadata for mapping find_time_bins across partitions.
+    columns = [
+        time_bin_key if column == event_time_key else column for column in data.columns
+    ]
     dtypes = data.dtypes
-    dtypes["time_bin"] = dtypes.pop(event_time_key)
+    dtypes[time_bin_key] = dtypes.pop(event_time_key)
     meta = pd.DataFrame(columns=columns).astype(dtype=dtypes)
+    # Determine time bins.
     data = data.map_partitions(find_time_bins, bins=bins, meta=meta)
 
-    # Bin to images, partition by partition.
-    data = dd.map_partitions(
-        make_images, data, image_size, cache, meta=meta, enforce_metadata=False
-    )
+    # Dummy metadata for dask.array.map_blocks.
+    empty_coords = np.empty(shape=(len(shape), 0), dtype=int)
+    empty_coo = sparse.COO(empty_coords, data=image_dtype(()), shape=shape)
 
-    return data
+    # Bin to images, partition by partition.
+    coords = data.values.T
+    return coords.map_blocks(
+        event_block_to_image_cache, shape=shape, cache=cache, meta=empty_coo
+    )

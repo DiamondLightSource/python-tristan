@@ -2,6 +2,8 @@
 Logging configuration for Tristan diagnostics.
 """
 
+from __future__ import annotations
+
 import logging
 import logging.config
 

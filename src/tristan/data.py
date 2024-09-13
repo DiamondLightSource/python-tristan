@@ -3,40 +3,57 @@
 from __future__ import annotations
 
 import re
-from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import Iterable
 
 import dask
-import h5py
 import numpy as np
-from dask import array as da
+import pandas as pd
+import xarray as xr
 from dask import dataframe as dd
-from numpy.typing import ArrayLike
 from pint import Quantity
 
-from . import clock_frequency, ureg
+from . import clock_frequency, compute_with_progress
 
-# Regex for the names of data sets, in the time slice metadata file, representing the
-# distribution of time slices across raw data files for each module.
-ts_key_regex = re.compile(r"ts_qty_module\d{2}")
+# Keys of cues and events data in the HDF5 file structure.
+cue_id_key = "cue_id"
+cue_time_key = "cue_timestamp_zero"
+event_location_key = "event_id"
+event_time_key = "event_time_offset"
+event_energy_key = "event_energy"
+# Key for pixel index data, converted from event_id to index in flattened image array.
+pixel_index_key = "pixel_index"
+time_bin_key = "time_bin"
+
+cue_keys = cue_id_key, cue_time_key
+event_keys = event_location_key, event_time_key, event_energy_key
+
+# Types of the raw data.
+cue_dtype = np.uint16
+cue_time_dtype = np.uint64
+event_id_dtype = np.uint32
+event_time_dtype = np.uint64
+event_energy_dtype = np.uint32
+
+# Type for binned image data.
+image_dtype = np.uint32
 
 # Translations of the basic cue_id messages.
-padding = np.uint16(0)
-extended_timestamp = np.uint16(0x800)
-shutter_open = np.uint16(0x840)
-shutter_close = np.uint16(0x880)
-fem_falling = np.uint16(0x8C1)
-fem_rising = np.uint16(0x8E1)
-ttl_falling = np.uint16(0x8C9)
-ttl_rising = np.uint16(0x8E9)
-lvds_falling = np.uint16(0x8CA)
-lvds_rising = np.uint16(0x8EA)
-tzero_falling = np.uint16(0x8CB)
-tzero_rising = np.uint16(0x8EB)
-sync_falling = np.uint16(0x8CC)
-sync_rising = np.uint16(0x8EC)
-reserved = np.uint16(0xF00)
+padding = cue_dtype(0)
+extended_timestamp = cue_dtype(0x800)
+shutter_open = cue_dtype(0x840)
+shutter_close = cue_dtype(0x880)
+fem_falling = cue_dtype(0x8C1)
+fem_rising = cue_dtype(0x8E1)
+ttl_falling = cue_dtype(0x8C9)
+ttl_rising = cue_dtype(0x8E9)
+lvds_falling = cue_dtype(0x8CA)
+lvds_rising = cue_dtype(0x8EA)
+tzero_falling = cue_dtype(0x8CB)
+tzero_rising = cue_dtype(0x8EB)
+sync_falling = cue_dtype(0x8CC)
+sync_rising = cue_dtype(0x8EC)
+reserved = cue_dtype(0xF00)
 cues = {
     padding: "Padding",
     extended_timestamp: "Extended time stamp, global synchronisation",
@@ -52,8 +69,8 @@ cues = {
     tzero_rising: "Clock trigger TZERO input, rising edge",
     sync_falling: "Clock trigger SYNC input, falling edge",
     sync_rising: "Clock trigger SYNC input, rising edge",
-    np.uint16(0xBC6): "Error: messages out of sync",
-    np.uint16(0xBCA): "Error: messages out of sync",
+    cue_dtype(0xBC6): "Error: messages out of sync",
+    cue_dtype(0xBCA): "Error: messages out of sync",
     reserved: "Reserved",
     **{
         basic + n: f"{name} time stamp, sensor module {n}"
@@ -62,68 +79,70 @@ cues = {
             (shutter_open, "Shutter open"),
             (shutter_close, "Shutter close"),
         )
-        for n in np.arange(1, 64, dtype=np.uint16)
+        for n in np.arange(1, 64, dtype=cue_dtype)
     },
 }
 
-# Keys of cues and events data in the HDF5 file structure.
-cue_id_key = "cue_id"
-cue_time_key = "cue_timestamp_zero"
-event_location_key = "event_id"
-event_time_key = "event_time_offset"
-event_energy_key = "event_energy"
+# The event_id represents the coordinates of the pixel at which the event was recorded.
+# The n least significant bits represent the y coordinate and the n next least
+# significant bits represent the x coordinate.  Record the value of n here as
+# coordinate_bitdepth.
+coordinate_bitdepth = 13
 
-cue_keys = cue_id_key, cue_time_key
-event_keys = event_location_key, event_time_key, event_energy_key
-
+# Key for the image shape data set in the input NeXus file.
 nx_size_key = "entry/instrument/detector/module/data_size"
 
+# Regex for the names of data sets, in the time slice metadata file, representing the
+# distribution of time slices across raw data files for each module.
+ts_key_regex = re.compile(r"ts_qty_module\d{2}")
 
-@contextmanager
-def latrd_data(
-    raw_file_paths: Iterable[str | Path],
-    keys: Iterable[str] = cue_keys + event_keys,
-) -> dd.DataFrame | dict[str, da.Array]:
+# Tristan data contain some junk data sets.  Ignore them when reading data files.
+ignored_datasets = ["data", "image", "raw_data"]
+
+# Dask chunksize.  Work with chunks that can accommodate eight 64-bit (8-byte) types.
+chunksize = int(Quantity(dask.config.get("array.chunk-size")).to_base_units().m / 64)
+
+
+def latrd_data(path: str | Path, keys: Iterable[str]) -> dd.DataFrame:
     """
-    A context manager to read LATRD data sets from multiple files.
+    Read LATRD data sets from a file of raw Tristan events data.
 
-    The yielded DataFrame has a column for each of the specified LATRD data keys.
-    Each key must be a valid LATRD data key and the chosen data sets must all have the
-    same length.  The data will be rechunked into partitions approximately the size of
-    the default Dask array chunk size, but with chunk boundaries aligned with HDF5
-    file boundaries.
+    The returned DataFrame has a column for each of the specified LATRD data keys. Each
+    key must be a valid LATRD data key and the corresponding data sets must all have the
+    same length.
 
     Args:
-        raw_file_paths:  The paths of the raw LATRD data files.
-        keys:  The set of LATRD data keys to be read.
+        paths:  The path to the raw LATRD data file.
+        keys:   The set of LATRD data keys to read.
 
-    Yields:
+    Returns:
         The data from all the files.
     """
-    with ExitStack() as stack:
-        files = [stack.enter_context(h5py.File(p, swmr=True)) for p in raw_file_paths]
+    data = xr.open_dataset(path, chunks=chunksize, drop_variables=ignored_datasets)
+    return data[list(keys)].to_dask_dataframe()[list(keys)]
 
-        # Determine an appropriate block size for a Dask DataFrame of these data,
-        # remembering to leave room for a 64-bit index.
-        row_size = sum(files[0][k].dtype.itemsize for k in keys)
-        block_size = ureg.Quantity(dask.config.get("array.chunk-size"))
-        block_length = int(block_size.m_as("B") / row_size)
 
-        # Construct a single Dask DataFrame from the specified keys.
-        data = {
-            k: da.concatenate([da.from_array(f[k], chunks=block_length) for f in files])
-            for k in keys
-        }
-        data = dd.concat(
-            [dd.from_dask_array(v, columns=k) for k, v in data.items()], axis=1
-        )
+def latrd_mf_data(paths: Iterable[str | Path], keys: Iterable[str]) -> dd.DataFrame:
+    """
+    Read LATRD data sets from multiple files of raw Tristan events data.
 
-        yield data
+    The returned DataFrame has a column for each of the specified LATRD data keys. Each
+    key must be a valid LATRD data key and the corresponding data sets must all have the
+    same length.
+
+    Args:
+        paths:  The paths to the raw LATRD data files.
+        keys:   The set of LATRD data keys to read.
+
+    Returns:
+        The data from all the files.
+    """
+    return dd.concat([latrd_data(path, keys) for path in paths], axis="index")
 
 
 def first_cue_time(
-    data: dd.DataFrame, message: int, after: int | None = None
-) -> dd.DataFrame | None:
+    data: dd.DataFrame, message: cue_dtype, after: cue_time_dtype | None = None
+) -> cue_time_dtype | None:
     """
     Find the timestamp of the first instance of a cue message in a Tristan data set.
 
@@ -138,24 +157,32 @@ def first_cue_time(
         The timestamp, measured in clock cycles from the global synchronisation signal.
         If the message doesn't exist in the data set, this returns None.
     """
-    message_incidences = data[cue_id_key] == message
+    message_instances = data[cue_id_key] == message
     if after:
-        message_incidences &= data[cue_time_key] >= after
-    first_index = message_incidences.idxmax().compute()
-    if first_index or data[cue_id_key].loc[0].compute().values == message:
-        return data[cue_time_key].loc[first_index]
+        message_instances &= data[cue_time_key] >= after
+    cue_times = data[cue_time_key][message_instances]
+
+    print(f"Finding first instance of {cues.get(message, message)}.")
+    (cue_times,) = compute_with_progress(cue_times, gather=True)
+
+    cue_times.sort_values(inplace=True)
+    first_cue_time = cue_times.head(1)
+    if not first_cue_time.empty:
+        return first_cue_time.item()
+    else:
+        return None
 
 
 def cue_times(
     data: dd.DataFrame,
-    message: int,
+    message: cue_dtype,
     after: int | None = None,
     before: int | None = None,
-) -> da.Array:
+) -> np.ndarray:
     """
     Find the timestamps of all instances of a cue message in a Tristan data set.
 
-    The found timestamps are de-duplicated.
+    The found timestamps are de-duplicated and sorted.
 
     Args:
         data:     A DataFrame of LATRD data.  Must contain one column for cue id
@@ -165,14 +192,38 @@ def cue_times(
 
     Returns:
         The timestamps, measured in clock cycles from the global synchronisation
-        signal, de-duplicated.
+        signal, de-duplicated and sorted in ascending order.
     """
     index = data[cue_id_key] == message
     if after:
         index &= data[cue_time_key] >= after
     if before:
         index &= data[cue_time_key] <= before
-    return da.unique(data[cue_time_key][index].values)
+    (cue_times,) = compute_with_progress(data[cue_time_key][index], gather=True)
+    return np.unique(cue_times.values)
+
+
+def find_start_end(data: dd.DataFrame) -> tuple[int, int]:
+    """
+    Find the shutter open and shutter close timestamps.
+
+    Args:
+        data:  LATRD data.  Must contain one 'cue_id' entry and one
+               'cue_timestamp_zero' entry.  The two arrays are assumed to have the
+               same length.
+
+    Returns:
+        The shutter open and shutter close timestamps, in clock cycles.
+    """
+    selection = (data[cue_id_key] == shutter_open) | (data[cue_id_key] == shutter_close)
+    shutter_times = data[selection]
+    print("Finding detector shutter open and close times.")
+    (shutter_times,) = compute_with_progress(shutter_times, gather=True)
+    shutter_times.drop_duplicates(inplace=True)
+    shutter_times.set_index(cue_id_key, inplace=True)
+    start, end = shutter_times.loc[[shutter_open, shutter_close]].values.squeeze()
+
+    return start, end
 
 
 def seconds(timestamp: int, reference: int = 0) -> Quantity:
@@ -212,31 +263,38 @@ def valid_events(data: dd.DataFrame, start: int, end: int) -> dd.DataFrame:
     return data[valid]
 
 
-def pixel_index(location: ArrayLike, image_size: tuple[int, int]) -> ArrayLike:
+def pixel_index(
+    data: pd.DataFrame | dd.DataFrame, image_size: tuple[int, int]
+) -> pd.DataFrame | dd.DataFrame:
     """
     Extract pixel coordinate information from an event location (event_id) message.
 
-    Translate a Tristan event location message to the index of the corresponding
-    pixel in the flattened image array (i.e. numbered from zero, in row-major order).
+    Translate a Tristan event location message to the index of the corresponding pixel
+    in the flattened image array (i.e. numbered from zero, in row-major order).
 
     The pixel coordinates of an event on a Tristan detector are encoded in a 32-bit
-    integer location message (the event_id) with 26 bits of useful information.
-    Extract the y coordinate (the 13 least significant bits) and the x coordinate
-    (the 13 next least significant bits).  Find the corresponding pixel index in the
-    flattened image array by multiplying the y value by the size of the array in x,
-    and adding the x value.
+    integer location message (the event_id) with 2n bits of useful information. Extract
+    the y coordinate (the n least significant bits) and the x coordinate (the n next
+    least significant bits).  The value of n is recorded as
+    ``tristan.data.coordinate_bitdepth`` and is usually 13. Find the corresponding pixel
+    index in the flattened image array by multiplying the y value by the size of the
+    array in x, and adding the x value.
 
-    This function calls the Python built-in divmod and so can be broadcast over
-    array-like data structures.
+    In the resulting dataframe, the ``"event_id""`` column is replaced with a column
+    named ``"pixel_index"``, with values, encoding the positions of each pixel in the
+    flattened image array.
 
     Args:
-        location:    Event location message (an integer).
+        data:        A Dask DataFrame, having a column named ``event_location_key``.
         image_size:  Shape of the image array in (y, x), i.e. (slow, fast).
 
     Returns:
-        Index in the flattened image array of the pixel where the event occurred.
+        A Dask DataFrame like the input ``data`` but having the new ``"pixel_index"``
+        column in place of the old ``"event_id"`` column.
     """
-    x, y = divmod(location, np.uint32(0x2000))
+    x, y = divmod(data[event_location_key], event_id_dtype(1 << coordinate_bitdepth))
     # The following is equivalent to, but a little simpler than,
-    # return da.ravel_multi_index((y, x), image_size)
-    return x + y * image_size[1]
+    # data[event_location_key] = da.ravel_multi_index((y, x), image_size)
+    data[event_location_key] = x + y * image_size[1]
+
+    return data.rename(columns={event_location_key: pixel_index_key})

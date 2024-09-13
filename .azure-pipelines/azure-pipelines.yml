@@ -13,7 +13,7 @@ stages:
   - job: checks
     displayName: static code analysis
     pool:
-      vmImage: ubuntu-20.04
+      vmImage: ubuntu-latest
     steps:
       # Use Python >=3.10 for syntax validation
     - task: UsePythonVersion@0
@@ -39,7 +39,7 @@ stages:
   - job: build
     displayName: build package
     pool:
-      vmImage: ubuntu-20.04
+      vmImage: ubuntu-latest
     steps:
     - task: UsePythonVersion@0
       displayName: Set up python
@@ -78,13 +78,15 @@ stages:
   jobs:
   - job: linux
     pool:
-      vmImage: ubuntu-20.04
+      vmImage: ubuntu-latest
     strategy:
       matrix:
         python310:
           PYTHON_VERSION: 3.10
         python311:
           PYTHON_VERSION: 3.11
+        python312:
+          PYTHON_VERSION: 3.12
     steps:
     - template: ci.yml
 
@@ -97,7 +99,7 @@ stages:
   - job: pypi
     displayName: Publish pypi release
     pool:
-      vmImage: ubuntu-20.04
+      vmImage: ubuntu-latest
     steps:
     - checkout: none
 

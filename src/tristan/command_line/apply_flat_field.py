@@ -16,6 +16,8 @@ import numpy as np
 from dask import array as da
 from dask.diagnostics import ProgressBar
 
+from ..data import image_dtype
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
     "input_file",
@@ -86,7 +88,7 @@ def main(args: list[str] | None = None) -> None:
             # Multiply or divide the images by the flat-field correction.
             func = dict(zip(choices, [mul, truediv]))[args.method]
             images = func(images, np.where(flat_field, flat_field, 1))
-            images = images.astype(np.uint32)
+            images = images.astype(image_dtype)
             h.require_dataset(
                 "data",
                 shape=images.shape,

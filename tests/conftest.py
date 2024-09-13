@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+# Some platforms seem to raise OSError: [Errno -101] NetCDF: HDF error:
+# '/tmp/pytest-of-vsts/pytest-0/dummy_data1/dummy_000001.h5'
+# Importing netCDF4 before h5py here seems to fix it.  ¯\_(ツ)_/¯
+from netCDF4 import Dataset  # noqa F401
+
 import os
 from contextlib import contextmanager
 from pathlib import Path
@@ -8,7 +13,18 @@ import h5py
 import numpy as np
 import pytest
 
-from tristan.data import cue_keys, event_keys
+from tristan.data import (
+    cue_dtype,
+    cue_id_key,
+    cue_time_dtype,
+    cue_time_key,
+    event_energy_dtype,
+    event_energy_key,
+    event_id_dtype,
+    event_location_key,
+    event_time_dtype,
+    event_time_key,
+)
 
 random_range = 10
 
@@ -48,12 +64,22 @@ def dummy_latrd_data(path_factory):
         A temporary directory containing dummy data files.
     """
     tmp_path = path_factory.mktemp("dummy_data")
-    # Seed for a consistent pseudo-random array.
+    # Seed for consistent pseudo-random arrays.
     np.random.seed(0)
-    all_values = np.random.randint(random_range, size=150).reshape(3, 5, 10)
-    for i, values in enumerate(all_values, 1):
-        with h5py.File(tmp_path / ("dummy_%06d.h5" % i), "w") as f:
-            f.update(dict(zip(cue_keys + event_keys, values)))
+    dtypes = {
+        cue_id_key: cue_dtype,
+        cue_time_key: cue_time_dtype,
+        event_location_key: event_id_dtype,
+        event_time_key: event_time_dtype,
+        event_energy_key: event_energy_dtype,
+    }
+    for i in range(1, 4):
+        values = {
+            key: np.random.randint(random_range, size=10, dtype=dtype)
+            for key, dtype in dtypes.items()
+        }
+        with h5py.File(tmp_path / (f"dummy_{i:06d}.h5"), "w") as f:
+            f.update(values)
 
     yield tmp_path
 

@@ -1,3 +1,4 @@
 [tool.isort]
+known_netcdf4 = "netCDF4"
 profile = "black"
-sections = "FUTURE,STDLIB,THIRDPARTY,FIRSTPARTY,LOCALFOLDER"
+sections = "FUTURE,NETCDF4,STDLIB,THIRDPARTY,FIRSTPARTY,LOCALFOLDER"

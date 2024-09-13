@@ -5,8 +5,10 @@ from __future__ import annotations
 import argparse
 
 import numpy as np
+from dask.distributed import Client
 
-from ..data import cue_keys, cues, latrd_data, reserved, seconds
+from .. import compute_with_progress
+from ..data import cue_keys, cue_time_key, cues, latrd_mf_data, reserved, seconds
 from . import data_files, input_parser, version_parser
 
 parser = argparse.ArgumentParser(
@@ -20,38 +22,43 @@ def main(args=None):
 
     raw_files = data_files(args.data_dir, args.stem)
 
-    with latrd_data(raw_files, keys=cue_keys) as data:
-        relevant = (data.cue_id > 0) & (data.cue_id != reserved)
-        cue_ids = data.cue_id[relevant].compute()
-        cue_times = data.cue_timestamp_zero[relevant].compute()
+    data = latrd_mf_data(raw_files, keys=cue_keys)
+    relevant = (data.cue_id > 0) & (data.cue_id != reserved)
+    data = data[relevant]
+    # Deduplicate identical cues with the same timestamp, but keep a count of them.
+    data = data.groupby(data.columns.tolist()).size()
+    print("Gathering the cue messages:")
+    with Client(processes=False):
+        (data,) = compute_with_progress(data, gather=True)
 
-    unique_cues = np.sort(np.unique(cue_ids))
+    data.rename("size", inplace=True)
+    data.sort_index(inplace=True)
+    data = data.reset_index(level=cue_time_key)
 
     print("\nSummary of cue messages:")
 
-    for cue in unique_cues:
+    for cue in data.index.unique():
         cue_description = cues.get(cue, f"Unknown (0x{cue:04x})")
-        cues_sel = cue_ids == cue
-        cue_times_sel = cue_times[cues_sel]
-        deduplicated = np.sort(np.unique(cue_times_sel))
+        selection = data.loc[[cue]]
 
-        if deduplicated.size > 1:
-            time_diffs = np.diff(deduplicated)
+        if len(selection) > 1:
+            time_diffs = np.diff(selection[cue_time_key])
             min_diff = time_diffs.min()
             max_diff = time_diffs.max()
-            avg_diff = time_diffs.mean()
+            mean_diff = time_diffs.mean()
 
             print(
-                f"""
-{cue_description}:
-Found {cue_times_sel.size} instances.
-Found {deduplicated.size} de-duplicated instances with
-\tsmallest time difference: {min_diff} cycles ({seconds(min_diff):.3g~#P}),
-\tlargest time difference: {max_diff} cycles ({seconds(max_diff):.3g~#P}),
-\tmean time difference: {avg_diff:.2f} cycles ({seconds(avg_diff):.3g~#P})."""
+                f"{cue_description}:"
+                f"Found {selection['size'].sum()} instances."
+                f"Found {selection['size'].count()} de-duplicated instances with"
+                f"\tsmallest time difference: {min_diff} cycles "
+                f"({seconds(min_diff):.3g~#P}),"
+                f"\tlargest time difference: {max_diff} cycles "
+                f"({seconds(max_diff):.3g~#P}),"
+                f"\tmean time difference: {mean_diff:.2f} cycles "
+                f"({seconds(mean_diff):.3g~#P})."
             )
-        elif cue_times_sel.size > 1:
-            n = cue_times_sel.size
+        elif (n := selection["size"].item()) > 1:
             print(
                 f"\n{cue_description}:  Found {n} instances,\n"
                 f"\tall with the same time stamp."

@@ -13,30 +13,62 @@ __email__ = "dataanalysis@diamond.ac.uk"
 __version__ = "0.3.2"
 __version_tuple__ = tuple(int(x) for x in __version__.split("."))
 
+from contextlib import ContextDecorator
+from logging import ERROR
+
 import dask
 import pint
-from dask.distributed import progress, wait
+from dask.distributed import Client, progress, wait
 
 ureg = pint.UnitRegistry()
 
 clock_frequency = ureg.Quantity(6.4e8, "Hz").to_compact()
 
 
-def compute_with_progress(collection):
+class WithLocalDistributedCluster(ContextDecorator):
     """
-    Compute a Dask collection, showing the progress of the top layer of the task graph.
+    A decorator to run a function in a distributed.Client context.
+
+    Example:
+        Using this decorator like so
+
+        >>> @WithLocalDistributedCluster()
+        ... def foo(*args):
+        ...     ...
+
+        is equivalent to
+
+        >>> def foo(*args):
+        ...     with Client(processes=False):
+        ...         ...
+    """
+
+    def __init__(self, *args, **kwargs):
+        self._client = None
+        super().__init__(*args, **kwargs)
+
+    def __enter__(self, *args, **kwargs):
+        self._client = Client(
+            processes=False, silence_logs=ERROR, dashboard_address=None
+        )
+        self._client.__enter__(*args, **kwargs)
+
+    def __exit__(self, *args, **kwargs):
+        if self._client:
+            self._client.__exit__(*args, **kwargs)
+
+
+def compute_with_progress(*collection, gather=False):
+    """
+    Compute Dask collections, showing a progress bar, assuming a distributed client.
 
     Args:
-        collection:  A single Dask collection.
+        collection:  A Dask object or built-in collection of objects.
+        gather:      If true, return the computed result.
     """
-    (collection,) = dask.persist(collection)
-
-    # View progress only of the top layer of the task graph, which consists
-    # of the rate limiting make_images tasks, to avoid giving a false sense
-    # of rapid progress from the quick execution of the large number of
-    # other, cheaper tasks.
-    *_, top_layer = collection.dask.layers.values()
-    futures = list(top_layer.values())
-    print(progress(futures) or "")
+    collection = dask.persist(*collection)
+    print(progress(collection) or "")
 
     wait(collection)
+
+    return dask.compute(*collection, sync=True) if gather else None
