@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Iterable
 
 import dask
-import netCDF4  # noqa: Import prevents netCDF HDF5 read errors on some systems.
 import numpy as np
 import pandas as pd
 import xarray as xr
