@@ -29,6 +29,8 @@ steps:
 - script: |
     pip install pytest
     pip install pytest-cov
+
+    export HDF5_USE_FILE_LOCKING=FALSE
     python -m pytest -ra --cov=tristan --cov-report=xml --cov-branch
   displayName: Run tests
   workingDirectory: $(Pipeline.Workspace)/src
