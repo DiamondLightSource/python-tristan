@@ -4,6 +4,11 @@ Run a quick check to diagnose possible asynchronicity between the shutter timest
 
 from __future__ import annotations
 
+# Some platforms seem to raise OSError: [Errno -101] NetCDF: HDF error:
+# '/path/to/HDF5/file.h5'
+# Importing netCDF4 before h5py here seems to fix it.  ¯\_(ツ)_/¯
+import netCDF4  # noqa F401
+
 import argparse
 import logging
 import multiprocessing as mp
