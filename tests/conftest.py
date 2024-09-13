@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+# Some platforms seem to raise OSError: [Errno -101] NetCDF: HDF error:
+# '/tmp/pytest-of-vsts/pytest-0/dummy_data1/dummy_000001.h5'
+# Importing netCDF4 before h5py here seems to fix it.  ¯\_(ツ)_/¯
+from netCDF4 import Dataset  # noqa F401
+
 import os
 from contextlib import contextmanager
 from pathlib import Path

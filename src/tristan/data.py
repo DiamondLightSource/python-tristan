@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from netCDF4 import Dataset  # noqa F401
-
 import re
 from pathlib import Path
 from typing import Iterable
