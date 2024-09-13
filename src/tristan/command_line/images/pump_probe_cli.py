@@ -8,6 +8,11 @@ delay times, from shortest to longest.
 
 from __future__ import annotations
 
+# Some platforms seem to raise OSError: [Errno -101] NetCDF: HDF error:
+# '/path/to/HDF5/file.h5'
+# Importing netCDF4 before h5py here seems to fix it.  ¯\_(ツ)_/¯
+import netCDF4  # noqa F401
+
 import sys
 
 import h5py
