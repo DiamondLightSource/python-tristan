@@ -10,6 +10,9 @@ chunk addition to continue unimpeded.
 
 from __future__ import annotations
 
+import uuid
+from pathlib import Path
+
 import numpy as np
 import zarr
 from numcodecs.compat import ensure_ndarray_like
@@ -23,6 +26,43 @@ from zarr.indexing import (
 from zarr.util import NoLock, check_array_shape
 
 nolock = NoLock()
+
+
+def create_cache(output_file: Path | str, shape: tuple[int, ...]) -> zarr.Array:
+    """
+    Make a Zarr array of zeros, suitable for using as an image binning cache.
+
+    The array has the path "data" and has shape ``shape`` and is chunked by image, i.e.
+    the chunk shape will be ``(*(1,) * len(shape[:-2]), *shape[:-2])``.
+
+    The underlying store is a zarr.DirectoryStore, which is re-initialised with zero
+    values if there exists a store with the same name.  The chunks have thread-safe
+    locking.
+
+    Args:
+        output_file:  Output file name.  Any file extension will be replaced with .zarr.
+        shape:        The shape of the cache array.
+
+    Returns:
+        The Zarr array.
+    """
+    # Store in a zarr.TempStore, which will be torn down at exit.
+    output_file = Path(output_file)
+    unique = uuid.uuid4()
+    prefix = f"{output_file.stem}-{unique}"
+    store = zarr.TempStore(prefix=prefix, suffix=".zarr", dir=".")
+
+    chunks = *(1,) * len(shape[:-2]), *shape[-2:]
+    array = zarr.zeros(
+        store=store,
+        path="data",
+        shape=shape,
+        chunks=chunks,
+        dtype=np.int32,
+        overwrite=True,
+        synchronizer=zarr.ThreadSynchronizer(),
+    )
+    return IAddArray(store=array.store, path=array.path)
 
 
 class IAddArray(zarr.Array):

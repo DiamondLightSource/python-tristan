@@ -17,7 +17,7 @@ from hdf5plugin import Bitshuffle
 from nexgen.nxs_copy import copy_tristan_nexus
 
 from ... import WithLocalDistributedCluster, compute_with_progress
-from ...binning import create_cache, events_to_images, find_preceding_bin_edge
+from ...binning import events_to_images, find_preceding_bin_edge
 from ...data import (
     cue_keys,
     cue_times,
@@ -26,6 +26,7 @@ from ...data import (
     event_time_key,
     latrd_mf_data,
 )
+from ...storage import create_cache
 from .. import check_output_file, data_files, triggers
 from . import determine_image_size, exposure
 

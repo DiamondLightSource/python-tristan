@@ -28,7 +28,6 @@ from nexgen.nxs_copy import copy_tristan_nexus
 
 from ... import WithLocalDistributedCluster, compute_with_progress
 from ...binning import (
-    create_cache,
     event_block_to_image_cache,
     find_preceding_bin_edge,
     find_preceding_bin_edge_index,
@@ -49,6 +48,7 @@ from ...data import (
     time_bin_key,
     valid_events,
 )
+from ...storage import create_cache
 from .. import check_multiple_output_files, data_files, triggers
 from . import determine_image_size, exposure
 
