@@ -18,8 +18,6 @@ from typing import Literal
 
 import h5py
 import numpy as np
-import pandas as pd
-import sparse
 import zarr
 from dask import array as da
 from dask.diagnostics import ProgressBar
@@ -28,10 +26,9 @@ from nexgen.nxs_copy import copy_tristan_nexus
 
 from ... import WithLocalDistributedCluster, compute_with_progress
 from ...binning import (
-    event_block_to_image_cache,
+    events_to_images,
     find_preceding_bin_edge,
     find_preceding_bin_edge_index,
-    find_time_bins,
 )
 from ...data import (
     cue_keys,
@@ -41,12 +38,7 @@ from ...data import (
     event_time_dtype,
     event_time_key,
     find_start_end,
-    image_dtype,
     latrd_mf_data,
-    pixel_index,
-    pixel_index_key,
-    time_bin_key,
-    valid_events,
 )
 from ...storage import create_cache
 from .. import check_multiple_output_files, data_files, triggers
@@ -154,11 +146,6 @@ def bin_image_sequences(args):
     events_keys = event_time_key, event_location_key
     events_data = latrd_mf_data(raw_files, keys=events_keys)
 
-    # Consider only those events that occur between the start and end times.
-    events_data = valid_events(events_data, bins[0], bins[-1])
-    # Convert the event IDs to indices of pixels in the flattened array.
-    events_data = pixel_index(events_data, image_size)
-
     # Find the time elapsed since the most recent trigger signal.
     events_data = events_data.astype({event_time_key: int})
     pump_time = events_data[event_time_key].map_partitions(
@@ -174,30 +161,14 @@ def bin_image_sequences(args):
     valid_sequence &= events_data["sequence"] < num_intervals
     events_data = events_data[valid_sequence]
 
-    # Metadata for mapping find_time_bins across partitions.
-    columns = [time_bin_key, pixel_index_key, "sequence"]
-    dtypes = events_data.dtypes
-    dtypes[time_bin_key] = dtypes.pop(event_time_key)
-    meta = pd.DataFrame(columns=columns).astype(dtype=dtypes)
-    # Determine the image within each stack to which each event belongs.
-    events_data = events_data.map_partitions(find_time_bins, bins=bins, meta=meta)
-
     # Make a cache for the image sequence stack.
     shape = num_intervals, num_images, *image_size
     cache = create_cache(out_file_pattern, shape=shape)
 
-    # Dummy metadata for dask.array.map_blocks.
-    empty_coords = np.empty(shape=(len(shape), 0), dtype=int)
-    empty_coo = sparse.COO(empty_coords, data=image_dtype(()), shape=shape)
-
     # Set column order for binning.
-    columns = ["sequence", time_bin_key, pixel_index_key]
+    events_data = events_data[["sequence", event_time_key, event_location_key]]
+    images = events_to_images(events_data, bins, shape, cache)
 
-    # Bin to images, partition by partition.
-    coords = events_data[columns].values.T
-    images = coords.map_blocks(
-        event_block_to_image_cache, shape=shape, cache=cache, meta=empty_coo
-    )
     print("Computing the binned images.")
     compute_with_progress(images)
 
