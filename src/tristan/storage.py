@@ -60,9 +60,10 @@ def create_cache(output_file: Path | str, shape: tuple[int, ...]) -> zarr.Array:
         chunks=chunks,
         dtype=np.int32,
         overwrite=True,
-        synchronizer=zarr.ThreadSynchronizer(),
     )
-    return IAddArray(store=array.store, path=array.path)
+    return IAddArray(
+        store=array.store, path=array.path, synchronizer=zarr.ThreadSynchronizer()
+    )
 
 
 class IAddArray(zarr.Array):
@@ -72,6 +73,8 @@ class IAddArray(zarr.Array):
         """
         Add to a selection of individual items, by providing the indices (coordinates)
         for each item to be modified.
+
+        Borrows heavily from zarr.Array.set_coordinate_selection.
 
         Parameters
         ----------
