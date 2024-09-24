@@ -74,6 +74,8 @@ class IAddArray(zarr.Array):
         Add to a selection of individual items, by providing the indices (coordinates)
         for each item to be modified.
 
+        Borrows heavily from zarr.Array.set_coordinate_selection.
+
         Parameters
         ----------
         selection : tuple
