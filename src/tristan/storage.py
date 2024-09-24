@@ -60,9 +60,10 @@ def create_cache(output_file: Path | str, shape: tuple[int, ...]) -> zarr.Array:
         chunks=chunks,
         dtype=np.int32,
         overwrite=True,
-        synchronizer=zarr.ThreadSynchronizer(),
     )
-    return IAddArray(store=array.store, path=array.path)
+    return IAddArray(
+        store=array.store, path=array.path, synchronizer=zarr.ThreadSynchronizer()
+    )
 
 
 class IAddArray(zarr.Array):
