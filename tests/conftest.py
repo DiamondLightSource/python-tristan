@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+import os
+from contextlib import contextmanager
+from pathlib import Path
+
 # Some platforms seem to raise OSError: [Errno -101] NetCDF: HDF error:
 # '/path/to/HDF5/file.h5'
 # Importing netCDF4 before h5py here seems to fix it.  ¯\_(ツ)_/¯
 import netCDF4  # noqa F401
-
-import os
-from contextlib import contextmanager
-from pathlib import Path
 
 import h5py
 import numpy as np

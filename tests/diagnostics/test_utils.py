@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pytest
 
 from tristan.diagnostics.utils import define_modules, module_cooordinates

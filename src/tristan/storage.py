@@ -181,7 +181,7 @@ class IAddArray(zarr.Array):
         if (
             not hasattr(self.chunk_store, "setitems")
             or self._synchronizer is not None
-            or any(map(lambda x: x == 0, self.shape))
+            or any(x == 0 for x in self.shape)
         ):
             # iterative approach
             for chunk_coords, chunk_selection, out_selection in indexer:

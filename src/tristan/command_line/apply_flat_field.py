@@ -4,16 +4,16 @@
 
 from __future__ import annotations
 
-# Some platforms seem to raise OSError: [Errno -101] NetCDF: HDF error:
-# '/path/to/HDF5/file.h5'
-# Importing netCDF4 before h5py here seems to fix it.  ¯\_(ツ)_/¯
-import netCDF4  # noqa F401
-
 import argparse
 import pathlib
 import shutil
 import sys
 from operator import mul, truediv
+
+# Some platforms seem to raise OSError: [Errno -101] NetCDF: HDF error:
+# '/path/to/HDF5/file.h5'
+# Importing netCDF4 before h5py here seems to fix it.  ¯\_(ツ)_/¯
+import netCDF4  # noqa F401
 
 import h5py
 import hdf5plugin
@@ -85,9 +85,12 @@ def main(args: list[str] | None = None) -> None:
     write_mode = "w" if args.force else "x"
 
     try:
-        with h5py.File(args.input_file.with_suffix(".h5")) as f, h5py.File(
-            args.flat_field_file
-        ) as g, h5py.File(output_file, write_mode) as h, ProgressBar():
+        with (
+            h5py.File(args.input_file.with_suffix(".h5")) as f,
+            h5py.File(args.flat_field_file) as g,
+            h5py.File(output_file, write_mode) as h,
+            ProgressBar(),
+        ):
             images = da.from_array(f["data"])
             flat_field = g["image"]
             # Multiply or divide the images by the flat-field correction.
