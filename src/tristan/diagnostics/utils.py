@@ -44,7 +44,7 @@ class TristanConfig(str, Enum):
 
     @staticmethod
     def config_opts():
-        return list(map(lambda d: d.value, TristanConfig))
+        return [d.value for d in TristanConfig]
 
 
 TRISTAN_CONFIG = {"10M": (2, 5), "2M": (1, 2), "1M": (1, 1)}  # (H, V) -.> (fast, slow)
