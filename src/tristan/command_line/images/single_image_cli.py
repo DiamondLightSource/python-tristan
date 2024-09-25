@@ -4,13 +4,13 @@ Aggregate all the events from a LATRD Tristan data collection into a single imag
 
 from __future__ import annotations
 
+import sys
+from operator import mul
+
 # Some platforms seem to raise OSError: [Errno -101] NetCDF: HDF error:
 # '/path/to/HDF5/file.h5'
 # Importing netCDF4 before h5py here seems to fix it.  ¯\_(ツ)_/¯
 import netCDF4  # noqa F401
-
-import sys
-from operator import mul
 
 import h5py
 from dask import array as da
