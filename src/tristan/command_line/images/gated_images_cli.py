@@ -42,8 +42,6 @@ from ...storage import create_cache
 from .. import check_output_file, data_files, triggers
 from . import determine_image_size
 
-l = 1
-
 
 @WithLocalDistributedCluster()
 def main(args):
