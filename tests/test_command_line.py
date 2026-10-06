@@ -165,7 +165,7 @@ def test_input_file_action():
     namespace = argparse.Namespace()
     directory = "some/dummy/path/to"
     stem = "file_name"
-    action(argparse.ArgumentParser(), namespace, f"{directory}" f"/{stem}_meta.h5")
+    action(argparse.ArgumentParser(), namespace, f"{directory}/{stem}_meta.h5")
     assert namespace.data_dir == Path(directory).resolve()
     assert namespace.stem == stem
 
