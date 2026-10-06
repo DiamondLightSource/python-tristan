@@ -369,7 +369,7 @@ def log_only_requested_trigger_info(res: list[dict], trigger_request: list[str])
 
 def main(args):
     filepath = Path(args.visitpath).expanduser().resolve()
-    base = args.filename + f"_{6*'[0-9]'}.h5"
+    base = args.filename + f"_{6 * '[0-9]'}.h5"
 
     # Current working directory
     if args.output:

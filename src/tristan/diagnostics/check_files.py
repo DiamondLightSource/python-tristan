@@ -65,7 +65,7 @@ def setup_logging(wdir, filestem):
 
 def main(args):
     filepath = Path(args.visitpath).expanduser().resolve()
-    base = args.filename + f"_{6*'[0-9]'}.h5"
+    base = args.filename + f"_{6 * '[0-9]'}.h5"
 
     if args.output:
         savedir = Path(args.output).expanduser().resolve()
